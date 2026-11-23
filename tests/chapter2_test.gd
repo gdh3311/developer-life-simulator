@@ -11,6 +11,7 @@ var _profile := "prevent"
 var _terminal: Control
 var _ide: Control
 var _desktop: Control
+var _running := false
 
 
 func _ready() -> void:
@@ -102,6 +103,7 @@ func _run() -> void:
 	add_child(_ide)
 	_terminal.visible = false
 	_ide.visible = false
+	_running = true
 	if _stage == "before":
 		await before_restart()
 	elif _stage == "finale":
@@ -171,6 +173,8 @@ func before_restart() -> void:
 	check(RequestLab.save_plan(["request", "retries", "payment"]), "evidence-based reproduction plan is accepted")
 	if not await wait_until(func() -> bool: return active("c02_02"), "customer investigation unlocks reproduction"):
 		return
+	check(Game.state["flags"].get("c02_ask", "") == ("direct" if _profile == "recover" else "narrow"), "Yuri's first question is answered")
+	await wait_until(func() -> bool: return Game.state["chat"].any(func(m: Dictionary) -> bool: return "ORD-1044" in Game.tx(m["text"])), "asking the customer brings back the order number")
 	await command('git config user.name "Continuing Developer"')
 	await command("git config user.email continuing@example.invalid")
 	await command("git switch main")
@@ -199,6 +203,7 @@ func after_restart() -> void:
 	check(int(isolated.get("created", 0)) == 1, "disabling retry isolates the cause")
 	if not await wait_until(func() -> bool: return active("c02_03"), "controlled reproduction unlocks the fix"):
 		return
+	await wait_until(func() -> bool: return Story.active.data().has("policy_q"), "the policy question is offered before coding")
 	await command("git switch -c fix/sequential-requests")
 	var trust_before: Dictionary = Game.state["rel"].duplicate(true)
 	check(Story.next_hint() != "", "the fix has a usable policy hint")
@@ -269,15 +274,26 @@ func after_restart() -> void:
 # --- Days 6-7: logs, screen states, concurrency, rollout, customer reply -------------------
 
 const ANSWERS := {"c02_log": "minimal", "c02_states": "split", "c02_announce": "staged", "c02_retro": "rules", "c02_wrap": "note",
-	"c02_ledger": "ticket", "c02_questions": "try", "c02_mira": "doc"}
+	"c02_ledger": "ticket", "c02_questions": "try", "c02_mira": "doc", "c02_pair": "pair", "c02_pair_check": "atomic"}
+
+
+func _answer_for(key: String) -> String:
+	match key:
+		"c02_ask":
+			return "direct" if _profile == "recover" else "narrow"
+		"c02_policy_q":
+			return "ask" if _profile == "recover" else "skip"
+		"c02_payday":
+			return "save" if _profile == "recover" else "desk"
+	return ANSWERS.get(key, "")
 
 
 func _process(_delta: float) -> void:
-	if _stage != "finale":
+	if not _running:
 		return
 	for message in Game.state["chat"].duplicate():
-		if message["answered"] == "" and not message["choices"].is_empty() and ANSWERS.has(message["key"]):
-			Game.answer(int(message["id"]), ANSWERS[message["key"]])
+		if message["answered"] == "" and not message["choices"].is_empty() and _answer_for(String(message["key"])) != "":
+			Game.answer(int(message["id"]), _answer_for(String(message["key"])))
 			return
 
 
@@ -346,7 +362,11 @@ func finale() -> void:
 	check(Game.state["flags"].get("c02_states_agreed", false), "agreed screen states recorded for the Wiki")
 	if not await next_day_to(7):
 		return
-	check(Game.state["side"].has("c02_ledger") and Game.state["side"].has("c02_questions"), "day-6 side events happened")
+	check(Game.state["side"].has("c02_ledger") and Game.state["side"].has("c02_questions") and Game.state["side"].has("c02_payday"), "day-6 side events happened")
+	if _profile == "recover":
+		check(Game.state["flags"].get("c02_payday", "") == "save" and not Game.state["owned"].has("plant_big"), "saving the paycheck buys nothing")
+	else:
+		check(Game.state["owned"].has("plant_big"), "the first paycheck puts a plant on the desk")
 	# M06 - concurrency
 	if not await wait_until(func() -> bool: return active("c02_06"), "concurrency task starts on day 7"):
 		return
@@ -385,6 +405,9 @@ func finale() -> void:
 	if conc_pr.is_empty() or not await wait_until(func() -> bool: return conc_pr["state"] == "merged", "concurrency fix merged"):
 		print("C02_PR: ", JSON.stringify(conc_pr))
 		return
+	if _profile == "recover":
+		var c06 = Story.mission("c02_06")
+		check(c06.data().get("pair", "") == "pair" and c06.data().get("pair_explained", false), "a stalled player pairs with Daniel and explains the fix")
 	var fixed := await probe("slow", true, "current", "same", "concurrent")
 	check(int(fixed.get("created", 0)) == 1, "current code turns overlapping calls into one order")
 	# M07 - rollout

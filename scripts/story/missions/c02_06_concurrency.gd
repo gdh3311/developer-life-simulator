@@ -52,6 +52,13 @@ func begin() -> void:
 		return
 	say("daniel", t("키가 있는지 먼저 보는 것만으로는 안 돼요. 누가 먼저 맡았는지를 한 번에 정해야 해요. 저장소 쪽 약속(claim)을 보세요. Wiki에 정리해 뒀어요.",
 		"Checking whether the key exists isn't enough. Who claims it first has to be decided in one step. Look at the store's claim contract; it's in the Wiki."))
+	match Game.state["flags"].get("question_style", ""):
+		"now":
+			say("daniel", t("막히면 바로 불러요. 어제 그렇게 하기로 했죠?", "Call me as soon as you're stuck. That's what you said yesterday, right?"))
+		"try":
+			say("daniel", t("짧게 실험해 보고, 뭘 시도했는지 들고 오면 같이 봐요.", "Try a short experiment, then bring what you tried and we'll look together."))
+		"slot":
+			say("daniel", t("11시에 15분 잡아 둘게요. 질문 모아서 와요.", "I've blocked 15 minutes at 11. Bring your questions."))
 	resume()
 
 
@@ -106,6 +113,44 @@ func _check_done() -> void:
 	finish()
 
 
+## Long stalls: Daniel offers to pair. Failing runs never lower trust here.
+func _offer_pairing() -> void:
+	if int(data().get("red_runs", 0)) < 3 or is_done("concfix") and is_done("ci") or data().has("pair"):
+		return
+	if not once("_pair_offered"):
+		return
+	choice("daniel", t("조금 막힌 것 같네요. 15분만 같이 볼까요? 두 수정안을 나란히 놓고 비교해 봐요.", "Looks like you're a bit stuck. Want to pair for 15 minutes? We'll put two fixes side by side."),
+		"c02_pair", [
+			["pair", t("네, 같이 봐 주세요.", "Yes, please.")],
+			["alone", t("조금만 더 혼자 해 볼게요.", "Let me try a bit longer on my own.")]])
+
+
+func _on_pairing_choice(d: Dictionary) -> void:
+	match d.get("key", ""):
+		"c02_pair":
+			data()["pair"] = d["option"]
+			if d["option"] == "alone":
+				say("daniel", t("좋아요. 필요하면 언제든 불러요.", "Sure. Call me whenever."))
+				return
+			Game.advance(15)
+			Game.relate("daniel", {"close": 2})
+			say("daniel", t("A안: get으로 확인 → 없으면 create → set. B안: claim이 'new'를 준 쪽만 create → complete.\n두 요청이 동시에 오면 A안은 둘 다 get에서 '없음'을 봐요. B안은 claim이 한 번에 한 명만 'new'를 줘요. 나머지는 pending을 받아서 wait를 기다리고요.",
+				"Option A: get → create if missing → set. Option B: only the caller that gets 'new' from claim creates, then completes.\nWith two simultaneous calls, A lets both see 'missing' at get. B's claim hands 'new' to exactly one; the other gets pending and awaits wait."))
+			choice("daniel", t("그럼 자기 말로 한 줄만요. B안이 왜 동시에 와도 안전해요?", "In your own words, one line: why is B safe under concurrency?"), "c02_pair_check", [
+				["atomic", t("누가 맡을지 확인과 등록이 한 번에 일어나서요.", "Checking and registering who owns it happen in one step.")],
+				["fast", t("B안이 더 빨라서 겹칠 일이 줄어들어서요.", "B is faster, so overlaps happen less.")],
+				["retry", t("실패하면 다시 시도하니까요.", "Because it retries on failure.")]])
+		"c02_pair_check":
+			if d["option"] == "atomic":
+				data()["pair_explained"] = true
+				say("daniel", t("맞아요. 빠르기가 아니라 판정이 한 번이라서 안전한 거예요. 만들다 실패하면 release도 잊지 말고요.", "Right. It's safe because the decision happens once, not because it's fast. Don't forget release if create fails."))
+			else:
+				say("daniel", t("음, 속도나 재시도는 겹칠 확률만 바꿔요. 겹쳐도 한 명만 'new'를 받는다는 게 핵심이에요. 한 번 더요.", "Hm, speed or retries only change how often it overlaps. The key is that only one caller gets 'new' even when they overlap. Once more."))
+				choice("daniel", t("B안이 왜 동시에 와도 안전해요?", "Why is B safe under concurrency?"), "c02_pair_check", [
+					["atomic", t("누가 맡을지 확인과 등록이 한 번에 일어나서요.", "Checking and registering who owns it happen in one step.")],
+					["fast", t("B안이 더 빨라서 겹칠 일이 줄어들어서요.", "B is faster, so overlaps happen less.")]])
+
+
 func on_event(kind: String, d: Dictionary) -> void:
 	match kind:
 		"request_experiment":
@@ -113,6 +158,11 @@ func on_event(kind: String, d: Dictionary) -> void:
 		"tests":
 			if d.get("ok", false) and FileAccess.file_exists(Workspace.resolve("tests/requests_concurrent.test.ts")):
 				complete("concfix")
+			elif not d.get("ok", false) and is_done("repro"):
+				data()["red_runs"] = int(data().get("red_runs", 0)) + 1
+				_offer_pairing()
+		"choice":
+			_on_pairing_choice(d)
 		"file_saved":
 			if d.get("path", "") == "src/orders/request.ts" and data().get("verified_hash", "") != Workspace.read_file("src/orders/request.ts").sha256_text():
 				st()["obj"]["verified"] = false
@@ -120,6 +170,9 @@ func on_event(kind: String, d: Dictionary) -> void:
 		"ai_used":
 			data()["ai_used"] = true
 		"ci":
+			if int(d["pr"]) == int(data().get("pr", 0)) and not d["ok"]:
+				data()["red_runs"] = int(data().get("red_runs", 0)) + 2
+				_offer_pairing()
 			if int(d["pr"]) == int(data().get("pr", 0)) and not d["ok"] and data().get("ai_used", false) and once("_ai_note"):
 				say("ai", t("CI에서 제 초안이 '생성 중인 같은 키에 다른 내용' 검사에 실패했네요. 설명에 적은 대로 pending 상태의 내용 비교를 하지 않았습니다.",
 					"My draft failed CI's 'different contents while the key is being created' check. As stated, it didn't compare contents for a pending claim."))

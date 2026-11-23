@@ -14,6 +14,7 @@ const SCHEDULE := [
 	["d2_quiz", 2, 14 * 60, ""],
 	["d3_checkin", 3, 11 * 60, "d3_07"],
 	["d3_offer", 3, 15 * 60, ""],
+	["c02_payday", 6, 9 * 60 + 40, ""],
 	["c02_ledger", 6, 11 * 60 + 30, ""],
 	["c02_questions", 6, 16 * 60 + 30, ""],
 	["c02_mira", 7, 10 * 60 + 30, ""],
@@ -91,8 +92,17 @@ func fire(id: String) -> void:
 			_fire_chapter2(id)
 
 
+const PAYDAY := {"gear": ["light_bar", 45000], "desk": ["plant_big", 58000]}
+
+
 func _fire_chapter2(id: String) -> void:
 	match id:
+		"c02_payday":
+			_choice("mina", t("오늘 월급날이에요! 정규 업무 맡고 첫 월급이죠? 뭐 할 거예요?", "It's payday! Your first paycheck on real assignments, right? What are you doing with it?"), id, [
+				["gear", t("모니터 라이트바를 산다. 눈이 좀 덜 피곤하게.", "Buy a monitor light bar. Easier on the eyes.")],
+				["desk", t("책상에 몬스테라 화분을 들인다.", "Put a monstera plant on my desk.")],
+				["save", t("일단 저축. 통장이 든든해야죠.", "Save it. A solid account first.")],
+				["rest", t("주말에 쉬는 날 계획을 잡는다.", "Plan a proper day off this weekend.")]])
 		"c02_ledger":
 			_choice("yuri", t("고객이 보내 준 수작업 장부 예시예요. 구매자 정보는 지웠어요. 매일 저녁 주문 목록을 한 줄씩 대조하며 체크하셨대요.",
 				"Here's the customer's handwritten ledger, buyer details removed. Every evening they checked the order list line by line."), id, [
@@ -122,6 +132,20 @@ func on_event(kind: String, d: Dictionary) -> void:
 		return
 	var opt: String = d["option"]
 	match d["key"]:
+		"c02_payday":
+			Game.state["flags"]["c02_payday"] = opt
+			if PAYDAY.has(opt):
+				var item: String = PAYDAY[opt][0]
+				if not Game.state["owned"].has(item) and Game.money() >= int(PAYDAY[opt][1]):
+					Game.state["money"] = Game.money() - int(PAYDAY[opt][1])
+					Game.state["owned"][item] = true
+					Game.emit_event("purchase", {"id": item})
+				Game.say("sophie", t("오, 책상이 좀 달라졌네요!", "Ooh, your desk looks different!"), {"silent": true})
+			elif opt == "save":
+				Game.say("mina", t("현명하네요. 저는 키보드를 또 샀어요...", "Wise. I bought another keyboard..."), {"silent": true})
+			else:
+				Game.change_condition(10)
+				Game.say("daniel", t("좋아요. 쉬는 것도 일정에 넣어야 지켜지더라고요.", "Good. Rest only happens if it's on the calendar."), {"silent": true})
 		"c02_ledger":
 			if opt == "ticket":
 				Game.add_issue("NXR-031", Game.LL("주문 목록 자동 대조 (고객 장부 사례)", "Auto-reconcile the order list (from the customer's ledger)"), "idea", "Yuri", "todo")

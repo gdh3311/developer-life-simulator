@@ -32,6 +32,16 @@
 
 생성기 점검 중 영어 테스트 제목의 작은따옴표가 TypeScript 문법을 깨뜨려 Sophie의 수정 PR CI가 영원히 실패하는 문제를 발견해 고쳤다. 콘텐츠 48개 파일은 `python tools/gen_chapter2_content.py`로 다시 만든다.
 
+## 2차 보강: 대본의 남은 분기
+
+- **M01 Yuri의 첫 질문:** 기록으로 범위 좁히기 / 코드부터 보기 / 직접 묻기. 고객에게 묻는 두 선택은 잠시 뒤 고객의 주문 번호·시각·결제 알림 답신을 받는다. 업무 완료 조건은 바뀌지 않는다.
+- **M03 정책 빈칸 질문:** 같은 키에 다른 상품이 오면? Alex·Mina·Daniel의 짧은 합의 대화. 묻지 않아도 공개 테스트 예제로 같은 규칙을 알 수 있다.
+- **M06 Daniel 페어링:** 재현 뒤 실패한 테스트·CI가 쌓이면(CI 실패는 가중) Daniel이 15분 페어링을 제안한다. 두 수정안 비교 후 자기 말로 한 줄 설명을 확인하고, 틀리면 이유를 듣고 다시 고른다. 실패 횟수로 관계를 깎지 않는다.
+- **질문 습관:** 일차 6 저녁에 고른 방식에 따라 M06 시작 시 Daniel의 안내가 달라진다.
+- **첫 월급:** 일차 6 아침 라이트바 / 몬스테라 / 저축 / 쉬는 날. 물건은 기존 상점 아이템으로 방 장면에 보이고, 결과 화면에 한 줄로 남는다. 업무 성능에 필수인 구매는 없다.
+
+검증: chapter2 한국어 35 / 35 / 58, 영어 35 / 35 / 61, 실패 0. 한국어는 기록으로 범위 좁히기·질문 건너뛰기·몬스테라, 영어는 직접 묻기·정책 질문·저축·페어링(AI 초안 CI 실패로 제안됨)을 거친다. Yuri는 관계 수치를 따로 두지 않는다(기존 저장과 팀 평균 신뢰도 유지).
+
 ## 1차: 첫 구간 (M01~M03)
 
 챕터 1 완료 저장에서 챕터 2의 **고객 기록 조사 → 지연·재전송 재현 → 순차 중복 방지**로 이어지는 첫 3개 업무를 구현했다. 한국어 직접 수정 경로와 영어 AI 도움 경로의 신규 검사 **140개가 통과**했다. 기존 기능·챕터 1 두 경로·저장 복구 218개를 다시 검사해 이번 묶음은 **총 358개 확인 항목, 실패 0개**다. 마지막 실행 로그에 스크립트 오류와 종료 경고가 없다.
@@ -104,6 +114,7 @@ $godotPath = 'C:\path\to\Godot_v4.7.2-stable_win64_console.exe'
 & .\tools\run_gameplay_tests.ps1 -Godot $godotPath -Suite gameplay -Screenshots
 & .\tools\run_gameplay_tests.ps1 -Godot $godotPath -Suite chapter -Profile prevent
 & .\tools\run_gameplay_tests.ps1 -Godot $godotPath -Suite chapter -Profile recover
+& .\tools\run_gameplay_tests.ps1 -Godot $godotPath -Suite chapter -Profile resume
 & .\tools\run_gameplay_tests.ps1 -Godot $godotPath -Suite recovery
 ```
 

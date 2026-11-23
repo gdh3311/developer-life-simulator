@@ -29,6 +29,11 @@ func begin() -> void:
 	Game.add_issue(issue, title, "bug", Game.L("나", "me"), "progress")
 	say("daniel", t("같은 요청이면 같은 결과로 연결하는 걸 멱등성이라고 해요. 이번에는 순차 재전송부터 지킵시다. 동시 요청과 실제 고객 적용은 다음 확인이에요.", "Returning the same result for the same request is idempotency. Start with sequential resends. Concurrent calls and customer rollout are later checks."))
 	say("mina", t("정책과 공개 테스트가 같은 규칙을 설명해요. CI는 그 규칙의 입력을 넓혀 확인합니다. Lab에서는 '현재 작업 코드'를 골라 결과를 비교해 주세요.", "Policy and public tests describe the same contract. CI adds inputs within that contract. In Lab, choose Current working code to compare the result."))
+	if not data().has("policy_q") and not Game.pending_choice("c02_policy_q"):
+		choice("daniel", t("Wiki에 정책 초안 올려 뒀어요. 코드 보기 전에 궁금한 거 있으면 지금 물어봐요.", "The policy draft is in the Wiki. If anything's unclear, ask before you touch the code."),
+			"c02_policy_q", [
+				["ask", t("같은 키인데 상품이 바뀌면 새 주문으로 봐야 하나요?", "If the key is the same but the items change, is that a new order?")],
+				["skip", t("일단 테스트 예제로 확인해 볼게요.", "I'll check the test examples first.")]])
 	resume()
 
 
@@ -65,6 +70,16 @@ func _check_done() -> void:
 
 
 func on_event(kind: String, detail: Dictionary) -> void:
+	if kind == "choice" and detail.get("key", "") == "c02_policy_q":
+		data()["policy_q"] = detail["option"]
+		if detail["option"] == "ask":
+			Game.relate("daniel", {"agree": 2})
+			say("alex", t("고객 입장에서는 새 주문일 수도 있는데, 실수일 수도 있겠네요.", "From the customer's side it might be a new order, or it might be a mistake."))
+			say("mina", t("같은 키로 조용히 다른 주문이 생기면 추적이 안 돼요. 다른 키로 다시 요청하도록 구분하면 어떨까요?", "If a different order silently appears under the same key, we can't trace it. How about making them resend with a new key?"))
+			say("daniel", t("좋아요. 그건 REQUEST_CONFLICT로 돌려주고, 그 규칙을 API 예시에 같이 적죠.", "Good. Return REQUEST_CONFLICT for that, and put the rule in the API examples."))
+		else:
+			say("mina", t("좋아요. 같은 키에 다른 상품이 오는 경우도 공개 테스트 예제에 있어요.", "Sure. The same-key-different-items case is in the public test examples too."))
+		return
 	if kind == "request_experiment":
 		_observe(detail)
 	elif kind == "file_saved" and detail.get("path", "") == "src/orders/request.ts":

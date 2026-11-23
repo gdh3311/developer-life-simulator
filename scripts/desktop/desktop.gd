@@ -820,6 +820,7 @@ func _show_chapter2_ending() -> void:
 		UITheme.label(Game.L("고객 기록 → 재현 → 순차·동시 요청 계약 → 로그 · 화면 상태 → 제한 적용과 관찰 → 고객 답장", "Customer records → reproduction → sequential & concurrent contracts → logs · screen states → limited rollout → customer reply"), 14, UITheme.TEXT2),
 		UITheme.label(Game.L("관찰 담당 %s · 되돌림 %d회 · 답장 시도 %d회   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Observation owner %s · Rollbacks %d · Reply drafts %d   ·   Avg. team trust %d   ·   Balance %s") % [String(r.get("owner", "-")), int(r.get("rollbacks", 0)), int(reply.get("attempts", 0)), roundi(Game.avg_trust()), Game.won(Game.money())], 13, UITheme.MUTED),
 		UITheme.label(Game.L("커밋 %d · PR %d · CI 통과 %d / 실패 %d · 리뷰 %d", "Commits %d · PRs %d · CI %d green / %d red · Reviews %d") % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews")], 13, UITheme.MUTED),
+		UITheme.label(_payday_line(), 13, UITheme.TEXT2),
 		UITheme.label(Game.L("다음 이야기: LEGACY-17 · 예전 주문의 번호가 맞지 않는다 — 챕터 3 개발 중", "Next: LEGACY-17 · old orders whose IDs don't match — Chapter 3 in development"), 13, UITheme.WARN),
 	]:
 		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -833,6 +834,19 @@ func _show_chapter2_ending() -> void:
 		_day_transitioning = false
 		_end_day_btn.visible = true)
 	v.add_child(btn)
+
+
+func _payday_line() -> String:
+	match Game.state["flags"].get("c02_payday", ""):
+		"gear":
+			return Game.L("책상 위 새 라이트바가 오늘도 켜져 있다.", "The new light bar on your desk is still on.")
+		"desk":
+			return Game.L("책상 위 몬스테라가 조금 자랐다.", "The monstera on your desk has grown a little.")
+		"save":
+			return Game.L("첫 월급은 통장에 그대로 있다.", "Your first paycheck is sitting safely in the bank.")
+		"rest":
+			return Game.L("이번 주말은 쉬는 날로 비워 뒀다.", "This weekend is blocked off as a day off.")
+	return ""
 
 
 func _show_content_summary() -> void:
