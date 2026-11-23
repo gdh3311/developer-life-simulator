@@ -5,6 +5,7 @@ extends Control
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const Desktop := preload("res://scripts/desktop/desktop.gd")
 const Room := preload("res://scripts/room/room.gd")
+const SideScreen := preload("res://scripts/room/side_screen.gd")
 const ScreenShader := preload("res://shaders/screen.gdshader")
 
 const VIEW := Vector2(1920, 1080)
@@ -13,7 +14,13 @@ const SUPERSAMPLE := 2
 const BEZEL := 14.0
 const CHIN := 30.0
 const MONITOR_TOP := 120.0
-const FOCUS_SCALE := 1.45
+const FOCUS_SCALE := 1.45      # close-up: the screen fills the view
+const DESK_SCALE := 1.08       # default play view: monitor in front, desk and room around it
+const DESK_TOP := 40.0         # screen top edge in the desk view
+## Portrait side monitor (workstation tier 1+), right of the main monitor.
+const SIDE_SCREEN := Vector2(264, 470)
+const SIDE_BEZEL := 12.0
+const SIDE_POS := Vector2(1632, 300)
 
 var _rig: Control
 var _room: Control
@@ -21,6 +28,10 @@ var _screen_off: ColorRect
 var _led: ColorRect
 var _desktop: Control
 var _focused := false
+var _view := "room"            # room | desk | close
+var _close_up := false         # F2 preference while working
+var _side: Control             # side monitor rig (null below tier 1)
+var _tier := -1
 var _hint: Label
 var _fade: ColorRect
 var _shadow: Control
@@ -43,6 +54,13 @@ func _ready() -> void:
 	_rig.add_child(_room)
 	_build_monitor()
 	_build_props()
+	_update_workstation(true)
+	Game.state_reset.connect(func() -> void: _update_workstation(true))
+	# load_game() replaces the state and announces it through time_changed.
+	Game.time_changed.connect(func(_d: int, _m: int) -> void: _update_workstation(true))
+	Game.event.connect(func(kind: String, _d: Dictionary) -> void:
+		if kind == "promoted":
+			_update_workstation(false))
 	_add_vignette()
 	_shadow = _make_shadow()
 	add_child(_shadow)
@@ -57,7 +75,11 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key != null and key.pressed and not key.echo and key.keycode == KEY_F2:
-		_set_focus(not _focused)
+		if not _focused:
+			_set_focus(true)
+		else:
+			_close_up = not _close_up
+			_apply_view("close" if _close_up else "desk")
 		get_viewport().set_input_as_handled()
 
 
@@ -162,7 +184,7 @@ func _build_props() -> void:
 	steam.color_ramp = grad
 	_rig.add_child(steam)
 
-	_hint = UITheme.label("F2  ·  화면 가까이 보기 / 방 둘러보기", 13, Color("5c6370"))
+	_hint = UITheme.label("F2  ·  화면 가까이 보기 / 책상 보기", 13, Color("5c6370"))
 	_hint.position = Vector2(VIEW.x / 2.0 - 130, 1040)
 	_rig.add_child(_hint)
 
@@ -301,11 +323,107 @@ func morning_transition() -> void:
 	await get_tree().create_timer(0.5).timeout
 
 
-## Lean in so the screen fills the view, or lean back to see the room.
+## Sit at the desk (working view) or lean back to see the room.
 func _set_focus(on: bool) -> void:
 	_focused = on
-	var target_scale := FOCUS_SCALE if on else 1.0
-	var target_pos := Vector2(0, VIEW.y / 2.0 - _screen_center().y) if on else Vector2.ZERO
+	_apply_view(("close" if _close_up else "desk") if on else "room")
+
+
+## room: the whole office (scale 1). desk: the monitor in front with the desk, window and
+## props around it. close: the screen fills the view.
+func _apply_view(mode: String, instant := false) -> void:
+	_view = mode
+	var target_scale := 1.0
+	var target_pos := Vector2.ZERO
+	match mode:
+		"close":
+			target_scale = FOCUS_SCALE
+			target_pos = Vector2(0, VIEW.y / 2.0 - _screen_center().y)
+		"desk":
+			target_scale = DESK_SCALE
+			var c := _screen_center()
+			# Pivot is the screen center; keep the screen top just below the view's top edge.
+			target_pos = Vector2(-60.0 if _side != null else 0.0, DESK_TOP - (c.y - SCREEN.y / 2.0 * DESK_SCALE))
+	if instant:
+		_rig.scale = Vector2.ONE * target_scale
+		_rig.position = target_pos
+		return
 	var t := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	t.tween_property(_rig, "scale", Vector2.ONE * target_scale, 0.5)
 	t.parallel().tween_property(_rig, "position", target_pos, 0.5)
+
+
+func view_mode() -> String:
+	return _view
+
+
+# --- Workstation tiers ------------------------------------------------------------
+## 0 intern: one monitor · 1 junior: + portrait side monitor · 2+: desk mat and nameplate.
+static func tier_for(rank: int) -> int:
+	return clampi(rank, 0, 2)
+
+
+func _update_workstation(silent: bool) -> void:
+	var tier := tier_for(int(Game.state.get("rank", 0)))
+	if tier == _tier:
+		return
+	var upgraded := _tier >= 0 and tier > _tier
+	_tier = tier
+	_room.tier = tier
+	_room.queue_redraw()
+	if tier >= 1 and _side == null:
+		_build_side_monitor()
+	elif tier < 1 and _side != null:
+		_side.queue_free()
+		_side = null
+	if _focused:
+		_apply_view(_view)
+	if upgraded and not silent:
+		Game.notify("tasks", Game.L("워크스테이션 업그레이드", "Workstation upgrade"),
+			Game.L("보조 모니터가 설치됐습니다. 업무 상태가 오른쪽 화면에 표시됩니다.", "A side monitor was installed. Your work status shows on the right.") if tier == 1
+			else Game.L("모니터 암과 데스크 매트, 명패가 생겼습니다.", "You got a monitor arm, a desk mat and a nameplate."))
+
+
+func _build_side_monitor() -> void:
+	_side = Control.new()
+	_side.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rig.add_child(_side)
+	_rig.move_child(_side, _room.get_index() + 1)
+	var frame_size := SIDE_SCREEN + Vector2(SIDE_BEZEL * 2.0, SIDE_BEZEL * 2.0)
+	_room.side_rect = Rect2(SIDE_POS, frame_size)
+	var frame := Panel.new()
+	var sb := UITheme.box(Color("16181d"), 10, Color("2b2e36"), 0, 2, 0)
+	sb.shadow_size = 30
+	sb.shadow_color = Color(0, 0, 0, 0.5)
+	sb.shadow_offset = Vector2(0, 10)
+	frame.add_theme_stylebox_override("panel", sb)
+	frame.position = SIDE_POS
+	frame.size = frame_size
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_side.add_child(frame)
+	var container := SubViewportContainer.new()
+	container.stretch = false
+	container.position = SIDE_POS + Vector2(SIDE_BEZEL, SIDE_BEZEL)
+	container.size = SIDE_SCREEN * SUPERSAMPLE
+	container.scale = Vector2.ONE / SUPERSAMPLE
+	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	var vp := SubViewport.new()
+	vp.size = Vector2i(SIDE_SCREEN * SUPERSAMPLE)
+	vp.size_2d_override = Vector2i(SIDE_SCREEN)
+	vp.size_2d_override_stretch = true
+	vp.gui_disable_input = true
+	container.add_child(vp)
+	_side.add_child(container)
+	var screen := SideScreen.new()
+	screen.theme = theme
+	screen.size = SIDE_SCREEN
+	vp.add_child(screen)
+	var fx := ColorRect.new()
+	var mat := ShaderMaterial.new()
+	mat.shader = ScreenShader
+	fx.material = mat
+	fx.position = container.position
+	fx.size = SIDE_SCREEN
+	fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_side.add_child(fx)

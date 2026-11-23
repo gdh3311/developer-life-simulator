@@ -7,6 +7,8 @@ const VIEW := Vector2(1920, 1080)
 var monitor_rect := Rect2()   # outer frame of the monitor (set by main)
 var screen_glow := 0.0        # 0..1, monitor light on the desk/wall
 var time_override := -1.0     # minutes; set during day transitions
+var tier := 0                 # workstation tier (0 intern, 1 side monitor, 2 desk mat + nameplate)
+var side_rect := Rect2()      # outer frame of the side monitor (tier 1+)
 var _buildings: Array = []    # [x, w, h, lit windows seed]
 var _rng := RandomNumberGenerator.new()
 
@@ -69,8 +71,8 @@ func _draw() -> void:
 
 	# Desk
 	var desk_y := 900.0
-	_vgradient(Rect2(-400, desk_y, VIEW.x + 800, 600), Color("2a1f17"), Color("120d0a"))
-	draw_rect(Rect2(-400, desk_y, VIEW.x + 800, 4), Color("3b2c20"))
+	_vgradient(Rect2(-400, desk_y, VIEW.x + 800, 600), Color("3d2c20"), Color("1a130e"))
+	draw_rect(Rect2(-400, desk_y, VIEW.x + 800, 4), Color("5a4331"))
 	draw_rect(Rect2(-400, desk_y + 4, VIEW.x + 800, 2), Color(0, 0, 0, 0.35))
 
 	# Monitor light pooling on the desk
@@ -82,7 +84,10 @@ func _draw() -> void:
 		_draw_neon(Vector2(1700, 120))
 	if _owns("plant_big"):
 		_draw_monstera(Vector2(1830, 1000))
-	_draw_lamp(Vector2(1640, desk_y), day)
+	if tier < 1:
+		_draw_lamp(Vector2(1640, desk_y), day)
+	if tier >= 2:
+		_draw_desk_mat(desk_y)
 	_draw_plant(Vector2(250, desk_y))
 	_draw_mug(Vector2(420, desk_y))
 	if _owns("coffee_machine"):
@@ -93,6 +98,10 @@ func _draw() -> void:
 		_draw_figure(Vector2(1380, desk_y))
 	if _owns("headphones"):
 		_draw_headphones(Vector2(1500, desk_y))
+	if tier >= 2:
+		_draw_nameplate(Vector2(VIEW.x / 2.0 - 470, desk_y + 120))
+	if tier >= 1 and side_rect.size != Vector2.ZERO:
+		_draw_side_stand(day)
 	if monitor_rect.size != Vector2.ZERO:
 		_draw_stand()
 		if _owns("light_bar"):
@@ -236,6 +245,29 @@ func _draw_stand() -> void:
 	draw_colored_polygon(PackedVector2Array([Vector2(cx - 40, y - 4), Vector2(cx + 40, y - 4), Vector2(cx + 50, 900 - 10), Vector2(cx - 50, 900 - 10)]), Color("20232b"))
 	draw_rect(Rect2(cx - 160, 888, 320, 14), Color("272b34"))
 	draw_rect(Rect2(cx - 160, 888, 320, 3), Color("353a46"))
+
+
+func _draw_side_stand(day: float) -> void:
+	var cx := side_rect.get_center().x
+	var y := side_rect.end.y
+	draw_colored_polygon(PackedVector2Array([Vector2(cx - 18, y - 4), Vector2(cx + 18, y - 4), Vector2(cx + 26, 900 - 8), Vector2(cx - 26, 900 - 8)]), Color("20232b"))
+	draw_rect(Rect2(cx - 90, 890, 180, 12), Color("272b34"))
+	draw_rect(Rect2(cx - 90, 890, 180, 3), Color("353a46"))
+	if screen_glow > 0.0:
+		_radial(Vector2(cx, 905), Vector2(220, 50), Color(0.45, 0.6, 1.0, 0.12 * screen_glow))
+
+
+func _draw_desk_mat(desk_y: float) -> void:
+	var r := Rect2(VIEW.x / 2.0 - 620, desk_y + 18, 1240, 150)
+	draw_rect(r, Color("1c2433"))
+	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 3), Color("23262e"))
+
+
+func _draw_nameplate(base: Vector2) -> void:
+	var font := get_theme_default_font()
+	draw_colored_polygon(PackedVector2Array([base + Vector2(-90, 0), base + Vector2(90, 0), base + Vector2(80, -44), base + Vector2(-80, -44)]), Color("2c2a26"))
+	draw_rect(Rect2(base.x - 74, base.y - 38, 148, 30), Color("c9a86a"))
+	draw_string(font, base + Vector2(-68, -17), Game.pname(), HORIZONTAL_ALIGNMENT_CENTER, 136, 15, Color("2c2a26"))
 
 
 func _draw_neon(p: Vector2) -> void:
