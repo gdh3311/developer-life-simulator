@@ -39,7 +39,8 @@ func _ready() -> void:
 	_build_dock()
 	_build_toasts()
 	_build_boot_screen()
-	Game.time_changed.connect(func(_d: int, _m: int) -> void: _clock.text = Game.clock_text())
+	Game.time_changed.connect(func(_d: int, _m: int) -> void: _clock.text = Game.clock_text() + "  ")
+	Game.message.connect(notify)
 
 
 ## Clicking anywhere on a window brings it to the front.
@@ -112,13 +113,17 @@ func notify(app_id: String, title: String, body: String) -> void:
 			_dismiss(card)
 	)
 	card.modulate.a = 0.0
+	# Keep at most 4 visible: drop the oldest.
+	var live := _toasts.get_children().filter(func(c: Node) -> bool: return not c.is_queued_for_deletion())
+	if live.size() >= 4:
+		live[0].queue_free()
 	_toasts.add_child(card)
 	create_tween().tween_property(card, "modulate:a", 1.0, 0.25)
 	get_tree().create_timer(7.0).timeout.connect(_dismiss.bind(card))
 
 
-func _dismiss(card: Control) -> void:
-	if not is_instance_valid(card) or card.is_queued_for_deletion():
+func _dismiss(card) -> void:  # untyped: the card may already be freed
+	if not is_instance_valid(card) or (card as Node).is_queued_for_deletion():
 		return
 	var t := create_tween()
 	t.tween_property(card, "modulate:a", 0.0, 0.2)
@@ -134,12 +139,17 @@ func boot() -> void:
 		"Memory: 32768 MB ................... OK",
 		"Storage: NVMe 1TB .................. OK",
 		"Network: corp-lan .................. CONNECTED",
-		"",
-		"Booting WORKSTATION OS...",
 	]
 	for line in lines:
 		_boot_log.text += str(line) + "\n"
 		await get_tree().create_timer(0.16).timeout
+	_boot_log.text += "Mounting workspace ~/commerce-api ... "
+	var ws := await Workspace.prepare()
+	_boot_log.text += ("OK" if ws["ok"] else "FAILED") + "\n\n"
+	if not ws["ok"]:
+		_boot_log.text += "[!] %s\n" % ws["message"]
+		await get_tree().create_timer(2.0).timeout
+	_boot_log.text += "Booting WORKSTATION OS...\n"
 	await get_tree().create_timer(0.4).timeout
 	var t := create_tween()
 	t.tween_property(_boot_log, "modulate:a", 0.0, 0.3)

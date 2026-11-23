@@ -1,26 +1,18 @@
 extends RefCounted
 ## Content builders for each in-game application.
-## Placeholder content for the Vertical Slice; real Git / Code Runner hooks come next.
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 
-const SAMPLE_CODE := """type User = {
-  firstName?: string | null;
-  lastName?: string | null;
-};
-
-export function getDisplayName(user: User): string {
-  return `${user.firstName} ${user.lastName}`;
-}
-"""
+const IdeApp := preload("res://scripts/desktop/ide_app.gd")
+const TerminalApp := preload("res://scripts/desktop/terminal_app.gd")
 
 
 static func build(id: String) -> Control:
 	match id:
 		"ide":
-			return _ide()
+			return IdeApp.new()
 		"terminal":
-			return _terminal()
+			return TerminalApp.new()
 		"chat":
 			return _chat()
 		"tasks":
@@ -28,139 +20,6 @@ static func build(id: String) -> Control:
 		"wiki":
 			return _wiki()
 	return _placeholder("AICode 에이전트\n\nEarly Access에서 활성화됩니다.\nAI 없이도 모든 업무를 끝까지 진행할 수 있어요.")
-
-
-# --- DevIDE -----------------------------------------------------------------
-
-static func _ide() -> Control:
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 0)
-	var split := HSplitContainer.new()
-	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	v.add_child(split)
-
-	var tree := Tree.new()
-	tree.custom_minimum_size.x = 190
-	tree.hide_root = true
-	tree.add_theme_stylebox_override("panel", UITheme.box(Color("161a21"), 0, Color(0, 0, 0, 0), 6))
-	var root := tree.create_item()
-	var repo := tree.create_item(root)
-	repo.set_text(0, "commerce-api")
-	var src := tree.create_item(repo)
-	src.set_text(0, "src")
-	for folder in ["auth", "orders", "payments"]:
-		tree.create_item(src).set_text(0, folder)
-	var users := tree.create_item(src)
-	users.set_text(0, "users")
-	var file := tree.create_item(users)
-	file.set_text(0, "displayName.ts")
-	file.select(0)
-	var tests := tree.create_item(repo)
-	tests.set_text(0, "tests")
-	tree.create_item(tests).set_text(0, "displayName.test.ts")
-	tree.create_item(repo).set_text(0, "package.json")
-	tree.create_item(repo).set_text(0, "README.md")
-	split.add_child(tree)
-
-	var code := CodeEdit.new()
-	code.text = SAMPLE_CODE
-	code.gutters_draw_line_numbers = true
-	code.highlight_current_line = true
-	code.indent_size = 2
-	code.syntax_highlighter = _ts_highlighter()
-	code.add_theme_font_override("font", UITheme.font(true))
-	code.add_theme_font_size_override("font_size", 14)
-	code.add_theme_stylebox_override("normal", UITheme.box(Color("12151b"), 0, Color(0, 0, 0, 0), 8))
-	code.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	code.add_theme_color_override("font_color", Color("d4d8de"))
-	code.add_theme_color_override("current_line_color", Color(1, 1, 1, 0.04))
-	code.add_theme_color_override("line_number_color", Color("4b5263"))
-	split.add_child(code)
-
-	var status := PanelContainer.new()
-	status.add_theme_stylebox_override("panel", UITheme.box(Color("1d4ed8"), 0, Color(0, 0, 0, 0), 3))
-	status.add_child(UITheme.label("  main   ·   src/users/displayName.ts   ·   TypeScript   ·   UTF-8", 11, Color("e6ecff")))
-	v.add_child(status)
-	return v
-
-
-static func _ts_highlighter() -> CodeHighlighter:
-	var h := CodeHighlighter.new()
-	h.number_color = Color("d19a66")
-	h.symbol_color = Color("abb2bf")
-	h.function_color = Color("61afef")
-	h.member_variable_color = Color("e06c75")
-	for k in ["type", "export", "function", "return", "const", "let", "if", "else", "async", "await",
-			"import", "from", "new", "throw", "null", "undefined", "true", "false"]:
-		h.add_keyword_color(k, Color("c678dd"))
-	for k in ["string", "number", "boolean", "void"]:
-		h.add_keyword_color(k, Color("e5c07b"))
-	h.add_color_region("\"", "\"", Color("98c379"))
-	h.add_color_region("'", "'", Color("98c379"))
-	h.add_color_region("`", "`", Color("98c379"))
-	h.add_color_region("//", "", Color("5c6370"), true)
-	return h
-
-
-# --- Terminal ---------------------------------------------------------------
-
-static func _terminal() -> Control:
-	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", UITheme.box(Color("0c0e12"), 0, Color(0, 0, 0, 0), 10))
-	var v := VBoxContainer.new()
-	panel.add_child(v)
-
-	var out := RichTextLabel.new()
-	out.bbcode_enabled = true
-	out.scroll_following = true
-	out.selection_enabled = true
-	out.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	out.add_theme_font_override("normal_font", UITheme.font(true))
-	out.add_theme_font_size_override("normal_font_size", 14)
-	out.text = "[color=#7c8698]WORKSTATION OS terminal — 'help' 를 입력해 보세요.[/color]\n"
-	v.add_child(out)
-
-	var row := HBoxContainer.new()
-	row.add_child(UITheme.label("~/commerce-api $", 14, Color("3ddc84"), true))
-	var input := LineEdit.new()
-	input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	input.flat = true
-	input.add_theme_font_override("font", UITheme.font(true))
-	input.add_theme_font_size_override("font_size", 14)
-	input.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	input.text_submitted.connect(func(cmd: String) -> void:
-		input.clear()
-		out.append_text("[color=#3ddc84]$[/color] %s\n" % cmd.replace("[", "[lb]"))
-		var reply := _fake_shell(cmd.strip_edges())
-		if reply == "__clear__":
-			out.clear()
-		elif reply != "":
-			out.append_text(reply + "\n")
-	)
-	input.tree_entered.connect(func() -> void: input.call_deferred("grab_focus"))
-	row.add_child(input)
-	v.add_child(row)
-	return panel
-
-
-## Temporary canned responses until the real Git service is wired in.
-static func _fake_shell(cmd: String) -> String:
-	match cmd:
-		"":
-			return ""
-		"help":
-			return "사용 가능: git status, git branch, git log, ls, clear\n[color=#7c8698](실제 Git 연동은 기술 검증 단계에서 붙습니다)[/color]"
-		"ls":
-			return "README.md  package.json  src/  tests/"
-		"git status":
-			return "On branch main\nYour branch is up to date with 'origin/main'.\n\nnothing to commit, working tree clean"
-		"git branch":
-			return "* main"
-		"git log":
-			return "[color=#e5c07b]commit 9f2c1ab[/color] (HEAD -> main, origin/main)\nAuthor: Daniel Park\n\n    feat: add profile page"
-		"clear":
-			return "__clear__"
-	return "[color=#e06c75]command not found:[/color] " + cmd.replace("[", "[lb]")
 
 
 # --- TeamChat ---------------------------------------------------------------
@@ -251,6 +110,8 @@ static func _tasks() -> Control:
 		v.add_child(UITheme.label("%s  (%d)" % [column, board[column].size()], 13, Color("8a93a5")))
 		for card in board[column]:
 			v.add_child(_task_card(card[0], card[1], card[2], card[3]))
+			if card[0] == "#001":
+				v.add_child(_checklist())
 		panel.add_child(v)
 		cols.add_child(panel)
 	return pad
@@ -267,6 +128,16 @@ static func _task_card(id: String, title: String, kind: String, owner: String) -
 	v.add_child(UITheme.label("%s · 담당: %s" % [kind, owner], 11, tag_color))
 	card.add_child(v)
 	return card
+
+
+static func _checklist() -> Control:
+	var box := VBoxContainer.new()
+	for o in Game.objectives:
+		var done: bool = o["done"]
+		var l := UITheme.label(("  ✓ " if done else "  ○ ") + String(o["text"]), 12,
+				Color("3ddc84") if done else Color("9aa4b5"))
+		box.add_child(l)
+	return box
 
 
 # --- Wiki -------------------------------------------------------------------
@@ -296,6 +167,14 @@ static func _wiki() -> Control:
 [b][color=#22c3c3]협업 규칙[/color][/b]
   • main에 직접 push 금지. 브랜치 → PR → 리뷰 승인 후 병합.
   • 버그 수정 PR에는 회귀 테스트를 포함한다.
+
+[b][color=#22c3c3]신입 온보딩: 작업 흐름[/color][/b]
+  1. 테스트로 문제 확인: [code]npm test[/code]
+  2. 작업 브랜치 만들기: [code]git switch -c fix/display-name[/code]
+  3. DevIDE에서 코드 수정 후 [code]Ctrl+S[/code]
+  4. 다시 [code]npm test[/code]
+  5. 커밋: [code]git add .[/code] → [code]git commit -m "fix: ..."[/code]
+  6. 올리기: [code]git push -u origin fix/display-name[/code]
 """
 	return r
 

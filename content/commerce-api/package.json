@@ -1,0 +1,10 @@
+{
+  "name": "commerce-api",
+  "version": "0.14.2",
+  "private": true,
+  "type": "module",
+  "description": "NEXORA Commerce Cloud backend",
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/"
+  }
+}
