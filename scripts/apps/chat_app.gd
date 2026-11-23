@@ -1,0 +1,157 @@
+extends HSplitContainer
+## TeamChat: #general + DMs with teammates. Some messages offer reply choices.
+
+const UITheme := preload("res://scripts/ui/ui_theme.gd")
+
+var _channel := "general"
+var _list: VBoxContainer
+var _header: VBoxContainer
+var _msgs: VBoxContainer
+var _scroll: ScrollContainer
+
+
+func _ready() -> void:
+	split_offset = 210
+	add_theme_constant_override("separation", 0)
+	var left := UITheme.panel(UITheme.BG0, 0, 8, Color(0, 0, 0, 0))
+	left.custom_minimum_size.x = 200
+	_list = UITheme.vbox(2)
+	left.add_child(_list)
+	add_child(left)
+
+	var right := UITheme.vbox(0)
+	_header = UITheme.vbox(6)
+	right.add_child(UITheme.margin(_header, 12))
+	var line := ColorRect.new()
+	line.color = UITheme.LINE
+	line.custom_minimum_size.y = 1
+	right.add_child(line)
+	_msgs = UITheme.vbox(14)
+	_scroll = UITheme.scroll(UITheme.margin(_msgs, 14))
+	right.add_child(_scroll)
+	add_child(right)
+
+	Game.chat_added.connect(func(m: Dictionary) -> void:
+		if m["channel"] == _channel:
+			Game.mark_read(_channel)
+		_render())
+	Game.chat_updated.connect(_render)
+	Game.relation_changed.connect(func(_n: String, _k: String, _d: int) -> void: _render_header())
+	# Open the channel with unread messages first.
+	for ch in Game.state["unread"]:
+		if int(Game.state["unread"][ch]) > 0:
+			_channel = ch
+			break
+	Game.mark_read(_channel)
+	_render()
+
+
+func _channels() -> Array:
+	var result := [["general", "# general"]]
+	for npc in ["alex", "daniel", "mina", "sophie", "ai"]:
+		result.append(["dm:" + npc, Game.npc_name(npc)])
+	return result
+
+
+func _render() -> void:
+	UITheme.clear(_list)
+	_list.add_child(UITheme.label("  채널", 11, UITheme.MUTED))
+	for ch in _channels():
+		var id: String = ch[0]
+		var b := Button.new()
+		b.flat = id != _channel
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.focus_mode = Control.FOCUS_NONE
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		b.add_theme_stylebox_override("normal", UITheme.box(UITheme.ACCENT.darkened(0.55) if id == _channel else Color(0, 0, 0, 0), 6, Color(0, 0, 0, 0), 6))
+		b.add_theme_stylebox_override("hover", UITheme.box(Color(1, 1, 1, 0.05), 6, Color(0, 0, 0, 0), 6))
+		var unread := int(Game.state["unread"].get(id, 0))
+		b.text = "%s%s" % [ch[1], ("   (%d)" % unread) if unread > 0 and id != _channel else ""]
+		b.add_theme_color_override("font_color", UITheme.TEXT if unread > 0 or id == _channel else UITheme.TEXT2)
+		b.pressed.connect(func() -> void:
+			_channel = id
+			Game.mark_read(id)
+			_render())
+		_list.add_child(b)
+		if id == "general":
+			_list.add_child(UITheme.label("  다이렉트 메시지", 11, UITheme.MUTED))
+	_render_header()
+	UITheme.clear(_msgs)
+	var any := false
+	for m in Game.state["chat"]:
+		if m["channel"] != _channel:
+			continue
+		any = true
+		_msgs.add_child(_message(m))
+	if not any:
+		_msgs.add_child(UITheme.label("아직 메시지가 없습니다.", 13, UITheme.MUTED))
+	await get_tree().process_frame
+	if is_instance_valid(_scroll):
+		_scroll.scroll_vertical = int(_scroll.get_v_scroll_bar().max_value)
+
+
+func _render_header() -> void:
+	UITheme.clear(_header)
+	if _channel == "general":
+		_header.add_child(UITheme.bold("# general", 16))
+		_header.add_child(UITheme.label("NEXORA 개발팀 전체 채널", 12, UITheme.MUTED))
+		return
+	var npc := _channel.substr(3)
+	var row := UITheme.hbox(10)
+	row.add_child(UITheme.avatar(npc, 36))
+	var v := UITheme.vbox(0)
+	v.add_child(UITheme.bold(Game.npc_name(npc), 15))
+	v.add_child(UITheme.label(Game.NPCS[npc]["role"], 12, UITheme.MUTED))
+	row.add_child(v)
+	row.add_child(UITheme.spacer())
+	if Game.state["rel"].has(npc):
+		var grid := GridContainer.new()
+		grid.columns = 4
+		grid.add_theme_constant_override("h_separation", 8)
+		grid.add_theme_constant_override("v_separation", 2)
+		for key in Game.REL_KEYS:
+			grid.add_child(UITheme.label(Game.REL_KEYS[key], 10, UITheme.MUTED))
+			grid.add_child(UITheme.bar(Game.rel(npc, key), Game.npc_color(npc), 60))
+		row.add_child(grid)
+	_header.add_child(row)
+
+
+func _message(m: Dictionary) -> Control:
+	var mine: bool = m["from"] == "me"
+	var row := UITheme.hbox(10)
+	if mine:
+		row.alignment = BoxContainer.ALIGNMENT_END
+		row.add_child(UITheme.spacer())
+	else:
+		row.add_child(UITheme.avatar(m["from"], 32))
+	var col := UITheme.vbox(4)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL if not mine else Control.SIZE_SHRINK_END
+	if not mine:
+		var head := UITheme.hbox(8)
+		head.add_child(UITheme.bold(Game.npc_name(m["from"]), 13, Game.npc_color(m["from"]).lightened(0.3)))
+		head.add_child(UITheme.label(m["time"], 11, UITheme.MUTED))
+		col.add_child(head)
+	var bubble := PanelContainer.new()
+	bubble.add_theme_stylebox_override("panel", UITheme.box(UITheme.ACCENT.darkened(0.35) if mine else UITheme.BG3, 10, Color(0, 0, 0, 0), 10))
+	var text := UITheme.label(m["text"], 14, UITheme.TEXT)
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.custom_minimum_size.x = 120 if mine else 0
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bubble.add_child(text)
+	if mine:
+		bubble.custom_minimum_size.x = mini(m["text"].length() * 9 + 30, 420)
+	col.add_child(bubble)
+	var choices: Array = m["choices"]
+	if not choices.is_empty() and m["answered"] == "":
+		var opts := UITheme.vbox(6)
+		for c in choices:
+			var b := UITheme.button(c["label"], "primary")
+			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+			var mid := int(m["id"])
+			var cid: String = c["id"]
+			b.pressed.connect(func() -> void: Game.answer(mid, cid))
+			opts.add_child(b)
+		col.add_child(opts)
+	row.add_child(col)
+	return row

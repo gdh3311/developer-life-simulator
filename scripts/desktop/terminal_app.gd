@@ -3,11 +3,13 @@ extends PanelContainer
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const HELP := """[color=#9aa4b5]명령어[/color]
-  git <...>        실제 Git 명령 (status, switch -c, add, commit -m, push, log ...)
+  git <...>        Git 명령 (status, switch -c, add, commit -m, push, pull, log, blame, diff ...)
   npm test         테스트 실행 (test 로 줄여 써도 됨)
   ls [경로]         파일 목록
   cat <파일>        파일 내용 보기
-  pwd / clear / help"""
+  touch <파일>      빈 파일 만들기        mkdir <폴더>   폴더 만들기
+  pwd / whoami / clear / help
+[color=#6f7a8c]↑/↓ 로 이전 명령을 불러올 수 있어요.[/color]"""
 
 var _out: RichTextLabel
 var _prompt: Label
@@ -52,7 +54,7 @@ func _ready() -> void:
 
 
 func _update_prompt() -> void:
-	_prompt.text = "~/commerce-api (%s) $" % Workspace.branch
+	_prompt.text = "newhire@nexora:~/commerce-api (%s)$" % Workspace.branch
 
 
 func _print(bbcode: String) -> void:
@@ -101,25 +103,40 @@ func _execute(argv: PackedStringArray) -> void:
 		_print("[color=#e06c75]워크스페이스가 준비되지 않았습니다.[/color]")
 		return
 	var cmd := argv[0]
+	Game.emit_event("cmd", {"argv": Array(argv)})
 	match cmd:
 		"help":
 			_print(HELP)
 		"clear":
 			_out.clear()
 		"pwd":
-			_print(_esc(Workspace.repo))
+			_print(Workspace.V_REPO)
+		"whoami":
+			_print("newhire  (New Hire · %s · NEXORA)" % Game.rank_name())
+		"cd":
+			_print("[color=#7c8698]이 터미널은 ~/commerce-api 저장소에서 동작합니다.[/color]")
 		"ls":
 			_ls(argv[1] if argv.size() > 1 else "")
 		"cat":
 			_cat(argv[1] if argv.size() > 1 else "")
+		"touch", "mkdir":
+			await _make(cmd, argv[1] if argv.size() > 1 else "")
 		"git":
-			var r := await Workspace.git(Array(argv.slice(1)))
+			var args: Array = Array(argv.slice(1)).map(func(a: String) -> String:
+				return Workspace.devirtualize(a) if a.begins_with(Workspace.V_REPO) or a.begins_with("~/") else a)
+			var why := Workspace.check_git_args(args)
+			if why != "":
+				_print("[color=#f5a524]%s[/color]" % _esc(why))
+				return
+			var r := await Workspace.git(args)
 			var text := String(r["out"]) + String(r["err"])
 			if r["timed_out"]:
 				text += "\n(시간 초과로 중단됨)"
 			text = text.strip_edges(false, true)
 			if text != "":
 				_print(_esc(text))
+			if "problem with the editor" in text or "Aborting commit due to empty" in text:
+				_print("[color=#7c8698]팁: 커밋 메시지는 -m 으로 바로 적어 주세요.  git commit -m \"fix: ...\"[/color]")
 		"test", "npm":
 			if cmd == "npm" and (argv.size() < 2 or argv[1] != "test"):
 				_print("이 터미널에서는 npm test 만 지원합니다.")
@@ -141,6 +158,18 @@ func _ls(rel: String) -> void:
 	for f in DirAccess.get_files_at(dir):
 		items.append(_esc(f))
 	_print("  ".join(items))
+
+
+func _make(cmd: String, rel: String) -> void:
+	var p := Workspace.resolve(rel)
+	if rel == "" or p == "" or p == Workspace.repo:
+		_print("%s: 경로를 입력하세요." % cmd)
+		return
+	if cmd == "mkdir":
+		DirAccess.make_dir_recursive_absolute(p)
+	elif not FileAccess.file_exists(p):
+		Workspace.write_file(rel, "")
+	await Workspace.refresh()
 
 
 func _cat(rel: String) -> void:

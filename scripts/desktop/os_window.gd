@@ -5,11 +5,13 @@ extends Control
 signal closed
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
-const BAR_H := 34.0
-const MIN_SIZE := Vector2(320, 200)
-const TOP_LIMIT := 30.0   # below the OS top bar
-const DOCK_SPACE := 100.0 # keep the dock visible when maximized
+const Icon := preload("res://scripts/ui/icon.gd")
+const BAR_H := 36.0
+const MIN_SIZE := Vector2(360, 220)
+const TOP_LIMIT := 32.0
+const DOCK_SPACE := 96.0
 
+var app_id := ""
 var _drag := false
 var _resize := false
 var _grab := Vector2.ZERO
@@ -17,54 +19,68 @@ var _start_size := Vector2.ZERO
 var _restore := Rect2()
 var _maximized := false
 var _closing := false
+var _bar: Panel
 
 
-func setup(title: String, accent: Color, content: Control, win_size: Vector2) -> void:
+func setup(id: String, title: String, accent: Color, icon_name: String, content: Control, win_size: Vector2) -> void:
+	app_id = id
 	size = win_size
 
 	var bg := Panel.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.add_theme_stylebox_override("panel", UITheme.box(Color("1a1e26"), 10, Color("2d333f"), 0, 1, 24))
+	var sb := UITheme.box(UITheme.BG1, 12, Color(1, 1, 1, 0.08), 0, 1, 0)
+	sb.shadow_size = 28
+	sb.shadow_color = Color(0, 0, 0, 0.5)
+	sb.shadow_offset = Vector2(0, 10)
+	bg.add_theme_stylebox_override("panel", sb)
 	add_child(bg)
 
-	var bar := Panel.new()
-	bar.anchor_right = 1.0
-	bar.offset_bottom = BAR_H
-	var bar_style := UITheme.box(Color("222733"), 10)
+	_bar = Panel.new()
+	_bar.anchor_right = 1.0
+	_bar.offset_bottom = BAR_H
+	var bar_style := UITheme.box(UITheme.BG2, 12)
 	bar_style.corner_radius_bottom_left = 0
 	bar_style.corner_radius_bottom_right = 0
-	bar.add_theme_stylebox_override("panel", bar_style)
-	bar.gui_input.connect(_on_bar_input)
-	add_child(bar)
+	bar_style.border_color = Color(1, 1, 1, 0.05)
+	bar_style.border_width_bottom = 1
+	_bar.add_theme_stylebox_override("panel", bar_style)
+	_bar.gui_input.connect(_on_bar_input)
+	add_child(_bar)
 
-	var row := HBoxContainer.new()
+	var row := UITheme.hbox(10)
 	row.set_anchors_preset(Control.PRESET_FULL_RECT)
-	row.offset_left = 12.0
-	row.offset_right = -6.0
-	row.add_theme_constant_override("separation", 8)
+	row.offset_left = 14.0
+	row.offset_right = -8.0
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.add_child(row)
-	var dot := ColorRect.new()
-	dot.color = accent
-	dot.custom_minimum_size = Vector2(10, 10)
-	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(dot)
-	var title_label := UITheme.label(title, 13, Color("c9cfd9"))
+	_bar.add_child(row)
+	var ic := Icon.make(icon_name, accent, 16)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(ic)
+	var title_label := UITheme.bold(title, 13, UITheme.TEXT)
 	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title_label.size_flags_vertical = Control.SIZE_FILL
 	row.add_child(title_label)
 	var close_btn := Button.new()
-	close_btn.text = "✕"
 	close_btn.flat = true
 	close_btn.focus_mode = Control.FOCUS_NONE
+	close_btn.custom_minimum_size = Vector2(28, 24)
+	close_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	close_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	close_btn.add_theme_stylebox_override("hover", UITheme.box(UITheme.ERR.darkened(0.2), 6))
+	var x := Icon.make("x", UITheme.TEXT2, 12)
+	x.set_anchors_preset(Control.PRESET_CENTER)
+	x.position = Vector2(8, 6)
+	close_btn.add_child(x)
 	close_btn.pressed.connect(close)
 	row.add_child(close_btn)
 
 	var body := MarginContainer.new()
 	body.set_anchors_preset(Control.PRESET_FULL_RECT)
 	body.offset_top = BAR_H
+	body.offset_left = 1
+	body.offset_right = -1
+	body.offset_bottom = -1
 	body.clip_contents = true
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -85,11 +101,11 @@ func setup(title: String, accent: Color, content: Control, win_size: Vector2) ->
 
 func pop_in() -> void:
 	pivot_offset = size / 2.0
-	scale = Vector2.ONE * 0.92
+	scale = Vector2.ONE * 0.94
 	modulate.a = 0.0
 	var t := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t.tween_property(self, "scale", Vector2.ONE, 0.22)
-	t.parallel().tween_property(self, "modulate:a", 1.0, 0.15)
+	t.tween_property(self, "scale", Vector2.ONE, 0.24)
+	t.parallel().tween_property(self, "modulate:a", 1.0, 0.16)
 
 
 func close() -> void:
@@ -99,7 +115,7 @@ func close() -> void:
 	closed.emit()
 	pivot_offset = size / 2.0
 	var t := create_tween()
-	t.tween_property(self, "scale", Vector2.ONE * 0.94, 0.14)
+	t.tween_property(self, "scale", Vector2.ONE * 0.95, 0.14)
 	t.parallel().tween_property(self, "modulate:a", 0.0, 0.14)
 	t.tween_callback(queue_free)
 
@@ -109,7 +125,7 @@ func toggle_maximize() -> void:
 	if not _maximized:
 		_restore = Rect2(position, size)
 		var area := get_parent_control().size
-		target = Rect2(Vector2(0, TOP_LIMIT), Vector2(area.x, area.y - TOP_LIMIT - DOCK_SPACE))
+		target = Rect2(Vector2(6, TOP_LIMIT + 4), Vector2(area.x - 12, area.y - TOP_LIMIT - DOCK_SPACE))
 	_maximized = not _maximized
 	var t := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	t.tween_property(self, "position", target.position, 0.2)

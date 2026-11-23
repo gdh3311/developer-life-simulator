@@ -1,0 +1,232 @@
+extends Control
+## The office around the monitor, drawn as vector art (crisp at any zoom).
+## The window's sky follows the in-game clock.
+
+const VIEW := Vector2(1920, 1080)
+
+var monitor_rect := Rect2()   # outer frame of the monitor (set by main)
+var screen_glow := 0.0        # 0..1, monitor light on the desk/wall
+var _buildings: Array = []    # [x, w, h, lit windows seed]
+var _rng := RandomNumberGenerator.new()
+
+
+func _ready() -> void:
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	size = VIEW
+	_rng.seed = 7
+	var x := 0.0
+	while x < 520:
+		var w := _rng.randf_range(34, 80)
+		_buildings.append([x, w, _rng.randf_range(120, 420), _rng.randi()])
+		x += w + _rng.randf_range(2, 10)
+	Game.time_changed.connect(func(_d: int, _m: int) -> void: queue_redraw())
+
+
+## 0 = night, 1 = full day, with warm tones near sunrise/sunset.
+func _daylight() -> float:
+	var h := Game.minutes() / 60.0
+	if h < 6.0 or h > 20.0:
+		return 0.0
+	if h < 8.0:
+		return (h - 6.0) / 2.0
+	if h > 17.5:
+		return clampf(1.0 - (h - 17.5) / 2.5, 0.0, 1.0)
+	return 1.0
+
+
+func _sunset() -> float:
+	var h := Game.minutes() / 60.0
+	return clampf(1.0 - absf(h - 18.0) / 1.5, 0.0, 1.0)
+
+
+func _draw() -> void:
+	var day := _daylight()
+	var dusk := _sunset()
+
+	# Wall
+	var wall_top := Color("10131b").lerp(Color("1d2433"), day * 0.6)
+	var wall_bottom := Color("0a0c11").lerp(Color("161b26"), day * 0.5)
+	_vgradient(Rect2(-400, -400, VIEW.x + 800, 1400), wall_top, wall_bottom)
+	for i in range(-6, 30):
+		draw_line(Vector2(i * 96, -400), Vector2(i * 96, 960), Color(1, 1, 1, 0.012), 2.0)
+
+	_draw_window(Rect2(70, 90, 470, 560), day, dusk)
+	_draw_shelf(Rect2(1420, 210, 360, 14))
+	_draw_poster(Rect2(1500, 380, 170, 230))
+
+	# Desk
+	var desk_y := 900.0
+	_vgradient(Rect2(-400, desk_y, VIEW.x + 800, 600), Color("2a1f17"), Color("120d0a"))
+	draw_rect(Rect2(-400, desk_y, VIEW.x + 800, 4), Color("3b2c20"))
+	draw_rect(Rect2(-400, desk_y + 4, VIEW.x + 800, 2), Color(0, 0, 0, 0.35))
+
+	# Monitor light pooling on the desk
+	if screen_glow > 0.0:
+		_radial(Vector2(VIEW.x / 2.0, desk_y + 10), Vector2(760, 120), Color(0.45, 0.6, 1.0, 0.16 * screen_glow))
+		_radial(Vector2(VIEW.x / 2.0, 470), Vector2(1050, 620), Color(0.4, 0.55, 1.0, 0.07 * screen_glow))
+
+	_draw_lamp(Vector2(1640, desk_y), day)
+	_draw_plant(Vector2(250, desk_y))
+	_draw_mug(Vector2(420, desk_y))
+	_draw_keyboard(Vector2(VIEW.x / 2.0, desk_y + 58))
+	_draw_mouse(Vector2(VIEW.x / 2.0 + 470, desk_y + 70))
+	if monitor_rect.size != Vector2.ZERO:
+		_draw_stand()
+
+
+func _draw_window(r: Rect2, day: float, dusk: float) -> void:
+	var night_top := Color("070a14")
+	var night_bottom := Color("141a33")
+	var day_top := Color("5d8fd6")
+	var day_bottom := Color("b9d4ef")
+	var dusk_top := Color("3b3a78")
+	var dusk_bottom := Color("f08a5d")
+	var top := night_top.lerp(day_top, day).lerp(dusk_top, dusk * 0.8)
+	var bottom := night_bottom.lerp(day_bottom, day).lerp(dusk_bottom, dusk * 0.85)
+	_vgradient(r, top, bottom)
+
+	# Skyline
+	var base := r.end.y
+	for b in _buildings:
+		var bx: float = r.position.x + b[0]
+		var bw: float = b[1]
+		if bx > r.end.x:
+			continue
+		bw = minf(bw, r.end.x - bx)
+		var bh: float = b[2]
+		var col := Color("0b0f1c").lerp(Color("4a5b78"), day * 0.7).lerp(Color("2c2440"), dusk * 0.6)
+		draw_rect(Rect2(bx, base - bh, bw, bh), col)
+		var rng := RandomNumberGenerator.new()
+		rng.seed = b[3]
+		var lit_chance := 0.55 - day * 0.45
+		var wy := base - bh + 10
+		while wy < base - 8:
+			var wx := bx + 6
+			while wx < bx + bw - 8:
+				if rng.randf() < lit_chance:
+					draw_rect(Rect2(wx, wy, 6, 8), Color(1.0, 0.85, 0.5, 0.75 - day * 0.4))
+				wx += 13
+			wy += 16
+
+	# Glass reflection + blinds + frame
+	draw_colored_polygon(PackedVector2Array([r.position + Vector2(r.size.x * 0.55, 0), r.position + Vector2(r.size.x * 0.75, 0),
+		r.position + Vector2(r.size.x * 0.35, r.size.y), r.position + Vector2(r.size.x * 0.15, r.size.y)]), Color(1, 1, 1, 0.035))
+	var y := r.position.y + 8
+	while y < r.position.y + r.size.y * 0.38:
+		draw_rect(Rect2(r.position.x, y, r.size.x, 5), Color(0.85, 0.85, 0.8, 0.16))
+		y += 14
+	draw_rect(r, Color("2a2f3a"), false, 10.0)
+	draw_rect(Rect2(r.position.x + r.size.x / 2.0 - 4, r.position.y, 8, r.size.y), Color("2a2f3a"))
+	draw_rect(Rect2(r.position.x - 18, r.end.y + 4, r.size.x + 36, 14), Color("323846"))
+	# Daylight spill on the wall
+	if day > 0.0:
+		draw_colored_polygon(PackedVector2Array([r.end + Vector2(0, -r.size.y), r.end, Vector2(r.end.x + 520, 980), Vector2(r.end.x + 380, r.position.y + 40)]),
+			Color(1.0, 0.92, 0.75, 0.035 * day + 0.03 * dusk))
+
+
+func _draw_shelf(r: Rect2) -> void:
+	draw_rect(r, Color("3b2c20"))
+	var x := r.position.x + 16
+	var colors := ["8b5cf6", "3b82f6", "ef4444", "f59e0b", "10b981", "64748b", "e11d48"]
+	for i in 9:
+		var w := 14.0 + (i * 7 % 9)
+		var h := 70.0 + (i * 13 % 30)
+		draw_rect(Rect2(x, r.position.y - h, w, h), Color(colors[i % colors.size()]).darkened(0.45))
+		x += w + 3
+	draw_circle(Vector2(r.end.x - 60, r.position.y - 26), 26, Color("1f2937"))
+	draw_circle(Vector2(r.end.x - 60, r.position.y - 26), 20, Color("e5e7eb").darkened(0.3))
+	draw_line(Vector2(r.end.x - 60, r.position.y - 26), Vector2(r.end.x - 60, r.position.y - 40), Color("111827"), 3.0)
+	draw_line(Vector2(r.end.x - 60, r.position.y - 26), Vector2(r.end.x - 50, r.position.y - 22), Color("111827"), 3.0)
+
+
+func _draw_poster(r: Rect2) -> void:
+	draw_rect(r.grow(6), Color("23262f"))
+	_vgradient(r, Color("1e3a8a"), Color("312e81"))
+	draw_string(get_theme_default_font(), r.position + Vector2(18, 60), "SHIP", HORIZONTAL_ALIGNMENT_LEFT, -1, 40, Color(1, 1, 1, 0.85))
+	draw_string(get_theme_default_font(), r.position + Vector2(18, 104), "IT.", HORIZONTAL_ALIGNMENT_LEFT, -1, 40, Color(1, 1, 1, 0.85))
+	draw_string(get_theme_default_font(), r.position + Vector2(18, 200), "(with tests)", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1, 1, 1, 0.5))
+
+
+func _draw_lamp(base: Vector2, day: float) -> void:
+	var on := 1.0 - day * 0.7
+	# light cone
+	draw_colored_polygon(PackedVector2Array([base + Vector2(-120, -330), base + Vector2(-60, -330), base + Vector2(60, 0), base + Vector2(-330, 0)]),
+		Color(1.0, 0.82, 0.5, 0.06 * on))
+	_radial(base + Vector2(-140, 6), Vector2(260, 40), Color(1.0, 0.8, 0.45, 0.25 * on))
+	draw_rect(Rect2(base.x - 46, base.y - 12, 92, 12), Color("1c1f26"))
+	draw_line(base + Vector2(0, -12), base + Vector2(40, -220), Color("2b2f38"), 8.0, true)
+	draw_line(base + Vector2(40, -220), base + Vector2(-80, -320), Color("2b2f38"), 8.0, true)
+	draw_colored_polygon(PackedVector2Array([base + Vector2(-140, -350), base + Vector2(-50, -330), base + Vector2(-70, -300), base + Vector2(-130, -315)]), Color("343a46"))
+	draw_circle(base + Vector2(-95, -318), 9, Color(1.0, 0.9, 0.6, 0.4 + 0.6 * on))
+
+
+func _draw_plant(base: Vector2) -> void:
+	var leaf := Color("2f6b45")
+	for i in 7:
+		var a := deg_to_rad(-150 + i * 20)
+		var tip := base + Vector2(0, -60) + Vector2(cos(a), sin(a)) * (90 + (i % 3) * 18)
+		var mid := (base + Vector2(0, -60) + tip) / 2.0
+		var n := (tip - base).orthogonal().normalized() * 14
+		draw_colored_polygon(PackedVector2Array([base + Vector2(0, -60), mid + n, tip, mid - n]), leaf.lightened(0.08 * (i % 3)))
+	draw_colored_polygon(PackedVector2Array([base + Vector2(-44, -70), base + Vector2(44, -70), base + Vector2(34, 0), base + Vector2(-34, 0)]), Color("c2734f"))
+	draw_rect(Rect2(base.x - 48, base.y - 78, 96, 10), Color("d48562"))
+
+
+func _draw_mug(base: Vector2) -> void:
+	draw_rect(Rect2(base.x - 30, base.y - 70, 60, 70), Color("e8e2d6"))
+	draw_rect(Rect2(base.x - 30, base.y - 70, 60, 8), Color("cfc8bb"))
+	draw_arc(base + Vector2(32, -36), 16, -PI / 2, PI / 2, 16, Color("e8e2d6"), 7.0, true)
+	draw_string(get_theme_default_font(), base + Vector2(-20, -26), "{ }", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color("4f8cff"))
+
+
+func _draw_keyboard(c: Vector2) -> void:
+	var top := 300.0
+	var bottom := 340.0
+	var h := 64.0
+	draw_colored_polygon(PackedVector2Array([c + Vector2(-top, -h / 2), c + Vector2(top, -h / 2), c + Vector2(bottom, h / 2), c + Vector2(-bottom, h / 2)]), Color("1b1e25"))
+	for row in 4:
+		var t := (row + 0.5) / 4.0
+		var y := c.y - h / 2 + 8 + row * 13.5
+		var half := lerpf(top, bottom, t) - 14
+		var keys := 15
+		var kw := (half * 2) / keys
+		for k in keys:
+			draw_rect(Rect2(c.x - half + k * kw + 1.5, y, kw - 3, 10), Color("2a2e38"))
+	draw_rect(Rect2(c.x - 120, c.y + h / 2 - 12, 240, 8), Color("2a2e38"))
+
+
+func _draw_mouse(c: Vector2) -> void:
+	draw_rect(Rect2(c.x - 70, c.y - 34, 140, 80), Color("15171d"))
+	draw_circle(c, 18, Color("1f2229"))
+	draw_rect(Rect2(c.x - 18, c.y - 4, 36, 22), Color("1f2229"))
+	draw_line(c + Vector2(0, -16), c + Vector2(0, -2), Color("2e323c"), 2.0)
+
+
+func _draw_stand() -> void:
+	var cx := monitor_rect.get_center().x
+	var y := monitor_rect.end.y
+	draw_colored_polygon(PackedVector2Array([Vector2(cx - 40, y - 4), Vector2(cx + 40, y - 4), Vector2(cx + 50, 900 - 10), Vector2(cx - 50, 900 - 10)]), Color("20232b"))
+	draw_rect(Rect2(cx - 160, 888, 320, 14), Color("272b34"))
+	draw_rect(Rect2(cx - 160, 888, 320, 3), Color("353a46"))
+
+
+# --- drawing helpers ------------------------------------------------------------
+
+func _vgradient(r: Rect2, top: Color, bottom: Color) -> void:
+	draw_polygon(PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]),
+		PackedColorArray([top, top, bottom, bottom]))
+
+
+func _radial(center: Vector2, radius: Vector2, color: Color) -> void:
+	var pts := PackedVector2Array()
+	var cols := PackedColorArray()
+	var steps := 48
+	pts.append(center)
+	cols.append(color)
+	for i in steps + 1:
+		var a := TAU * i / steps
+		pts.append(center + Vector2(cos(a) * radius.x, sin(a) * radius.y))
+		cols.append(Color(color, 0.0))
+	# triangle fan
+	for i in range(1, steps + 1):
+		draw_polygon(PackedVector2Array([pts[0], pts[i], pts[i + 1]]), PackedColorArray([cols[0], cols[i], cols[i + 1]]))

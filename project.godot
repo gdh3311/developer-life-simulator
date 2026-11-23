@@ -16,6 +16,8 @@ config/icon="res://icon.svg"
 
 Workspace="*res://scripts/services/workspace.gd"
 Game="*res://scripts/autoload/game.gd"
+CodeHub="*res://scripts/services/codehub.gd"
+Story="*res://scripts/story/story.gd"
 
 [display]
 

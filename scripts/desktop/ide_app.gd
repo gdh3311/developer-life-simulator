@@ -23,7 +23,7 @@ func _ready() -> void:
 	_tree = Tree.new()
 	_tree.custom_minimum_size.x = 200
 	_tree.hide_root = true
-	_tree.add_theme_stylebox_override("panel", UITheme.box(Color("161a21"), 0, Color(0, 0, 0, 0), 6))
+	_tree.add_theme_stylebox_override("panel", UITheme.box(UITheme.BG0, 0, Color(0, 0, 0, 0), 6))
 	_tree.item_selected.connect(_on_tree_selected)
 	split.add_child(_tree)
 
@@ -31,7 +31,7 @@ func _ready() -> void:
 	right.add_theme_constant_override("separation", 0)
 	split.add_child(right)
 	var tab_bar := PanelContainer.new()
-	tab_bar.add_theme_stylebox_override("panel", UITheme.box(Color("181c24"), 0, Color(0, 0, 0, 0), 6))
+	tab_bar.add_theme_stylebox_override("panel", UITheme.box(UITheme.BG2, 0, Color(0, 0, 0, 0), 7))
 	_tab = UITheme.label("", 13, Color("c9cfd9"))
 	tab_bar.add_child(_tab)
 	right.add_child(tab_bar)
@@ -46,7 +46,7 @@ func _ready() -> void:
 	_code.syntax_highlighter = ts_highlighter()
 	_code.add_theme_font_override("font", UITheme.font(true))
 	_code.add_theme_font_size_override("font_size", 14)
-	_code.add_theme_stylebox_override("normal", UITheme.box(Color("12151b"), 0, Color(0, 0, 0, 0), 8))
+	_code.add_theme_stylebox_override("normal", UITheme.box(UITheme.BG1, 0, Color(0, 0, 0, 0), 8))
 	_code.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	_code.add_theme_color_override("font_color", Color("d4d8de"))
 	_code.add_theme_color_override("current_line_color", Color(1, 1, 1, 0.04))
@@ -113,8 +113,11 @@ func _on_code_input(event: InputEvent) -> void:
 func _update_labels() -> void:
 	var dirty := _is_dirty()
 	_tab.text = "  %s%s" % [_current.get_file(), "  ●" if dirty else ""]
-	_status.text = "  ⎇ %s   ·   %s   ·   %s   ·   Ctrl+S 저장" % [
-		Workspace.branch, _current, "수정됨" if dirty else "저장됨"]
+	var conflict := "<<<<<<<" in _code.text or ">>>>>>>" in _code.text
+	_status.text = "  ⎇ %s   ·   %s   ·   %s   ·   Ctrl+S 저장%s" % [
+		Workspace.branch, _current, "수정됨" if dirty else "저장됨",
+		"   ·   ⚠ 충돌 표시(<<<<<<< >>>>>>>)가 남아 있습니다" if conflict else ""]
+	_status.get_parent().add_theme_stylebox_override("panel", UITheme.box(Color("b45309") if conflict else Color("1d4ed8"), 0, Color(0, 0, 0, 0), 3))
 
 
 ## Branch switches etc. change files on disk: reload the open file unless it has unsaved edits.
