@@ -1,12 +1,13 @@
-node_modules/
-out/
-dist/
-release/
-*.log
-.env
-.env.*
-.DS_Store
-Thumbs.db
-# runtime game data (generated repos, saves)
+# Godot 4
+.godot/
+/android/
+/build/
+*.tmp
+
+# Runtime game data (generated company repos, saves)
 /VirtualCompany/
 /saves/
+
+# OS
+.DS_Store
+Thumbs.db

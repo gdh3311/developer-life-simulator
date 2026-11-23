@@ -1,30 +1,24 @@
-# ADR-001: 게임 엔진 / 기술 스택 선정
+# ADR-001: 게임 엔진 선정
 
 - 상태: 채택 (2026-11-23)
+- 이전 결정 (Electron + React)을 대체함
 
 ## 결정
-**Electron + React + TypeScript (electron-vite 빌드)**
-
-| 구성 | 선택 |
-|---|---|
-| 런타임 | Electron (Chromium + Node.js) |
-| UI | React + 자체 Window Manager |
-| 코드 에디터 | Monaco Editor |
-| 상태 관리 | Zustand |
-| Git | 시스템 Git CLI + 로컬 bare repo를 `origin`으로 사용 |
-| 저장 | SQLite (게임 상태) + Git (코드 이력) |
-| 코드 실행 | 메인 프로세스와 분리된, 제한된 실행 프로세스 |
-| 배포 | Steam (steamworks.js), Windows 우선 |
+**Godot 4 (4.7, GDScript, GL Compatibility 렌더러)**
 
 ## 근거
-- 게임의 핵심이 3D/물리가 아니라 **에디터·멀티 윈도우·터미널·파일 시스템·실제 Git**이다.
-- Node.js가 내장돼 Git CLI, 테스트 러너(TS), 자식 프로세스를 바로 쓸 수 있다.
-- Monaco는 웹 기반 에디터라 Electron에 그대로 들어간다.
+- 업무 도구가 아니라 **게임**처럼 느껴져야 한다. 연출(트윈, 셰이더, 사운드, 카메라)이 엔진에 기본으로 들어 있다.
+- 플레이어는 **책상 앞에서 모니터를 보는 1인칭 시점**이다. 게임 OS 전체를 `SubViewport`에 그리고, 그 화면을 방 안의 모니터에 띄운다.
+  - 이 구조 덕분에 모니터 전원 켜기, 화면 글레어와 비네트, 화면 가까이 보기(F2) 같은 연출을 쉽게 넣을 수 있다.
+  - 나중에 사무실 씬, 동료 방문, 퇴근 연출로 확장할 수도 있다.
+- 무료(MIT)이고 가볍다. Steam 연동은 GodotSteam을 쓴다.
+- `CodeEdit`(구문 강조, 줄 번호), `RichTextLabel`, `Tree` 같은 UI 노드가 이미 있어 IDE·채팅·위키를 만들기 좋다.
+- 실제 Git은 `OS.execute` / `OS.create_process`로 시스템 Git CLI를 호출한다.
 
 ## 검토한 대안
-- **Unity / Godot**: 에디터·터미널·Git 연동을 직접 만들어야 하고 웹 UI 생태계를 쓸 수 없다.
-- **Tauri**: 용량은 작지만 백엔드가 Rust이고, Node 기반 TS 테스트 러너는 따로 묶어서 배포해야 한다.
+- **Electron + React**: 에디터와 웹 UI는 가장 쉽지만 게임다운 연출이 약하다.
+- **Unity**: 가능하지만 UI 작업이 무겁고, 이 게임에 필요한 장점이 Godot보다 크지 않다.
 
-## 주의
-- 렌더러는 `contextIsolation: true`, `sandbox: true`. Node 기능은 preload/IPC로만 노출한다.
-- 플레이어 코드는 절대 메인 프로세스에서 실행하지 않는다 (기획서 10장 참고).
+## 열린 문제 (기술 검증 단계)
+- **플레이어 코드 실행**: 미션 언어가 TypeScript이면 Node 런타임을 게임과 함께 배포하고, 별도의 제한된 프로세스로 테스트를 실행해야 한다.
+- **에디터 품질**: `CodeEdit`에는 자동완성·타입 오류 표시가 없다. 필요하면 LSP(tsserver) 연동을 검토한다.
