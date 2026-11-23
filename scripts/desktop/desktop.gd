@@ -97,9 +97,14 @@ func _process(delta: float) -> void:
 
 ## Clicking anywhere on a window brings it to the front.
 func _input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key != null and key.pressed and not key.echo and key.keycode != KEY_F2:
+		Sfx.type_key()
 	var mb := event as InputEventMouseButton
 	if mb == null or not mb.pressed:
 		return
+	if mb.button_index == MOUSE_BUTTON_LEFT:
+		Sfx.play("click", randf_range(0.95, 1.05), -12.0)
 	var count := _windows.get_child_count()
 	for i in range(count - 1, -1, -1):
 		var w := _windows.get_child(i) as Control
@@ -129,6 +134,7 @@ func open_app(id: String) -> void:
 	win.closed.connect(_on_window_closed.bind(id))
 	_open[id] = win
 	(_dots[id] as Control).modulate.a = 1.0
+	Sfx.play("window", 1.1, -6.0)
 	win.pop_in()
 
 
@@ -140,6 +146,8 @@ func close_all() -> void:
 
 
 func _on_window_closed(id: String) -> void:
+	if _open.has(id):
+		Sfx.play("window", 0.8, -8.0)
 	_open.erase(id)
 	(_dots[id] as Control).modulate.a = 0.0
 
@@ -184,18 +192,24 @@ func _check_slacking(delta: float) -> void:
 func _walkby() -> void:
 	_walkby_active = true
 	var boss := "alex" if Game.day() >= 4 else "daniel"
+	Sfx.footsteps(7, 0.45)
+	Sfx.play("heart", 1.0, -2.0)
+	_main_call("boss_pass")
 	notify("dashboard", Game.L("누군가 다가오는 발소리...", "Footsteps behind you..."), Game.L("%s 님이 자리 쪽으로 걸어옵니다! 업무 화면으로 바꾸세요!", "%s is walking toward your desk! Switch to something work-related!") % Game.npc_name(boss))
 	var t := create_tween().set_loops(3)
 	t.tween_property(_alert, "color:a", 0.16, 0.35)
 	t.tween_property(_alert, "color:a", 0.0, 0.35)
 	await get_tree().create_timer(3.2).timeout
 	if _is_slacking():
+		Game.emit_event("caught", {})
+		_main_call("shake", 14.0)
 		Game.inc_stat("caught_slacking")
 		var n := Game.stat("caught_slacking")
 		Game.relate(boss, {"work": -6 * n, "agree": -2})
 		Game.say(boss, Game.LL("...업무 시간이에요. 지금 하는 일부터 마무리해 주세요." if n == 1 else "또요? 이건 평가에 반영할 수밖에 없어요.",
 			"...It's work time. Please finish what you're on first." if n == 1 else "Again? I'll have to factor this into your review."))
 	else:
+		Sfx.play("relief")
 		notify("dashboard", Game.L("휴...", "Phew..."), Game.L("안 들켰다.", "Not caught."))
 	_slack_time = 0.0
 	_walkby_cooldown = 45.0
@@ -261,7 +275,11 @@ func notify(app_id: String, title: String, body: String) -> void:
 	if live.size() >= 4:
 		live[0].queue_free()
 	_toasts.add_child(card)
-	create_tween().tween_property(card, "modulate:a", 1.0, 0.25)
+	card.pivot_offset = Vector2(330, 0)
+	card.scale = Vector2(0.92, 0.92)
+	var tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(card, "modulate:a", 1.0, 0.25)
+	tw.tween_property(card, "scale", Vector2.ONE, 0.3)
 	get_tree().create_timer(7.0).timeout.connect(_dismiss.bind(card))
 
 
@@ -428,6 +446,7 @@ func boot() -> void:
 	await get_tree().create_timer(0.3).timeout
 	var t := create_tween()
 	t.tween_property(_boot_log, "modulate:a", 0.0, 0.3)
+	t.tween_callback(func() -> void: Sfx.play("boot"))
 	t.tween_property(_boot_logo, "modulate:a", 1.0, 0.5)
 	t.tween_interval(0.7)
 	t.tween_property(_boot, "modulate:a", 0.0, 0.6)
@@ -436,6 +455,8 @@ func boot() -> void:
 	_clock.text = Game.clock_text()
 	_update_status()
 	_end_day_btn.text = Game.L("퇴근하기", "Clock out")
+	Sfx.start_music()
+	Game.event.connect(_on_fx_event)
 	booted.emit()
 	_update_badges()
 	if continuing:
@@ -593,7 +614,13 @@ func _on_next_day() -> void:
 	t.parallel().tween_property(_overlay.get_child(0), "modulate:a", 0.0, 0.3)
 	await t.finished
 	close_all()
+	var main := get_tree().current_scene
+	if main != null and main.has_method("night_transition"):
+		await main.night_transition()
 	Game.next_day()
+	if main != null and main.has_method("morning_transition"):
+		await main.morning_transition()
+	Sfx.play("morning")
 	_end_day_btn.visible = false
 	UITheme.clear(_overlay)
 	var center := CenterContainer.new()
@@ -615,6 +642,8 @@ func _on_next_day() -> void:
 
 func _show_ending() -> void:
 	UITheme.clear(_overlay)
+	Sfx.play("promote")
+	confetti(220)
 	(_overlay as ColorRect).color = Color(0.02, 0.03, 0.05, 0.96)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -646,6 +675,62 @@ func _show_ending() -> void:
 		_overlay = null
 		_end_day_btn.visible = false)
 	v.add_child(btn)
+
+
+# --- Effects ------------------------------------------------------------------
+
+func _main_call(method: String, arg = null) -> void:
+	var main := get_tree().current_scene
+	if main != null and main.has_method(method):
+		if arg == null:
+			main.call(method)
+		else:
+			main.call(method, arg)
+
+
+func _on_fx_event(kind: String, d: Dictionary) -> void:
+	match kind:
+		"pr_merged":
+			if CodeHub.get_pr(int(d["pr"])).get("author", "") == "me":
+				confetti()
+		"ci":
+			if CodeHub.get_pr(int(d["pr"])).get("author", "") == "me" and not d["ok"]:
+				_main_call("shake", 6.0)
+		"promoted":
+			Sfx.play("promote")
+			confetti(200)
+		"purchase":
+			confetti(40)
+
+
+func confetti(amount := 120) -> void:
+	var p := CPUParticles2D.new()
+	p.position = Vector2(size.x / 2.0, -10)
+	p.amount = amount
+	p.one_shot = true
+	p.explosiveness = 0.85
+	p.lifetime = 2.6
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	p.emission_rect_extents = Vector2(size.x / 2.0, 4)
+	p.direction = Vector2(0, 1)
+	p.spread = 30
+	p.gravity = Vector2(0, 260)
+	p.initial_velocity_min = 60
+	p.initial_velocity_max = 220
+	p.angular_velocity_min = -360
+	p.angular_velocity_max = 360
+	p.scale_amount_min = 4
+	p.scale_amount_max = 8
+	var g := Gradient.new()
+	g.set_color(0, Color("5b8cff"))
+	g.add_point(0.25, Color("3ddc84"))
+	g.add_point(0.5, Color("f5a524"))
+	g.add_point(0.75, Color("ff6b8a"))
+	g.set_color(g.get_point_count() - 1, Color("c084fc"))
+	p.color_initial_ramp = g
+	add_child(p)
+	p.emitting = true
+	get_tree().create_timer(3.5).timeout.connect(p.queue_free)
 
 
 # --- Layout -----------------------------------------------------------------

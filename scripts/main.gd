@@ -22,6 +22,8 @@ var _led: ColorRect
 var _desktop: Control
 var _focused := false
 var _hint: Label
+var _fade: ColorRect
+var _shadow: Control
 
 
 func _ready() -> void:
@@ -42,6 +44,13 @@ func _ready() -> void:
 	_build_monitor()
 	_build_props()
 	_add_vignette()
+	_shadow = _make_shadow()
+	add_child(_shadow)
+	_fade = ColorRect.new()
+	_fade.color = Color(0, 0, 0, 0)
+	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_fade)
 	_power_on()
 
 
@@ -197,7 +206,9 @@ func _power_on() -> void:
 	var t := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	t.tween_interval(0.3)
 	t.tween_property(_rig, "scale", Vector2.ONE, 1.6)
-	t.tween_callback(func() -> void: _led.color = Color("3ddc84"))
+	t.tween_callback(func() -> void:
+		_led.color = Color("3ddc84")
+		Sfx.play("power"))
 	t.tween_interval(0.3)
 	t.tween_property(_screen_off, "color:a", 0.0, 0.5)
 	t.parallel().tween_method(func(v: float) -> void:
@@ -208,7 +219,86 @@ func _power_on() -> void:
 
 func _on_screen_on() -> void:
 	_screen_off.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_set_focus(true)
 	_desktop.boot()
+
+
+# --- Effects -----------------------------------------------------------------
+
+func shake(strength := 8.0) -> void:
+	var base := _rig.position
+	var t := create_tween()
+	for i in 7:
+		var k := 1.0 - i / 7.0
+		t.tween_property(_rig, "position", base + Vector2(randf_range(-1, 1), randf_range(-1, 1)) * strength * k, 0.035)
+	t.tween_property(_rig, "position", base, 0.05)
+
+
+## A silhouette walking behind the chair (reflected over the whole view).
+func _make_shadow() -> Control:
+	var c := Control.new()
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.size = Vector2(420, 1000)
+	c.position = Vector2(-700, 280)
+	c.modulate = Color(0, 0, 0, 0.0)
+	c.draw.connect(func() -> void:
+		c.draw_circle(Vector2(210, 120), 85, Color.WHITE)
+		c.draw_colored_polygon(PackedVector2Array([Vector2(80, 230), Vector2(340, 230), Vector2(400, 1000), Vector2(20, 1000)]), Color.WHITE)
+		c.draw_circle(Vector2(210, 250), 130, Color.WHITE))
+	return c
+
+
+func boss_pass() -> void:
+	_shadow.position = Vector2(-700, 300)
+	var t := create_tween()
+	t.tween_property(_shadow, "modulate:a", 0.32, 0.6)
+	t.parallel().tween_property(_shadow, "position:x", VIEW.x + 300, 3.6).set_trans(Tween.TRANS_SINE)
+	t.parallel().tween_method(func(v: float) -> void: _shadow.position.y = 300 + sin(v * 18.0) * 10.0, 0.0, 1.0, 3.6)
+	t.tween_property(_shadow, "modulate:a", 0.0, 0.3)
+
+
+## Clock-out: lean back, the monitor turns off, the window fades to night.
+func night_transition() -> void:
+	_set_focus(false)
+	await get_tree().create_timer(0.6).timeout
+	Sfx.play("power", 0.8)
+	Sfx.muffle(true)
+	_led.color = Color("2a2d33")
+	var t := create_tween()
+	t.tween_property(_screen_off, "color:a", 1.0, 0.4)
+	t.parallel().tween_method(func(v: float) -> void:
+		_room.screen_glow = v
+		_room.queue_redraw(), 1.0, 0.0, 0.6)
+	t.tween_method(func(v: float) -> void:
+		_room.time_override = v
+		_room.queue_redraw(), float(Game.minutes()), 23.0 * 60.0, 2.2)
+	t.tween_interval(0.5)
+	t.tween_property(_fade, "color:a", 1.0, 0.7)
+	await t.finished
+
+
+## Next morning: sunrise in the window, the monitor powers on, lean in.
+func morning_transition() -> void:
+	_room.time_override = 6.0 * 60.0
+	_room.queue_redraw()
+	var t := create_tween()
+	t.tween_property(_fade, "color:a", 0.0, 0.7)
+	t.tween_method(func(v: float) -> void:
+		_room.time_override = v
+		_room.queue_redraw(), 6.0 * 60.0, float(Game.minutes()), 1.8)
+	t.tween_callback(func() -> void:
+		_room.time_override = -1.0
+		_led.color = Color("3ddc84")
+		Sfx.play("power")
+		Sfx.muffle(false))
+	t.tween_property(_screen_off, "color:a", 0.0, 0.4)
+	t.parallel().tween_method(func(v: float) -> void:
+		_room.screen_glow = v
+		_room.queue_redraw(), 0.0, 1.0, 0.6)
+	await t.finished
+	_screen_off.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_set_focus(true)
+	await get_tree().create_timer(0.5).timeout
 
 
 ## Lean in so the screen fills the view, or lean back to see the room.

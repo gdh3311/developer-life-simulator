@@ -28,6 +28,8 @@
 - **Browser**: 사내 포털(커피 브레이크), DevDaily, Streamly, 익명 Lounge, Shoply(산 물건이 방에 놓임), Connectly(리크루터 오퍼)
 - 딴짓하다 상사가 지나가면 3초 안에 업무 화면으로 바꿔야 함. 걸리면 신뢰도 하락
 - 급여는 퇴근할 때 입금, 진행은 자동 저장
+- 사운드는 전부 코드로 합성(에셋 파일 없음): 로파이 BGM, 사무실 소음, 타이핑, 알림, CI 성공·실패, 병합 팡파르, 발소리
+- 연출: 퇴근 시 모니터가 꺼지고 창밖이 밤으로 바뀌는 타임랩스, 아침 일출, 병합·승진 컨페티, 실패·적발 시 화면 흔들림, 뒤로 지나가는 상사 실루엣
 
 ## 실행
 필요한 것: [Godot 4.7](https://godotengine.org/download), Git, Node.js 22.6 이상 (출시 버전에서는 게임에 포함할 예정)
@@ -56,10 +58,11 @@ scripts/autoload/game.gd        언어, 시간, 관계, 채팅, 돈, 컨디션, 
 scripts/story/story.gd          미션 진행, 이벤트 라우팅                              (autoload: Story)
 scripts/story/side_events.gd    점심·커피챗·질문·체크인·잡 오퍼
 scripts/story/missions/         d1_01 ~ d4_10 미션
+scripts/autoload/sfx.gd         절차적 사운드 합성, BGM, 이벤트별 효과음      (autoload: Sfx)
 content/commerce-api/{ko,en}/   회사 저장소 템플릿과 미션 파일 (tools/gen_content.py로 생성)
 content/ci/{ko,en}/             미션별 숨겨진 [CI] 검증 테스트
 ```
 
 ## 로드맵
 1. ~~기술 검증~~ ✅  2. ~~Vertical Slice~~ ✅  3. ~~Chapter 1 확장 (인턴 4일, 튜토리얼, 한/영)~~ ✅
-4. 다음: 사운드, Node·Git 런타임 번들, 플레이어 코드 OS 수준 격리, Chapter 2
+4. 다음: Node·Git 런타임 번들, 플레이어 코드 OS 수준 격리, Chapter 2

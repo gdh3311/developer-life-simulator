@@ -118,6 +118,28 @@ func _render() -> void:
 			get_tree().reload_current_scene())
 		srow.add_child(b)
 	_root.add_child(srow)
+	for vol in [["music", Game.L("음악", "Music")], ["sfx", Game.L("효과음", "Sound effects")]]:
+		var vrow := UITheme.hbox(10)
+		var vl := UITheme.label(vol[1], 13, UITheme.TEXT2)
+		vl.custom_minimum_size.x = 110
+		vrow.add_child(vl)
+		var slider := HSlider.new()
+		slider.min_value = 0.0
+		slider.max_value = 1.0
+		slider.step = 0.05
+		slider.custom_minimum_size.x = 220
+		slider.value = Sfx.music_volume if vol[0] == "music" else Sfx.sfx_volume
+		var which: String = vol[0]
+		slider.value_changed.connect(func(v: float) -> void:
+			if which == "music":
+				Sfx.music_volume = v
+			else:
+				Sfx.sfx_volume = v
+				Sfx.play("tick")
+			Sfx.apply_volumes()
+			Sfx.save_settings())
+		vrow.add_child(slider)
+		_root.add_child(vrow)
 	_root.add_child(UITheme.label(Game.L("이미 받은 메시지는 두 언어로 저장되어 바로 바뀝니다. 회사 저장소의 코드 언어는 처음 만들 때 정해집니다.",
 		"Messages switch instantly. The company repo's code language is fixed when it is created."), 11, UITheme.MUTED))
 

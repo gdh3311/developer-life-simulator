@@ -6,6 +6,7 @@ const VIEW := Vector2(1920, 1080)
 
 var monitor_rect := Rect2()   # outer frame of the monitor (set by main)
 var screen_glow := 0.0        # 0..1, monitor light on the desk/wall
+var time_override := -1.0     # minutes; set during day transitions
 var _buildings: Array = []    # [x, w, h, lit windows seed]
 var _rng := RandomNumberGenerator.new()
 
@@ -31,8 +32,12 @@ func _owns(item: String) -> bool:
 
 
 ## 0 = night, 1 = full day, with warm tones near sunrise/sunset.
+func _now() -> float:
+	return time_override if time_override >= 0.0 else float(Game.minutes())
+
+
 func _daylight() -> float:
-	var h := Game.minutes() / 60.0
+	var h := _now() / 60.0
 	if h < 6.0 or h > 20.0:
 		return 0.0
 	if h < 8.0:
@@ -43,7 +48,7 @@ func _daylight() -> float:
 
 
 func _sunset() -> float:
-	var h := Game.minutes() / 60.0
+	var h := _now() / 60.0
 	return clampf(1.0 - absf(h - 18.0) / 1.5, 0.0, 1.0)
 
 

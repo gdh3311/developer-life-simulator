@@ -70,6 +70,7 @@ func _performance_review() -> void:
 	Game.state["flags"]["review_avg"] = avg
 	if promoted:
 		Game.state["rank"] = 1
+		Game.emit_event("promoted", {})
 	var ko: Array = ["4일 동안 많은 일이 있었죠. 팀 평균 신뢰도는 %d점이에요." % roundi(avg)]
 	var en: Array = ["A lot happened in four days. Your average team trust is %d." % roundi(avg)]
 	if Game.stat("ci_fail") <= 2:
