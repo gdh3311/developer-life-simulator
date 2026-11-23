@@ -20,6 +20,14 @@ func _ready() -> void:
 		_buildings.append([x, w, _rng.randf_range(120, 420), _rng.randi()])
 		x += w + _rng.randf_range(2, 10)
 	Game.time_changed.connect(func(_d: int, _m: int) -> void: queue_redraw())
+	Game.event.connect(func(kind: String, _d: Dictionary) -> void:
+		if kind == "purchase":
+			queue_redraw())
+	Game.state_reset.connect(queue_redraw)
+
+
+func _owns(item: String) -> bool:
+	return Game.state["owned"].has(item)
 
 
 ## 0 = night, 1 = full day, with warm tones near sunrise/sunset.
@@ -65,13 +73,25 @@ func _draw() -> void:
 		_radial(Vector2(VIEW.x / 2.0, desk_y + 10), Vector2(760, 120), Color(0.45, 0.6, 1.0, 0.16 * screen_glow))
 		_radial(Vector2(VIEW.x / 2.0, 470), Vector2(1050, 620), Color(0.4, 0.55, 1.0, 0.07 * screen_glow))
 
+	if _owns("neon"):
+		_draw_neon(Vector2(1700, 120))
+	if _owns("plant_big"):
+		_draw_monstera(Vector2(1830, 1000))
 	_draw_lamp(Vector2(1640, desk_y), day)
 	_draw_plant(Vector2(250, desk_y))
 	_draw_mug(Vector2(420, desk_y))
+	if _owns("coffee_machine"):
+		_draw_coffee_machine(Vector2(560, desk_y))
 	_draw_keyboard(Vector2(VIEW.x / 2.0, desk_y + 58))
 	_draw_mouse(Vector2(VIEW.x / 2.0 + 470, desk_y + 70))
+	if _owns("figure"):
+		_draw_figure(Vector2(1380, desk_y))
+	if _owns("headphones"):
+		_draw_headphones(Vector2(1500, desk_y))
 	if monitor_rect.size != Vector2.ZERO:
 		_draw_stand()
+		if _owns("light_bar"):
+			_draw_light_bar()
 
 
 func _draw_window(r: Rect2, day: float, dusk: float) -> void:
@@ -191,7 +211,10 @@ func _draw_keyboard(c: Vector2) -> void:
 		var keys := 15
 		var kw := (half * 2) / keys
 		for k in keys:
-			draw_rect(Rect2(c.x - half + k * kw + 1.5, y, kw - 3, 10), Color("2a2e38"))
+			var key_col := Color("2a2e38")
+			if _owns("keyboard_rgb"):
+				key_col = Color.from_hsv(fmod(float(k) / keys + row * 0.07, 1.0), 0.7, 0.9)
+			draw_rect(Rect2(c.x - half + k * kw + 1.5, y, kw - 3, 10), key_col)
 	draw_rect(Rect2(c.x - 120, c.y + h / 2 - 12, 240, 8), Color("2a2e38"))
 
 
@@ -208,6 +231,55 @@ func _draw_stand() -> void:
 	draw_colored_polygon(PackedVector2Array([Vector2(cx - 40, y - 4), Vector2(cx + 40, y - 4), Vector2(cx + 50, 900 - 10), Vector2(cx - 50, 900 - 10)]), Color("20232b"))
 	draw_rect(Rect2(cx - 160, 888, 320, 14), Color("272b34"))
 	draw_rect(Rect2(cx - 160, 888, 320, 3), Color("353a46"))
+
+
+func _draw_neon(p: Vector2) -> void:
+	var font := get_theme_default_font()
+	for i in 4:
+		draw_string(font, p + Vector2(-i, i), "</>", HORIZONTAL_ALIGNMENT_LEFT, -1, 64, Color(1.0, 0.3, 0.8, 0.08))
+	draw_string(font, p, "</>", HORIZONTAL_ALIGNMENT_LEFT, -1, 64, Color(1.0, 0.55, 0.9))
+	_radial(p + Vector2(55, -20), Vector2(160, 90), Color(1.0, 0.3, 0.8, 0.12))
+
+
+func _draw_monstera(base: Vector2) -> void:
+	draw_colored_polygon(PackedVector2Array([base + Vector2(-50, -90), base + Vector2(50, -90), base + Vector2(40, 0), base + Vector2(-40, 0)]), Color("3f3f46"))
+	for i in 6:
+		var a := deg_to_rad(-160 + i * 28)
+		var c := base + Vector2(0, -100) + Vector2(cos(a), sin(a)) * 150
+		draw_circle(c, 52, Color("1f5f3a").lightened(0.06 * (i % 3)))
+		draw_line(base + Vector2(0, -90), c, Color("2f6b45"), 5.0)
+
+
+func _draw_coffee_machine(base: Vector2) -> void:
+	draw_rect(Rect2(base.x - 40, base.y - 120, 80, 120), Color("1f2228"))
+	draw_rect(Rect2(base.x - 30, base.y - 110, 60, 30), Color("3b3f4a"))
+	draw_circle(base + Vector2(18, -95), 5, Color("3ddc84"))
+	draw_rect(Rect2(base.x - 16, base.y - 40, 32, 34), Color("e8e2d6"))
+
+
+func _draw_figure(base: Vector2) -> void:
+	draw_rect(Rect2(base.x - 18, base.y - 46, 36, 30), Color("5b8cff"))
+	draw_rect(Rect2(base.x - 14, base.y - 70, 28, 22), Color("94a3b8"))
+	draw_circle(base + Vector2(-6, -60), 3, Color("38bdf8"))
+	draw_circle(base + Vector2(6, -60), 3, Color("38bdf8"))
+	draw_line(base + Vector2(0, -70), base + Vector2(0, -80), Color("94a3b8"), 2.0)
+	draw_circle(base + Vector2(0, -82), 3, Color("ff6b8a"))
+	draw_rect(Rect2(base.x - 14, base.y - 16, 10, 16), Color("334155"))
+	draw_rect(Rect2(base.x + 4, base.y - 16, 10, 16), Color("334155"))
+
+
+func _draw_headphones(base: Vector2) -> void:
+	draw_arc(base + Vector2(0, -20), 44, PI, TAU, 24, Color("2b2f38"), 8.0, true)
+	draw_rect(Rect2(base.x - 56, base.y - 34, 24, 34), Color("3b3f4a"))
+	draw_rect(Rect2(base.x + 32, base.y - 34, 24, 34), Color("3b3f4a"))
+
+
+func _draw_light_bar() -> void:
+	var r := monitor_rect
+	var bar := Rect2(r.position.x + r.size.x * 0.32, r.position.y - 14, r.size.x * 0.36, 12)
+	draw_rect(bar, Color("1c1f26"))
+	draw_rect(Rect2(bar.position.x + 6, bar.end.y - 3, bar.size.x - 12, 3), Color(1.0, 0.95, 0.85, 0.9))
+	_radial(Vector2(bar.get_center().x, 900), Vector2(520, 70), Color(1.0, 0.95, 0.85, 0.12))
 
 
 # --- drawing helpers ------------------------------------------------------------

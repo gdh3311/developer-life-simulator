@@ -2,7 +2,7 @@ extends VBoxContainer
 ## DevIDE: edits the real files of the company repo. Ctrl+S saves to disk.
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
-const DEFAULT_FILE := "src/users/displayName.ts"
+const DEFAULT_FILE := "README.md"
 
 var _tree: Tree
 var _code: CodeEdit
@@ -83,6 +83,7 @@ func save() -> void:
 		_saved_text = _code.text
 		_buffers.erase(_current)
 		_update_labels()
+		Game.emit_event("file_saved", {"path": _current})
 		Workspace.refresh()
 
 
@@ -114,9 +115,9 @@ func _update_labels() -> void:
 	var dirty := _is_dirty()
 	_tab.text = "  %s%s" % [_current.get_file(), "  ●" if dirty else ""]
 	var conflict := "<<<<<<<" in _code.text or ">>>>>>>" in _code.text
-	_status.text = "  ⎇ %s   ·   %s   ·   %s   ·   Ctrl+S 저장%s" % [
-		Workspace.branch, _current, "수정됨" if dirty else "저장됨",
-		"   ·   ⚠ 충돌 표시(<<<<<<< >>>>>>>)가 남아 있습니다" if conflict else ""]
+	_status.text = "  ⎇ %s   ·   %s   ·   %s   ·   %s%s" % [
+		Workspace.branch, _current, Game.L("수정됨", "modified") if dirty else Game.L("저장됨", "saved"), Game.L("Ctrl+S 저장", "Ctrl+S to save"),
+		Game.L("   ·   ⚠ 충돌 표시(<<<<<<< >>>>>>>)가 남아 있습니다", "   ·   ⚠ conflict markers (<<<<<<< >>>>>>>) remain") if conflict else ""]
 	_status.get_parent().add_theme_stylebox_override("panel", UITheme.box(Color("b45309") if conflict else Color("1d4ed8"), 0, Color(0, 0, 0, 0), 3))
 
 

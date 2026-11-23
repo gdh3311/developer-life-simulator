@@ -50,14 +50,14 @@ func _ready() -> void:
 	top.add_child(_cards)
 	var chart_panel := UITheme.panel(UITheme.BG2, 10, 12, Color(0, 0, 0, 0))
 	var cv := UITheme.vbox(6)
-	cv.add_child(UITheme.label("에러율 (최근 60초)", 12, UITheme.MUTED))
+	cv.add_child(UITheme.label(Game.L("에러율 (최근 60초)", "Error rate (last 60 s)"), 12, UITheme.MUTED))
 	_chart = Control.new()
 	_chart.custom_minimum_size.y = 110
 	_chart.draw.connect(_draw_chart)
 	cv.add_child(_chart)
 	chart_panel.add_child(cv)
 	top.add_child(chart_panel)
-	top.add_child(UITheme.label("로그 스트림", 12, UITheme.MUTED))
+	top.add_child(UITheme.label(Game.L("로그 스트림", "Log stream"), 12, UITheme.MUTED))
 	top.get_parent().size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_log = RichTextLabel.new()
 	_log.bbcode_enabled = true
@@ -121,7 +121,7 @@ func _render_cards() -> void:
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var v := UITheme.vbox(4)
 		v.add_child(UITheme.bold(s[1], 14))
-		v.add_child(UITheme.label({"ok": "● 정상", "warn": "● 경고", "down": "● 장애"}[st], 13, c))
+		v.add_child(UITheme.label({"ok": Game.L("● 정상", "● Healthy"), "warn": Game.L("● 경고", "● Degraded"), "down": Game.L("● 장애", "● Down")}[st], 13, c))
 		card.add_child(v)
 		_cards.add_child(card)
 

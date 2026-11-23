@@ -39,7 +39,7 @@ func _ready() -> void:
 	Game.relation_changed.connect(func(_n: String, _k: String, _d: int) -> void: _render_header())
 	# Open the channel with unread messages first.
 	for ch in Game.state["unread"]:
-		if int(Game.state["unread"][ch]) > 0:
+		if ch != "connectly" and int(Game.state["unread"][ch]) > 0:
 			_channel = ch
 			break
 	Game.mark_read(_channel)
@@ -55,7 +55,7 @@ func _channels() -> Array:
 
 func _render() -> void:
 	UITheme.clear(_list)
-	_list.add_child(UITheme.label("  채널", 11, UITheme.MUTED))
+	_list.add_child(UITheme.label(Game.L("  채널", "  Channels"), 11, UITheme.MUTED))
 	for ch in _channels():
 		var id: String = ch[0]
 		var b := Button.new()
@@ -74,7 +74,7 @@ func _render() -> void:
 			_render())
 		_list.add_child(b)
 		if id == "general":
-			_list.add_child(UITheme.label("  다이렉트 메시지", 11, UITheme.MUTED))
+			_list.add_child(UITheme.label(Game.L("  다이렉트 메시지", "  Direct messages"), 11, UITheme.MUTED))
 	_render_header()
 	UITheme.clear(_msgs)
 	var any := false
@@ -84,7 +84,7 @@ func _render() -> void:
 		any = true
 		_msgs.add_child(_message(m))
 	if not any:
-		_msgs.add_child(UITheme.label("아직 메시지가 없습니다.", 13, UITheme.MUTED))
+		_msgs.add_child(UITheme.label(Game.L("아직 메시지가 없습니다.", "No messages yet."), 13, UITheme.MUTED))
 	await get_tree().process_frame
 	if is_instance_valid(_scroll):
 		_scroll.scroll_vertical = int(_scroll.get_v_scroll_bar().max_value)
@@ -94,14 +94,14 @@ func _render_header() -> void:
 	UITheme.clear(_header)
 	if _channel == "general":
 		_header.add_child(UITheme.bold("# general", 16))
-		_header.add_child(UITheme.label("NEXORA 개발팀 전체 채널", 12, UITheme.MUTED))
+		_header.add_child(UITheme.label(Game.L("NEXORA 개발팀 전체 채널", "NEXORA dev team channel"), 12, UITheme.MUTED))
 		return
 	var npc := _channel.substr(3)
 	var row := UITheme.hbox(10)
 	row.add_child(UITheme.avatar(npc, 36))
 	var v := UITheme.vbox(0)
 	v.add_child(UITheme.bold(Game.npc_name(npc), 15))
-	v.add_child(UITheme.label(Game.NPCS[npc]["role"], 12, UITheme.MUTED))
+	v.add_child(UITheme.label(Game.npc_role(npc), 12, UITheme.MUTED))
 	row.add_child(v)
 	row.add_child(UITheme.spacer())
 	if Game.state["rel"].has(npc):
@@ -110,7 +110,7 @@ func _render_header() -> void:
 		grid.add_theme_constant_override("h_separation", 8)
 		grid.add_theme_constant_override("v_separation", 2)
 		for key in Game.REL_KEYS:
-			grid.add_child(UITheme.label(Game.REL_KEYS[key], 10, UITheme.MUTED))
+			grid.add_child(UITheme.label(Game.rel_label(key), 10, UITheme.MUTED))
 			grid.add_child(UITheme.bar(Game.rel(npc, key), Game.npc_color(npc), 60))
 		row.add_child(grid)
 	_header.add_child(row)
@@ -133,19 +133,19 @@ func _message(m: Dictionary) -> Control:
 		col.add_child(head)
 	var bubble := PanelContainer.new()
 	bubble.add_theme_stylebox_override("panel", UITheme.box(UITheme.ACCENT.darkened(0.35) if mine else UITheme.BG3, 10, Color(0, 0, 0, 0), 10))
-	var text := UITheme.label(m["text"], 14, UITheme.TEXT)
+	var text := UITheme.label(Game.tx(m["text"]), 14, UITheme.TEXT)
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	text.custom_minimum_size.x = 120 if mine else 0
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bubble.add_child(text)
 	if mine:
-		bubble.custom_minimum_size.x = mini(m["text"].length() * 9 + 30, 420)
+		bubble.custom_minimum_size.x = mini(Game.tx(m["text"]).length() * 9 + 30, 420)
 	col.add_child(bubble)
 	var choices: Array = m["choices"]
 	if not choices.is_empty() and m["answered"] == "":
 		var opts := UITheme.vbox(6)
 		for c in choices:
-			var b := UITheme.button(c["label"], "primary")
+			var b := UITheme.button(Game.tx(c["label"]), "primary")
 			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 			var mid := int(m["id"])

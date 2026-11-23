@@ -18,7 +18,7 @@ func _ready() -> void:
 	head.add_child(ic)
 	var hv := UITheme.vbox(0)
 	hv.add_child(UITheme.bold("AICode", 15))
-	hv.add_child(UITheme.label("사내 AI 코딩 에이전트 · 결과는 반드시 검토하세요", 11, UITheme.MUTED))
+	hv.add_child(UITheme.label(Game.L("사내 AI 코딩 에이전트 · 결과는 반드시 검토하세요", "In-house AI coding agent · always review its output"), 11, UITheme.MUTED))
 	head.add_child(hv)
 	add_child(UITheme.margin(head, 12))
 	_feed = UITheme.vbox(10)
@@ -29,31 +29,31 @@ func _ready() -> void:
 	bar.add_child(_actions)
 	add_child(bar)
 	Story.objectives_changed.connect(_render_actions)
-	_say("ai", "안녕하세요! 현재 업무에 대한 힌트를 드리거나, 일부 작업은 직접 맡아서 처리할 수 있어요.")
+	_say("ai", Game.L("안녕하세요! 현재 업무에 대한 힌트를 드리거나, 일부 작업은 직접 맡아서 처리할 수 있어요.", "Hi! I can give hints for your current task, or take over some tasks myself."))
 	_render_actions()
 
 
 func _render_actions() -> void:
 	UITheme.clear(_actions)
 	var m = Story.active
-	var hint := UITheme.button("힌트 받기")
+	var hint := UITheme.button(Game.L("힌트 받기", "Get a hint"))
 	hint.disabled = m == null or m.hints.is_empty() or _busy
 	hint.pressed.connect(_on_hint)
 	_actions.add_child(hint)
 	if m != null and not m.ai_task.is_empty():
 		var used: bool = m.data().get("ai_used", false)
-		var delegate := UITheme.button("AI에게 맡기기: " + String(m.ai_task["label"]), "primary")
+		var delegate := UITheme.button(Game.L("AI에게 맡기기: ", "Delegate to AI: ") + Game.tx(m.ai_task["label"]), "primary")
 		delegate.disabled = used or _busy
 		delegate.pressed.connect(_on_delegate)
 		_actions.add_child(delegate)
 	_actions.add_child(UITheme.spacer())
-	_actions.add_child(UITheme.label("사용한 힌트 %d" % Game.stat("hints"), 11, UITheme.MUTED))
+	_actions.add_child(UITheme.label(Game.L("사용한 힌트 %d", "Hints used: %d") % Game.stat("hints"), 11, UITheme.MUTED))
 
 
 func _on_hint() -> void:
 	var h: String = Story.next_hint()
 	if h != "":
-		_say("me", "지금 업무 힌트 좀 줘.")
+		_say("me", Game.L("지금 업무 힌트 좀 줘.", "Give me a hint for my current task."))
 		_say("ai", h)
 	_render_actions()
 
@@ -64,8 +64,8 @@ func _on_delegate() -> void:
 		return
 	_busy = true
 	_render_actions()
-	_say("me", "%s 작업을 맡아 줘." % m.ai_task["label"])
-	for step in ["저장소 구조 분석 중...", "관련 파일 읽는 중: " + ", ".join(m.ai_task["files"].keys()), "변경안 작성 중..."]:
+	_say("me", Game.L("%s 작업을 맡아 줘.", "Please take care of: %s") % Game.tx(m.ai_task["label"]))
+	for step in [Game.L("저장소 구조 분석 중...", "Analysing the repository..."), Game.L("관련 파일 읽는 중: ", "Reading files: ") + ", ".join(m.ai_task["files"].keys()), Game.L("변경안 작성 중...", "Writing the change...")]:
 		_say("ai", step)
 		await get_tree().create_timer(0.9).timeout
 	for path in m.ai_task["files"]:
@@ -73,7 +73,8 @@ func _on_delegate() -> void:
 	await Workspace.refresh()
 	Game.advance(15)
 	Game.emit_event("ai_used", {})
-	_say("ai", "완료했습니다. %s\n변경된 파일: %s\n\n⚠ 커밋하기 전에 DevIDE에서 코드를 검토하고 npm test 로 확인해 주세요." % [m.ai_task["summary"], ", ".join(m.ai_task["files"].keys())])
+	_say("ai", Game.L("완료했습니다. %s\n변경된 파일: %s\n\n커밋하기 전에 DevIDE에서 코드를 검토하고 npm test 로 확인해 주세요.",
+		"Done. %s\nChanged files: %s\n\nBefore committing, review the code in DevIDE and run npm test.") % [Game.tx(m.ai_task["summary"]), ", ".join(m.ai_task["files"].keys())])
 	_busy = false
 	_render_actions()
 

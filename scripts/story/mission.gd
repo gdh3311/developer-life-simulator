@@ -6,26 +6,26 @@ extends RefCounted
 ## Judgement is result-based: tests and CI, not exact code.
 ##
 ## Auto objective ids: tests, branch, commit, push, pr, ci, approved, merged, sync
+## Objective fields: { id, text: {ko,en}, app: dock app to highlight (tutorial), guide: {ko,en} }
 
 var id := ""
 var day := 1
-var title := ""
+var title := {}
 var issue := ""
-var objectives: Array = []      # [{ id, text }]
-var hints: Array = []           # beginner hints, revealed one by one in AICode
-var ai_task := {}               # { label, files: {path: content_path}, summary } for AI delegation
+var tutorial := false           # show the guide card with step-by-step help
+var objectives: Array = []
+var hints: Array = []           # [{ko,en}] revealed one by one in AICode
+var ai_task := {}               # { label, files: {path: content_path}, summary }
 var default_reviewer := "daniel"
 var story: Node
 
 
 # --- Overridables -----------------------------------------------------------------
 
-## Called once when the mission starts (coroutine allowed).
 func begin() -> void:
 	pass
 
 
-## Called after loading a save while this mission is active.
 func resume() -> void:
 	pass
 
@@ -41,12 +41,21 @@ func hidden_tests() -> Dictionary:
 
 ## Called when CI passes on the mission's PR and it has no review decision yet.
 func review(pr: Dictionary) -> void:
-	CodeHub.review(pr["id"], default_reviewer, "approved", "확인했습니다. 테스트도 통과하고 변경 범위도 적절하네요. 👍")
+	CodeHub.review(pr["id"], default_reviewer, "approved", t("확인했습니다. 테스트도 통과하고 변경 범위도 적절하네요.", "Looks good. Tests pass and the change is well scoped."))
 
 
-## Skip this mission (conditional content).
 func should_run() -> bool:
 	return true
+
+
+# --- Text -------------------------------------------------------------------------
+
+static func t(ko: String, en: String) -> Dictionary:
+	return {"ko": ko, "en": en}
+
+
+func title_text() -> String:
+	return Game.tx(title)
 
 
 # --- State --------------------------------------------------------------------------
@@ -71,13 +80,21 @@ func all_done() -> bool:
 	return objectives.all(func(o: Dictionary) -> bool: return is_done(o["id"]))
 
 
+## First objective not yet done (for the tutorial guide).
+func current_objective() -> Dictionary:
+	for o in objectives:
+		if not is_done(o["id"]):
+			return o
+	return {}
+
+
 func complete(obj_id: String) -> void:
 	if is_done(obj_id) or not has_objective(obj_id):
 		return
 	st()["obj"][obj_id] = true
 	for o in objectives:
 		if o["id"] == obj_id:
-			Game.notify("tasks", "%s · 진행" % (issue if issue != "" else title), "✓ " + String(o["text"]))
+			Game.notify("tasks", "%s · %s" % [issue if issue != "" else title_text(), Game.L("진행", "progress")], "✓ " + Game.tx(o["text"]))
 	story.objectives_changed.emit()
 	Game.save_soon()
 
@@ -92,7 +109,7 @@ func pr() -> Dictionary:
 
 # --- Helpers -----------------------------------------------------------------------
 
-func say(from: String, text: String, opts := {}) -> Dictionary:
+func say(from: String, text, opts := {}) -> Dictionary:
 	return Game.say(from, text, opts)
 
 
@@ -100,25 +117,17 @@ func wait(sec: float) -> void:
 	await (Engine.get_main_loop() as SceneTree).create_timer(sec).timeout
 
 
-func choice(from: String, text: String, key: String, options: Array, opts := {}) -> Dictionary:
+## options: [[id, {ko,en}], ...]
+func choice(from: String, text, key: String, options: Array, opts := {}) -> Dictionary:
 	var o := opts.duplicate()
 	o["key"] = key
 	o["choices"] = options.map(func(c: Array) -> Dictionary: return {"id": c[0], "label": c[1]})
 	return Game.say(from, text, o)
 
 
-## Updates the production Monitor. status: ok | warn | down. mode: log stream preset.
-func monitor(service: String, status: String, mode := "") -> void:
-	var m: Dictionary = Game.state["monitor"]
-	m["status"][service] = status
-	if mode != "":
-		m["mode"] = mode
-	Game.emit_event("monitor", {"service": service, "status": status})
-
-
 func load_tests(folder: String) -> Dictionary:
 	var result := {}
-	var dir := "res://content/ci/" + folder
+	var dir := Workspace.ci_content_dir(folder)
 	for f in DirAccess.get_files_at(dir):
 		if f.ends_with(".ts"):
 			result[f] = FileAccess.get_file_as_string(dir.path_join(f))
@@ -142,6 +151,20 @@ func added_tests_count(pr_dict: Dictionary) -> int:
 	return n
 
 
+## Updates the production Monitor. status: ok | warn | down. mode: log stream preset.
+func monitor(service: String, status: String, mode := "") -> void:
+	var m: Dictionary = Game.state["monitor"]
+	m["status"][service] = status
+	if mode != "":
+		m["mode"] = mode
+	Game.emit_event("monitor", {"service": service, "status": status})
+
+
+## Is argv a git command with this subcommand (and optional extra words)?
+static func is_git(argv: Array, sub: String) -> bool:
+	return argv.size() >= 2 and argv[0] == "git" and argv[1] == sub
+
+
 # --- Automatic objectives ---------------------------------------------------------
 
 func auto_event(kind: String, d: Dictionary) -> void:
@@ -159,6 +182,13 @@ func auto_event(kind: String, d: Dictionary) -> void:
 		"git_pushed":
 			if d["branch"] != "main":
 				complete("push")
+				if not data().get("tests_ok", true) and has_objective("tests") and not data().get("warned_red", false):
+					data()["warned_red"] = true
+					Game.relate("mina", {"work": -3})
+					say("mina", t("%s 브랜치 올라온 거 봤는데, 로컬 테스트가 아직 실패하지 않나요? push 전에 꼭 돌려 주세요." % d["branch"],
+						"I saw %s get pushed, but aren't the local tests still failing? Please run them before pushing." % d["branch"]))
+		"git_committed_main":
+			pass
 		"git_synced":
 			complete("sync")
 		"pr_opened":
@@ -169,7 +199,8 @@ func auto_event(kind: String, d: Dictionary) -> void:
 				var failures: Array = pr()["ci"]["failures"]
 				if failures.any(func(f: Dictionary) -> bool: return String(f["name"]).begins_with("[CI]")):
 					data()["ci_explained"] = true
-					CodeHub.comment(int(d["pr"]), "mina", "CI에는 [CI] 로 시작하는 추가 검증 테스트가 있어요. 실패한 케이스를 보고 위키의 스펙을 다시 확인해 보세요!")
+					CodeHub.comment(int(d["pr"]), "mina", t("CI에는 [CI] 로 시작하는 추가 검증 테스트가 있어요. 실패한 케이스를 보고 위키의 스펙을 다시 확인해 보세요!",
+						"CI also runs extra checks whose names start with [CI]. Look at the failing case and re-read the spec in the Wiki!"))
 			if int(d["pr"]) == int(data().get("pr", 0)) and d["ok"]:
 				complete("ci")
 				var p := pr()

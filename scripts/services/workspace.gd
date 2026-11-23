@@ -14,9 +14,7 @@ signal tests_finished(result: Dictionary)
 signal main_updated  # a teammate (or a merge) moved origin/main
 
 const ProcJob := preload("res://scripts/services/proc_job.gd")
-const TEMPLATE := "res://content/commerce-api"
-const PLAYER_NAME := "New Hire"
-const PLAYER_EMAIL := "newhire@nexora.dev"
+const NPC_EMAILS := ["daniel@nexora.dev", "sophie@nexora.dev", "mina@nexora.dev", "alex@nexora.dev", "codehub@nexora.dev"]
 const BOT_OPTION := "nexora-bot"
 
 const V_HOME := "/home/newhire"
@@ -138,13 +136,13 @@ func prepare() -> Dictionary:
 func _prepare_sync() -> Dictionary:
 	_write_gitconfig()
 	if OS.execute("git", ["--version"]) != 0:
-		return {"ok": false, "message": "git 엔진을 찾을 수 없습니다."}
+		return {"ok": false, "message": "git engine not found / git 엔진을 찾을 수 없습니다."}
 	if exists():
 		return {"ok": true, "message": "workspace mounted"}
 
 	# Teammates' history, built in the bot clone.
 	DirAccess.make_dir_recursive_absolute(bot)
-	_copy_dir(TEMPLATE.path_join("base"), bot)
+	_copy_dir(_content_root().path_join("base"), bot)
 	DirAccess.rename_absolute(bot.path_join("gitignore.txt"), bot.path_join(".gitignore"))
 	var steps: Array = [
 		["init", "-b", "main"],
@@ -152,12 +150,12 @@ func _prepare_sync() -> Dictionary:
 		_as("daniel", ["commit", "-m", "chore: commerce-api skeleton"]),
 		["add", "src/users"],
 		_as("sophie", ["commit", "-m", "feat(users): show display name on profile"]),
-		["add", "tests/displayName.test.ts"],
-		_as("mina", ["commit", "-m", "test(users): reproduce #001 display name bug"]),
+		["add", "src/payments/payments.ts"],
+		_as("daniel", ["commit", "--allow-empty", "-m", "chore(payments): refund rules"]),
 	]
 	for s in steps:
 		if _git_sync(bot, s) != 0:
-			return {"ok": false, "message": "저장소 생성 실패: git %s" % " ".join(PackedStringArray(s))}
+			return {"ok": false, "message": "git %s failed" % " ".join(PackedStringArray(s))}
 
 	DirAccess.make_dir_recursive_absolute(origin)
 	OS.execute("git", ["init", "--bare", "-b", "main", origin])
@@ -172,7 +170,7 @@ func _prepare_sync() -> Dictionary:
 
 	DirAccess.make_dir_recursive_absolute(home)
 	if OS.execute("git", ["-C", home, "clone", V_ORIGIN, "commerce-api"]) != 0:
-		return {"ok": false, "message": "작업 사본 clone 실패"}
+		return {"ok": false, "message": "clone failed"}
 	DirAccess.make_dir_recursive_absolute(ci.get_base_dir())
 	OS.execute("git", ["-C", ci.get_base_dir(), "clone", V_ORIGIN, "commerce-api"])
 	return {"ok": true, "message": "workspace created"}
@@ -181,14 +179,21 @@ func _prepare_sync() -> Dictionary:
 func _write_gitconfig() -> void:
 	DirAccess.make_dir_recursive_absolute(root)
 	var f := FileAccess.open(gitconfig, FileAccess.WRITE)
-	f.store_string("""[user]
-	name = %s
-	email = %s
-[init]
+	f.store_string("""[init]
 	defaultBranch = main
 [core]
 	autocrlf = false
 	quotePath = false
+	fsmonitor = false
+[gc]
+	auto = 0
+	autoDetach = false
+[maintenance]
+	auto = false
+[receive]
+	autogc = false
+[credential]
+	helper =
 [commit]
 	gpgsign = false
 [tag]
@@ -204,7 +209,7 @@ func _write_gitconfig() -> void:
 	insteadOf = %s
 [safe]
 	directory = *
-""" % [PLAYER_NAME, PLAYER_EMAIL, origin, V_ORIGIN])
+""" % [origin, V_ORIGIN])
 	f.close()
 
 
@@ -276,29 +281,29 @@ func check_git_args(args: Array) -> String:
 	if sub in ["--version", "--help"]:
 		return ""
 	if sub.begins_with("-"):
-		return "git 전역 옵션은 이 터미널에서 지원하지 않습니다."
+		return Game.L("git 전역 옵션은 이 터미널에서 지원하지 않습니다.", "Global git options are not supported in this terminal.")
 	if sub not in GIT_ALLOWED:
-		return "'git %s' 명령은 이 회사 환경에서 사용할 수 없습니다." % sub
+		return Game.L("'git %s' 명령은 이 회사 환경에서 사용할 수 없습니다.", "'git %s' is not available in this company environment.") % sub
 	if sub == "remote" and args.size() > 1 and String(args[1]) not in ["-v", "--verbose", "show"]:
-		return "원격 저장소 설정은 변경할 수 없습니다."
+		return Game.L("원격 저장소 설정은 변경할 수 없습니다.", "You can't change the remote configuration.")
 	if sub == "config":
 		for a in args.slice(1):
 			var k := String(a)
 			if not (k.begins_with("user.") or k in ["--list", "-l", "--get", "--local"] or not k.begins_with("-") and args.find(a) > 1):
-				return "git config 는 user.name / user.email 만 바꿀 수 있습니다."
+				return Game.L("git config 는 user.name / user.email 만 바꿀 수 있습니다.", "git config can only change user.name / user.email.")
 	for a in args:
 		var s := String(a)
 		var opt := s.get_slice("=", 0)
 		if opt in GIT_BLOCKED_OPTS:
-			return "옵션 %s 은(는) 사용할 수 없습니다." % opt
+			return Game.L("옵션 %s 은(는) 사용할 수 없습니다.", "Option %s is not allowed.") % opt
 		if opt in GIT_INTERACTIVE and sub in ["add", "rebase", "commit", "checkout", "restore", "reset", "stash", "clean", "merge"]:
-			return "대화형 모드(%s)는 지원하지 않습니다. 파일 단위로 add 하거나 -m 을 사용하세요." % opt
+			return Game.L("대화형 모드(%s)는 지원하지 않습니다. 파일 단위로 add 하거나 -m 을 사용하세요.", "Interactive mode (%s) is not supported. Add whole files or use -m.") % opt
 		if (s.length() > 2 and s[1] == ":" and (s[2] == "/" or s[2] == "\\")) or s.begins_with("\\\\"):
-			return "회사 저장소 밖의 경로는 사용할 수 없습니다."
+			return Game.L("회사 저장소 밖의 경로는 사용할 수 없습니다.", "Paths outside the company repository are not allowed.")
 		if s.begins_with("/") and not s.begins_with(V_REPO):
-			return "회사 저장소 밖의 경로는 사용할 수 없습니다."
+			return Game.L("회사 저장소 밖의 경로는 사용할 수 없습니다.", "Paths outside the company repository are not allowed.")
 		if ".." in s.split("/") or ".." in s.split("\\"):
-			return "상위 경로(..)는 사용할 수 없습니다."
+			return Game.L("상위 경로(..)는 사용할 수 없습니다.", "Parent paths (..) are not allowed.")
 	return ""
 
 
@@ -324,7 +329,7 @@ func run_tests(dir := "", emit := true) -> Dictionary:
 		dir = repo
 	if not has_node_runtime():
 		return {"ok": false, "passed": 0, "failed": 0, "tests": [], "output": "",
-			"error": "테스트 런타임(Node.js)을 찾을 수 없습니다."}
+			"error": Game.L("테스트 런타임(Node.js)을 찾을 수 없습니다.", "Test runtime (Node.js) not found.")}
 	var files: Array = []
 	var tests_dir := dir.path_join("tests")
 	if DirAccess.dir_exists_absolute(tests_dir):
@@ -332,7 +337,7 @@ func run_tests(dir := "", emit := true) -> Dictionary:
 			if f.ends_with(".test.ts"):
 				files.append(tests_dir.path_join(f))
 	if files.is_empty():
-		return {"ok": false, "passed": 0, "failed": 0, "tests": [], "output": "", "error": "테스트 파일이 없습니다."}
+		return {"ok": false, "passed": 0, "failed": 0, "tests": [], "output": "", "error": Game.L("테스트 파일이 없습니다.", "No test files.")}
 	var r := await run("node", ["--experimental-strip-types", "--no-warnings", "--test",
 		"--test-reporter=tap", "--test-timeout=8000"] + files, 25.0)
 	var parsed := _parse_tap(r["out"])
@@ -340,7 +345,7 @@ func run_tests(dir := "", emit := true) -> Dictionary:
 	parsed["output"] = virtualize(r["out"] + r["err"])
 	parsed["ok"] = not r["timed_out"] and parsed["failed"] == 0 and parsed["passed"] > 0
 	if r["timed_out"]:
-		parsed["error"] = "테스트가 25초 안에 끝나지 않아 중단했습니다. (무한 루프?)"
+		parsed["error"] = Game.L("테스트가 25초 안에 끝나지 않아 중단했습니다. (무한 루프?)", "Tests did not finish within 25 seconds and were stopped. (Infinite loop?)")
 	for t in parsed["tests"]:
 		t["detail"] = (t["detail"] as Array).map(func(d): return virtualize(d))
 	if emit:
@@ -410,9 +415,17 @@ func bot_commit(who: String, branch_name: String, files: Dictionary, message: St
 	return c["code"] == 0 and p2["code"] == 0
 
 
-## Copies a content file (res://) for bot_commit.
-static func content(path: String) -> String:
-	return FileAccess.get_file_as_string("res://content/commerce-api/" + path)
+func _content_root() -> String:
+	return "res://content/commerce-api/" + String(Game.state.get("repo_lang", "ko"))
+
+
+## A content file (res://) in the language the company repo was created in.
+func content(path: String) -> String:
+	return FileAccess.get_file_as_string(_content_root().path_join(path))
+
+
+func ci_content_dir(folder: String) -> String:
+	return "res://content/ci/%s/%s" % [String(Game.state.get("repo_lang", "ko")), folder]
 
 
 ## Merges origin/<branch> into origin/main as a merge commit. Returns { ok, conflict, sha }.
@@ -552,6 +565,18 @@ static func _refs(out: String) -> Dictionary:
 	return refs
 
 
+## Value of a git config key in the player's repo ("" if unset).
+func git_config(key: String) -> String:
+	var r := await _git_in(repo, ["config", "--get", key])
+	return String(r["out"]).strip_edges()
+
+
+func local_branches() -> Array:
+	var r := await _git_in(repo, ["for-each-ref", "--format=%(refname:short)", "refs/heads"])
+	return Array(String(r["out"]).strip_edges().split("
+", false))
+
+
 func local_main_synced() -> bool:
 	var a := String((await _git_in(repo, ["rev-parse", "-q", "--verify", "refs/heads/main"]))["out"]).strip_edges()
 	return a != "" and a == await remote_sha("main")
@@ -570,7 +595,7 @@ func refresh() -> void:
 			git_event.emit("branch_created", b)
 	if s["branch"] != prev["branch"]:
 		git_event.emit("switched", s["branch"])
-	if s["head"] != prev["head"] and s["head_author"] == PLAYER_EMAIL and not _seen_commits.has(s["head"]):
+	if s["head"] != prev["head"] and s["head_author"] != "" and s["head_author"] not in NPC_EMAILS 			and not _seen_commits.has(s["head"]):
 		_seen_commits[s["head"]] = true
 		git_event.emit("committed", s["branch"])
 	for b in s["remote"]:

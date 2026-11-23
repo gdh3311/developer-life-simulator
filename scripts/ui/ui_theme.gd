@@ -173,7 +173,7 @@ static func avatar(npc: String, size := 34.0) -> Control:
 	p.custom_minimum_size = Vector2(size, size)
 	p.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	p.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	var initial := "나" if npc == "me" else ("AI" if npc == "ai" else Game.npc_name(npc).left(1))
+	var initial := Game.pname().left(1).to_upper() if npc == "me" else ("AI" if npc == "ai" else Game.npc_name(npc).left(1))
 	var l := bold(initial, int(size * 0.42), Color.WHITE)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

@@ -42,9 +42,21 @@ func _drain(stdout: FileAccess) -> void:
 	_finish.call_deferred(out, OS.get_process_exit_code(_pid))
 
 
+static var _orphans: Array = []
+
+
 func _finish(out: String, code: int) -> void:
 	_thread.wait_to_finish()
-	var err: String = _err_thread.wait_to_finish()
+	# A detached grandchild can keep stderr open; never block the main thread on it.
+	for i in 60:
+		if not _err_thread.is_alive():
+			break
+		await (Engine.get_main_loop() as SceneTree).process_frame
+	var err := ""
+	if _err_thread.is_alive():
+		_orphans.append(_err_thread)
+	else:
+		err = _err_thread.wait_to_finish()
 	_finished.emit({"code": code, "out": out, "err": err, "timed_out": _timed_out})
 
 

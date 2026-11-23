@@ -118,6 +118,24 @@ func _draw() -> void:
 		"bell":
 			_line([[0.24, 0.7], [0.3, 0.6], [0.3, 0.42], [0.4, 0.26], [0.5, 0.22], [0.6, 0.26], [0.7, 0.42], [0.7, 0.6], [0.76, 0.7], [0.24, 0.7]])
 			_line([[0.44, 0.78], [0.56, 0.78]])
+		"globe":
+			_circle(0.5, 0.5, 0.38, false)
+			var s := minf(size.x, size.y)
+			draw_arc(_p(0.5, 0.5), 0.38 * s, -PI / 2, PI / 2, 24, color, stroke * s / 24.0, true)
+			_line([[0.12, 0.5], [0.88, 0.5]])
+			_line([[0.5, 0.12], [0.5, 0.88]])
+			var w := 0.17 * s
+			var c := _p(0.5, 0.5)
+			var pts := PackedVector2Array()
+			for i in 25:
+				var a := -PI / 2 + PI * i / 24.0
+				pts.append(c + Vector2(cos(a) * w, sin(a) * 0.38 * s))
+			draw_polyline(pts, color, stroke * s / 24.0, true)
+			var pts2 := PackedVector2Array()
+			for i in 25:
+				var a := PI / 2 + PI * i / 24.0
+				pts2.append(c + Vector2(cos(a) * w, sin(a) * 0.38 * s))
+			draw_polyline(pts2, color, stroke * s / 24.0, true)
 		"wifi":
 			var s := minf(size.x, size.y)
 			for i in 3:

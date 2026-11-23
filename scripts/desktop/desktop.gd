@@ -20,6 +20,7 @@ var apps: Array[Dictionary] = [
 	{"id": "wiki", "name": "Wiki", "icon": "wiki", "color": Color("22c3c3"), "size": Vector2(800, 540)},
 	{"id": "monitor", "name": "Monitor", "icon": "monitor", "color": Color("ff6b6b"), "size": Vector2(860, 520)},
 	{"id": "ai", "name": "AICode", "icon": "ai", "color": Color("c084fc"), "size": Vector2(600, 500)},
+	{"id": "browser", "name": "Browser", "icon": "globe", "color": Color("38bdf8"), "size": Vector2(880, 560)},
 	{"id": "dashboard", "name": "Dashboard", "icon": "dashboard", "color": Color("94a3b8"), "size": Vector2(860, 540)},
 ]
 
@@ -28,17 +29,26 @@ var _toasts: VBoxContainer
 var _pills: VBoxContainer
 var _clock: Label
 var _mission_chip: Label
+var _status_label: Label
 var _end_day_btn: Button
+var _guide: PanelContainer
+var _guide_body: VBoxContainer
 var _boot: ColorRect
 var _boot_log: Label
 var _boot_logo: Control
 var _overlay: Control
+var _alert: ColorRect
 var _open := {}
 var _dots := {}
 var _badges := {}
-var _dock_labels := {}
+var _dock_buttons := {}
 var _cascade := 0
 var _chapter_done := false
+var _slack_time := 0.0
+var _walkby_cooldown := 25.0
+var _walkby_active := false
+var _highlight := ""
+var _pulse := 0.0
 
 
 func _ready() -> void:
@@ -50,7 +60,13 @@ func _ready() -> void:
 	add_child(_windows)
 	_build_topbar()
 	_build_dock()
+	_build_guide()
 	_build_toasts()
+	_alert = ColorRect.new()
+	_alert.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_alert.color = Color(1, 0.2, 0.2, 0)
+	_alert.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_alert)
 	_build_boot_screen()
 
 	Game.time_changed.connect(func(_d: int, _m: int) -> void: _clock.text = Game.clock_text())
@@ -58,11 +74,25 @@ func _ready() -> void:
 	Game.relation_changed.connect(_on_relation)
 	Game.chat_added.connect(func(_m: Dictionary) -> void: _update_badges())
 	Game.chat_updated.connect(_update_badges)
+	Game.condition_changed.connect(_update_status)
+	Game.wallet_changed.connect(_update_status)
 	CodeHub.pr_changed.connect(func(_id: int) -> void: _update_badges())
 	CodeHub.prs_changed.connect(_update_badges)
-	Story.objectives_changed.connect(_update_mission_chip)
+	Story.objectives_changed.connect(_on_objectives_changed)
 	Game.day_finished.connect(_on_day_finished)
 	Story.chapter_finished.connect(func() -> void: _chapter_done = true)
+
+
+func _process(delta: float) -> void:
+	# Tutorial: pulse the dock icon of the app the current step needs.
+	_pulse += delta
+	for id in _dock_buttons:
+		var b: Control = _dock_buttons[id]
+		if id == _highlight and not _open.has(id):
+			b.modulate = Color(1, 1, 1).lerp(Color(1.6, 1.6, 1.6), 0.5 + 0.5 * sin(_pulse * 5.0))
+		else:
+			b.modulate = Color.WHITE
+	_check_slacking(delta)
 
 
 ## Clicking anywhere on a window brings it to the front.
@@ -121,6 +151,67 @@ func _app(id: String) -> Dictionary:
 	return {}
 
 
+func top_window_app() -> String:
+	var n := _windows.get_child_count()
+	for i in range(n - 1, -1, -1):
+		var w = _windows.get_child(i)
+		if not w.is_queued_for_deletion():
+			return w.app_id
+	return ""
+
+
+# --- Slacking & the boss walk-by -----------------------------------------------------
+
+func _is_slacking() -> bool:
+	if top_window_app() != "browser" or not _open.has("browser"):
+		return false
+	var b = _find_method(_open["browser"], "is_slacking")
+	return b != null and b.is_slacking()
+
+
+func _check_slacking(delta: float) -> void:
+	if _walkby_active or _overlay != null or Story.active == null or Game.state["day_done"]:
+		return
+	_walkby_cooldown -= delta
+	if not _is_slacking():
+		_slack_time = maxf(0.0, _slack_time - delta)
+		return
+	_slack_time += delta
+	if _walkby_cooldown <= 0.0 and _slack_time > 6.0 and randf() < delta / 12.0:
+		_walkby()
+
+
+func _walkby() -> void:
+	_walkby_active = true
+	var boss := "alex" if Game.day() >= 4 else "daniel"
+	notify("dashboard", Game.L("누군가 다가오는 발소리...", "Footsteps behind you..."), Game.L("%s 님이 자리 쪽으로 걸어옵니다! 업무 화면으로 바꾸세요!", "%s is walking toward your desk! Switch to something work-related!") % Game.npc_name(boss))
+	var t := create_tween().set_loops(3)
+	t.tween_property(_alert, "color:a", 0.16, 0.35)
+	t.tween_property(_alert, "color:a", 0.0, 0.35)
+	await get_tree().create_timer(3.2).timeout
+	if _is_slacking():
+		Game.inc_stat("caught_slacking")
+		var n := Game.stat("caught_slacking")
+		Game.relate(boss, {"work": -6 * n, "agree": -2})
+		Game.say(boss, Game.LL("...업무 시간이에요. 지금 하는 일부터 마무리해 주세요." if n == 1 else "또요? 이건 평가에 반영할 수밖에 없어요.",
+			"...It's work time. Please finish what you're on first." if n == 1 else "Again? I'll have to factor this into your review."))
+	else:
+		notify("dashboard", Game.L("휴...", "Phew..."), Game.L("안 들켰다.", "Not caught."))
+	_slack_time = 0.0
+	_walkby_cooldown = 45.0
+	_walkby_active = false
+
+
+func _find_method(n: Node, method: String) -> Node:
+	if n.has_method(method):
+		return n
+	for c in n.get_children():
+		var f := _find_method(c, method)
+		if f != null:
+			return f
+	return null
+
+
 # --- Notifications ----------------------------------------------------------
 
 func notify(app_id: String, title: String, body: String) -> void:
@@ -137,7 +228,7 @@ func notify(app_id: String, title: String, body: String) -> void:
 	var row := UITheme.hbox(10)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var npc := _npc_from_title(title)
-	if app_id == "chat" and npc != "":
+	if (app_id == "chat" or app_id == "browser") and npc != "":
 		row.add_child(UITheme.avatar(npc, 30))
 	else:
 		var holder := PanelContainer.new()
@@ -161,7 +252,8 @@ func notify(app_id: String, title: String, body: String) -> void:
 	card.gui_input.connect(func(e: InputEvent) -> void:
 		var click := e as InputEventMouseButton
 		if click != null and click.pressed:
-			open_app(app_id)
+			if _app(app_id).size() > 0:
+				open_app(app_id)
 			_dismiss(card)
 	)
 	card.modulate.a = 0.0
@@ -169,9 +261,7 @@ func notify(app_id: String, title: String, body: String) -> void:
 	if live.size() >= 4:
 		live[0].queue_free()
 	_toasts.add_child(card)
-	card.position.x = 40
-	var t := create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	t.tween_property(card, "modulate:a", 1.0, 0.25)
+	create_tween().tween_property(card, "modulate:a", 1.0, 0.25)
 	get_tree().create_timer(7.0).timeout.connect(_dismiss.bind(card))
 
 
@@ -196,12 +286,13 @@ func _on_relation(npc: String, key: String, delta: int) -> void:
 	var good := delta > 0
 	var pill := PanelContainer.new()
 	var c := UITheme.OK if good else UITheme.ERR
-	pill.add_theme_stylebox_override("panel", UITheme.box(Color(0.06, 0.07, 0.1, 0.92), 14, Color(c, 0.6), 0))
-	(pill.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_left = 12
-	(pill.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_right = 12
-	(pill.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_top = 3
-	(pill.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_bottom = 3
-	pill.add_child(UITheme.label("%s  ·  %s %s%d" % [Game.npc_name(npc), Game.REL_KEYS[key], "+" if good else "", delta], 12, c.lightened(0.2)))
+	var sb := UITheme.box(Color(0.06, 0.07, 0.1, 0.92), 14, Color(c, 0.6), 0)
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 3
+	sb.content_margin_bottom = 3
+	pill.add_theme_stylebox_override("panel", sb)
+	pill.add_child(UITheme.label("%s  ·  %s %s%d" % [Game.npc_name(npc), Game.rel_label(key), "+" if good else "", delta], 12, c.lightened(0.2)))
 	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pill.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_pills.add_child(pill)
@@ -214,13 +305,15 @@ func _on_relation(npc: String, key: String, delta: int) -> void:
 func _update_badges() -> void:
 	var unread := 0
 	for ch in Game.state["unread"]:
-		unread += int(Game.state["unread"][ch])
+		if ch != "connectly":
+			unread += int(Game.state["unread"][ch])
 	_set_badge("chat", unread)
+	_set_badge("browser", int(Game.state["unread"].get("connectly", 0)))
 	var pending := 0
 	for p in CodeHub.prs():
 		if p["state"] != "open":
 			continue
-		if p["reviewer"] == "me" and p["review"]["state"] == "pending":
+		if p["flags"].get("needs_my_comment", false):
 			pending += 1
 		elif p["author"] == "me" and p["review"]["state"] == "changes":
 			pending += 1
@@ -235,31 +328,94 @@ func _set_badge(id: String, n: int) -> void:
 	(b.get_child(0) as Label).text = str(n) if n < 10 else "9+"
 
 
-func _update_mission_chip() -> void:
+func _update_status() -> void:
+	var c := Game.condition()
+	var col := UITheme.OK if c >= 60 else (UITheme.WARN if c >= 25 else UITheme.ERR)
+	_status_label.text = "%s %d%%   %s" % [Game.L("컨디션", "Energy"), c, Game.won(Game.money())]
+	_status_label.add_theme_color_override("font_color", col.lightened(0.2))
+
+
+func _on_objectives_changed() -> void:
 	var m = Story.active
 	if m == null:
-		_mission_chip.text = "업무 없음" if not Game.state["day_done"] else "오늘 업무 완료"
+		_mission_chip.text = Game.L("오늘 업무 완료", "Done for today") if Game.state["day_done"] else Game.L("업무 없음", "No task")
 	else:
 		var done: int = m.objectives.filter(func(o: Dictionary) -> bool: return m.is_done(o["id"])).size()
-		_mission_chip.text = "%s%s  ·  %d/%d" % [(m.issue + " ") if m.issue != "" else "", m.title, done, m.objectives.size()]
+		_mission_chip.text = "%s%s  ·  %d/%d" % [(m.issue + " ") if m.issue != "" else "", m.title_text(), done, m.objectives.size()]
+	_render_guide()
+
+
+# --- Tutorial guide ---------------------------------------------------------------
+
+func _build_guide() -> void:
+	_guide = PanelContainer.new()
+	var sb := UITheme.box(Color(0.07, 0.09, 0.14, 0.96), 12, Color(UITheme.ACCENT, 0.5), 14, 1, 0)
+	sb.shadow_size = 18
+	sb.shadow_color = Color(0, 0, 0, 0.4)
+	_guide.add_theme_stylebox_override("panel", sb)
+	_guide.anchor_top = 1.0
+	_guide.anchor_bottom = 1.0
+	_guide.offset_left = 12
+	_guide.offset_top = -DOCK_H - 10
+	_guide.offset_right = 352
+	_guide.offset_bottom = -DOCK_H - 10
+	_guide.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_guide.visible = false
+	_guide_body = UITheme.vbox(6)
+	_guide.add_child(_guide_body)
+	add_child(_guide)
+
+
+func _render_guide() -> void:
+	var m = Story.active
+	if m == null or not m.tutorial:
+		_guide.visible = false
+		_highlight = ""
+		return
+	var o: Dictionary = m.current_objective()
+	if o.is_empty():
+		_guide.visible = false
+		_highlight = ""
+		return
+	_guide.visible = true
+	_highlight = String(o.get("app", ""))
+	UITheme.clear(_guide_body)
+	var head := UITheme.hbox(8)
+	head.add_child(Icon.make("ai", UITheme.ACCENT, 14))
+	var done: int = m.objectives.filter(func(x: Dictionary) -> bool: return m.is_done(x["id"])).size()
+	head.add_child(UITheme.bold(Game.L("튜토리얼  %d/%d", "Tutorial  %d/%d") % [done + 1, m.objectives.size()], 12, UITheme.ACCENT.lightened(0.3)))
+	_guide_body.add_child(head)
+	_guide_body.add_child(UITheme.wrap(Game.tx(o["text"]), 14, UITheme.TEXT))
+	if o.has("guide"):
+		var g := UITheme.label(Game.tx(o["guide"]), 12, UITheme.TEXT2)
+		g.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		g.custom_minimum_size.x = 300
+		if "\n  " in Game.tx(o["guide"]):
+			g.add_theme_font_override("font", UITheme.font(true))
+		_guide_body.add_child(g)
+	_guide.modulate.a = 0.0
+	create_tween().tween_property(_guide, "modulate:a", 1.0, 0.3)
 
 
 # --- Boot ---------------------------------------------------------------------
 
 func boot() -> void:
+	if not Game.has_settings() or not (Workspace.exists() and Game.has_save()):
+		await _first_run_setup()
 	var lines := [
 		"NEXORA Workstation BIOS v2.6.1",
 		"CPU: 12-Core @ 3.8GHz .............. OK",
 		"Memory: 32768 MB ................... OK",
-		"Storage: NVMe 1TB .................. OK",
 		"Network: corp-lan .................. CONNECTED",
 	]
 	for line in lines:
 		_boot_log.text += str(line) + "\n"
-		await get_tree().create_timer(0.12).timeout
+		await get_tree().create_timer(0.1).timeout
 	var continuing := Workspace.exists() and Game.has_save()
 	if Workspace.exists() and not continuing:
 		Workspace.wipe()
+	if continuing:
+		Game.load_game()
 	_boot_log.text += "Mounting /home/newhire ................ "
 	var ws := await Workspace.prepare()
 	_boot_log.text += ("OK" if ws["ok"] else "FAILED") + "\n"
@@ -267,18 +423,19 @@ func boot() -> void:
 		_boot_log.text += "\n[!] %s\n" % ws["message"]
 		return
 	if continuing:
-		Game.load_game()
 		_boot_log.text += "Restoring session (DAY %d) ............. OK\n" % Game.day()
 	_boot_log.text += "\nBooting WORKSTATION OS...\n"
-	await get_tree().create_timer(0.4).timeout
+	await get_tree().create_timer(0.3).timeout
 	var t := create_tween()
 	t.tween_property(_boot_log, "modulate:a", 0.0, 0.3)
 	t.tween_property(_boot_logo, "modulate:a", 1.0, 0.5)
-	t.tween_interval(0.8)
+	t.tween_interval(0.7)
 	t.tween_property(_boot, "modulate:a", 0.0, 0.6)
 	await t.finished
 	_boot.queue_free()
 	_clock.text = Game.clock_text()
+	_update_status()
+	_end_day_btn.text = Game.L("퇴근하기", "Clock out")
 	booted.emit()
 	_update_badges()
 	if continuing:
@@ -287,15 +444,75 @@ func boot() -> void:
 			_on_day_finished(Game.day())
 	else:
 		Story.start_new()
-	_update_mission_chip()
+	_on_objectives_changed()
+
+
+## First run: pick a language and enter your name.
+func _first_run_setup() -> void:
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_boot.add_child(center)
+	var v := UITheme.vbox(14)
+	v.custom_minimum_size.x = 420
+	center.add_child(v)
+	var title := UITheme.bold("", 22)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(title)
+	v.add_child(UITheme.label("Language / 언어", 12, UITheme.MUTED))
+	var langs := UITheme.hbox(10)
+	var ko := UITheme.button("한국어")
+	var en := UITheme.button("English")
+	for b in [ko, en]:
+		b.custom_minimum_size = Vector2(0, 40)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		langs.add_child(b)
+	v.add_child(langs)
+	var name_label := UITheme.label("", 12, UITheme.MUTED)
+	v.add_child(name_label)
+	var name_edit := LineEdit.new()
+	name_edit.max_length = 20
+	name_edit.custom_minimum_size.y = 38
+	v.add_child(name_edit)
+	var start := UITheme.button("", "ok")
+	start.custom_minimum_size.y = 42
+	v.add_child(start)
+	var refresh := func() -> void:
+		name_label.text = Game.L("이름 (사내 메신저와 커밋에 표시됩니다)", "Your name (shown in chat and commits)")
+		name_edit.placeholder_text = Game.L("예: 김개발", "e.g. Alex Doe")
+		start.text = Game.L("입사하기  →", "Start your first day  →")
+		title.text = Game.L("NEXORA 입사를 환영합니다", "Welcome to NEXORA")
+		var on := UITheme.box(UITheme.ACCENT.darkened(0.15), 7, Color(0, 0, 0, 0), 7)
+		var off := UITheme.box(UITheme.BG3, 7, UITheme.LINE, 7)
+		ko.add_theme_stylebox_override("normal", on if Game.lang == "ko" else off)
+		en.add_theme_stylebox_override("normal", on if Game.lang == "en" else off)
+	ko.pressed.connect(func() -> void:
+		Game.set_language("ko")
+		refresh.call())
+	en.pressed.connect(func() -> void:
+		Game.set_language("en")
+		refresh.call())
+	refresh.call()
+	var done := [false]
+	var submit := func() -> void:
+		Game.set_language(Game.lang)
+		var n := name_edit.text.strip_edges()
+		Game.state["player_name"] = n if n != "" else "New Hire"
+		Game.state["repo_lang"] = Game.lang
+		done[0] = true
+	start.pressed.connect(submit)
+	name_edit.text_submitted.connect(func(_t: String) -> void: submit.call())
+	name_edit.call_deferred("grab_focus")
+	while not done[0]:
+		await get_tree().process_frame
+	center.queue_free()
 
 
 # --- Day cycle ----------------------------------------------------------------
 
 func _on_day_finished(_d: int) -> void:
 	_end_day_btn.visible = true
-	_update_mission_chip()
-	notify("dashboard", "오늘 업무 완료", "상단의 '퇴근하기' 버튼을 눌러 하루를 마무리하세요.")
+	_on_objectives_changed()
+	notify("dashboard", Game.L("오늘 업무 완료", "Done for today"), Game.L("상단의 '퇴근하기' 버튼을 눌러 하루를 마무리하세요.", "Press 'Clock out' at the top to wrap up the day."))
 
 
 func _show_day_summary() -> void:
@@ -310,20 +527,22 @@ func _show_day_summary() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_overlay.add_child(center)
 	var card := UITheme.panel(UITheme.BG1, 16, 26, Color(1, 1, 1, 0.08))
-	card.custom_minimum_size = Vector2(620, 0)
+	card.custom_minimum_size = Vector2(640, 0)
 	center.add_child(card)
 	var v := UITheme.vbox(12)
 	card.add_child(v)
 	v.add_child(UITheme.label("DAY %d · %s" % [Game.day(), Game.DAY_NAMES[(Game.day() - 1) % 7]], 12, UITheme.MUTED))
-	v.add_child(UITheme.bold("업무 종료  ·  %s 퇴근" % Game.clock_text().substr(4), 24))
+	v.add_child(UITheme.bold(Game.L("업무 종료  ·  %s 퇴근", "Clocking out at %s") % Game.time_text(), 24))
 
 	var today: Dictionary = Game.state["stats_today"]
-	var stats := UITheme.hbox(10)
-	for s in [["commits", "커밋"], ["test_runs", "테스트 실행"], ["ci_pass", "CI 통과"], ["ci_fail", "CI 실패"], ["reviews", "리뷰"], ["merges", "병합"]]:
+	var stats := UITheme.hbox(8)
+	for s in [["commits", Game.L("커밋", "Commits")], ["test_runs", Game.L("테스트", "Test runs")], ["ci_pass", Game.L("CI 통과", "CI green")],
+			["ci_fail", Game.L("CI 실패", "CI red")], ["merges", Game.L("병합", "Merged")], ["caught_slacking", Game.L("딴짓 적발", "Caught")]]:
 		var box := UITheme.panel(UITheme.BG2, 10, 10, Color(0, 0, 0, 0))
 		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var bv := UITheme.vbox(0)
-		var n := UITheme.bold(str(int(today.get(s[0], 0))), 22, UITheme.ERR if s[0] == "ci_fail" and int(today.get(s[0], 0)) > 0 else UITheme.TEXT)
+		var val := int(today.get(s[0], 0))
+		var n := UITheme.bold(str(val), 22, UITheme.ERR if s[0] in ["ci_fail", "caught_slacking"] and val > 0 else UITheme.TEXT)
 		n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		bv.add_child(n)
 		var l := UITheme.label(s[1], 11, UITheme.MUTED)
@@ -333,23 +552,28 @@ func _show_day_summary() -> void:
 		stats.add_child(box)
 	v.add_child(stats)
 
-	v.add_child(UITheme.label("오늘의 팀 관계 변화", 12, UITheme.MUTED))
+	v.add_child(UITheme.label(Game.L("오늘의 팀 관계 변화", "Team relationships today"), 12, UITheme.MUTED))
 	var rel_today: Dictionary = Game.state["rel_today"]
 	if rel_today.is_empty():
-		v.add_child(UITheme.label("변화 없음", 13, UITheme.TEXT2))
+		v.add_child(UITheme.label(Game.L("변화 없음", "No change"), 13, UITheme.TEXT2))
 	for npc in rel_today:
 		var row := UITheme.hbox(10)
 		row.add_child(UITheme.avatar(npc, 26))
 		var nl := UITheme.label(Game.npc_name(npc), 13, UITheme.TEXT)
 		nl.custom_minimum_size.x = 110
 		row.add_child(nl)
+		var chips := HFlowContainer.new()
+		chips.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		for key in rel_today[npc]:
 			var dv := int(rel_today[npc][key])
 			if dv != 0:
-				row.add_child(UITheme.chip("%s %s%d" % [Game.REL_KEYS[key], "+" if dv > 0 else "", dv], UITheme.OK if dv > 0 else UITheme.ERR))
+				chips.add_child(UITheme.chip("%s %s%d" % [Game.rel_label(key), "+" if dv > 0 else "", dv], UITheme.OK if dv > 0 else UITheme.ERR))
+		row.add_child(chips)
 		v.add_child(row)
+	var salary: int = Game.SALARY[clampi(Game.state["rank"], 0, Game.SALARY.size() - 1)]
+	v.add_child(UITheme.label(Game.L("오늘 급여 +%s", "Today's pay +%s") % Game.won(salary), 13, UITheme.OK))
 
-	var btn := UITheme.button("엔딩 보기" if _chapter_done else "다음 날 출근하기  →", "primary")
+	var btn := UITheme.button(Game.L("엔딩 보기", "See the ending") if _chapter_done else Game.L("다음 날 출근하기  →", "Next day  →"), "primary")
 	btn.custom_minimum_size = Vector2(0, 40)
 	btn.pressed.connect(_on_next_day)
 	v.add_child(btn)
@@ -361,6 +585,7 @@ func _show_day_summary() -> void:
 
 func _on_next_day() -> void:
 	if _chapter_done:
+		Game.earn(Game.SALARY[clampi(Game.state["rank"], 0, Game.SALARY.size() - 1)])
 		_show_ending()
 		return
 	var t := create_tween()
@@ -385,7 +610,7 @@ func _on_next_day() -> void:
 	_overlay.queue_free()
 	_overlay = null
 	Story.start_day(Game.day())
-	_update_mission_chip()
+	_on_objectives_changed()
 
 
 func _show_ending() -> void:
@@ -396,19 +621,26 @@ func _show_ending() -> void:
 	_overlay.add_child(center)
 	var v := UITheme.vbox(14)
 	center.add_child(v)
-	for l in [
-		[UITheme.label("CHAPTER 1  —  FIRST WEEK", 13, UITheme.ACCENT), true],
-		[UITheme.bold("NEXORA에서의 첫 3일을 마쳤습니다", 28), true],
-		[UITheme.label("직급: %s   ·   팀 평균 신뢰도 %d점" % [Game.rank_name(), roundi(float(Game.state["flags"].get("review_avg", 0)))], 15, UITheme.TEXT2), true],
-		[UITheme.label("커밋 %d  ·  PR %d  ·  CI 통과 %d / 실패 %d  ·  리뷰 %d  ·  힌트 %d" % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews"), Game.stat("hints")], 13, UITheme.MUTED), true],
-		[UITheme.label("다음 챕터(새 회사, 프로덕션 배포, AI 에이전트 감독)는 Early Access에서 이어집니다.", 13, UITheme.TEXT2), true],
+	var left: bool = Game.state["flags"].get("ending", "") == "left"
+	var promoted: bool = int(Game.state["rank"]) >= 1
+	var headline := Game.L("Brightloop으로 이직합니다", "You're moving to Brightloop") if left else (
+		Game.L("NEXORA 정규직 전환!", "Full-time at NEXORA!") if promoted else Game.L("인턴 기간이 연장되었습니다", "Your internship was extended"))
+	var sub := Game.L("짧았지만 NEXORA에서 배운 것들이 다음 커리어의 밑거름이 될 거예요.", "Short, but what you learned at NEXORA will carry your next role.") if left else (
+		Game.L("인턴으로 시작해 4일 만에 팀의 신뢰를 얻었습니다.", "You started as an intern and earned the team's trust in four days.") if promoted
+		else Game.L("다음 달에는 더 많은 신뢰를 쌓아 보세요.", "Build more trust next month."))
+	for lab in [
+		UITheme.label("CHAPTER 1  —  " + Game.L("인턴의 첫 주", "THE INTERN WEEK"), 13, UITheme.ACCENT),
+		UITheme.bold(headline, 28),
+		UITheme.label(sub, 15, UITheme.TEXT2),
+		UITheme.label(Game.L("직급: %s   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Rank: %s   ·   Avg. team trust %d   ·   Balance %s") % [Game.rank_name(), roundi(float(Game.state["flags"].get("review_avg", 0))), Game.won(Game.money())], 13, UITheme.MUTED),
+		UITheme.label(Game.L("커밋 %d · PR %d · CI 통과 %d / 실패 %d · 리뷰 %d · 딴짓 적발 %d", "Commits %d · PRs %d · CI %d green / %d red · Reviews %d · Caught slacking %d") % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews"), Game.stat("caught_slacking")], 13, UITheme.MUTED),
+		UITheme.label(Game.L("다음 챕터(새 회사, 프로덕션 배포, AI 에이전트 감독)는 Early Access에서 이어집니다.", "The next chapter (new companies, production deploys, supervising AI agents) continues in Early Access."), 13, UITheme.TEXT2),
 	]:
-		var lab: Label = l[0]
 		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(lab)
-	var btn := UITheme.button("자유 모드로 계속하기", "primary")
+	var btn := UITheme.button(Game.L("자유 모드로 계속하기", "Keep playing (free mode)"), "primary")
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	btn.custom_minimum_size = Vector2(220, 40)
+	btn.custom_minimum_size = Vector2(240, 40)
 	btn.pressed.connect(func() -> void:
 		_overlay.queue_free()
 		_overlay = null
@@ -454,12 +686,6 @@ func _build_wallpaper() -> void:
 	logo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	logo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	add_child(logo)
-	var sub := UITheme.label("build things that work · together", 14, Color(1, 1, 1, 0.08))
-	sub.set_anchors_preset(Control.PRESET_FULL_RECT)
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	sub.offset_top = 90
-	add_child(sub)
 
 
 func _build_topbar() -> void:
@@ -495,17 +721,18 @@ func _build_topbar() -> void:
 			open_app("tasks"))
 	row.add_child(mission)
 	row.add_child(UITheme.spacer())
-	_end_day_btn = UITheme.button("퇴근하기", "ok")
+	_end_day_btn = UITheme.button("Clock out", "ok")
 	_end_day_btn.visible = false
 	_end_day_btn.custom_minimum_size.y = 24
 	_end_day_btn.add_theme_font_size_override("font_size", 12)
 	_end_day_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_end_day_btn.pressed.connect(_show_day_summary)
 	row.add_child(_end_day_btn)
+	_status_label = UITheme.label("", 12, UITheme.TEXT2)
+	row.add_child(_status_label)
 	var wifi := Icon.make("wifi", UITheme.TEXT2, 14)
 	wifi.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(wifi)
-	row.add_child(UITheme.label("New Hire · " + Game.rank_name(), 12, UITheme.MUTED))
 	_clock = UITheme.label(Game.clock_text(), 13, UITheme.TEXT, true)
 	row.add_child(_clock)
 
@@ -530,7 +757,7 @@ func _build_dock() -> void:
 	dock.add_child(row)
 	for i in apps.size():
 		row.add_child(_dock_item(apps[i]))
-		if i == 1 or i == 6:
+		if i == 1 or i == 7:
 			var sep := ColorRect.new()
 			sep.color = Color(1, 1, 1, 0.08)
 			sep.custom_minimum_size = Vector2(1, 40)
@@ -546,23 +773,24 @@ func _dock_item(app: Dictionary) -> Control:
 	btn.custom_minimum_size = Vector2(50, 50)
 	btn.focus_mode = Control.FOCUS_NONE
 	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	var normal := UITheme.box(c.darkened(0.62), 14, Color(c, 0.35), 0)
-	btn.add_theme_stylebox_override("normal", normal)
+	btn.add_theme_stylebox_override("normal", UITheme.box(c.darkened(0.62), 14, Color(c, 0.35), 0))
 	btn.add_theme_stylebox_override("hover", UITheme.box(c.darkened(0.45), 14, Color(c, 0.7), 0))
 	btn.add_theme_stylebox_override("pressed", UITheme.box(c.darkened(0.7), 14, Color(c, 0.5), 0))
 	var ic := Icon.make(app["icon"], c.lightened(0.35), 26)
 	ic.position = Vector2(12, 12)
 	btn.add_child(ic)
 	var badge := PanelContainer.new()
-	badge.add_theme_stylebox_override("panel", UITheme.box(UITheme.ERR, 8, Color(0, 0, 0, 0), 0))
-	(badge.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_left = 5
-	(badge.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_right = 5
+	var bsb := UITheme.box(UITheme.ERR, 8, Color(0, 0, 0, 0), 0)
+	bsb.content_margin_left = 5
+	bsb.content_margin_right = 5
+	badge.add_theme_stylebox_override("panel", bsb)
 	badge.add_child(UITheme.bold("0", 10, Color.WHITE))
 	badge.position = Vector2(34, -4)
 	badge.visible = false
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(badge)
 	_badges[app["id"]] = badge
+	_dock_buttons[app["id"]] = btn
 	btn.pressed.connect(open_app.bind(app["id"]))
 	btn.mouse_entered.connect(_bounce.bind(btn, 1.12))
 	btn.mouse_exited.connect(_bounce.bind(btn, 1.0))
@@ -598,7 +826,6 @@ func _build_toasts() -> void:
 	_pills.offset_left = -200
 	_pills.offset_right = 200
 	_pills.offset_top = TOPBAR_H + 10.0
-	_pills.alignment = BoxContainer.ALIGNMENT_BEGIN
 	_pills.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_pills)
 
@@ -614,6 +841,7 @@ func _build_boot_screen() -> void:
 	_boot.add_child(_boot_log)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var v := UITheme.vbox(10)
 	var ic := Icon.make("dot", UITheme.ACCENT, 28)
 	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER

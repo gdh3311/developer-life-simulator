@@ -10,6 +10,7 @@ const SCRIPTS := {
 	"wiki": preload("res://scripts/apps/wiki_app.gd"),
 	"monitor": preload("res://scripts/apps/monitor_app.gd"),
 	"ai": preload("res://scripts/apps/ai_app.gd"),
+	"browser": preload("res://scripts/apps/browser_app.gd"),
 	"dashboard": preload("res://scripts/apps/dashboard_app.gd"),
 }
 

@@ -2,6 +2,14 @@ extends PanelContainer
 ## Terminal app: runs real git and the test runner inside the company repo.
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
+const HELP_EN := """[color=#9aa4b5]Commands[/color]
+  git <...>        git commands (status, switch -c, add, commit -m, push, pull, log, blame, diff ...)
+  npm test         run the tests (or just: test)
+  ls [path]        list files
+  cat <file>       print a file
+  touch <file>     create an empty file      mkdir <dir>   create a folder
+  pwd / whoami / clear / help
+[color=#6f7a8c]Use ↑/↓ to recall earlier commands.[/color]"""
 const HELP := """[color=#9aa4b5]명령어[/color]
   git <...>        Git 명령 (status, switch -c, add, commit -m, push, pull, log, blame, diff ...)
   npm test         테스트 실행 (test 로 줄여 써도 됨)
@@ -47,7 +55,7 @@ func _ready() -> void:
 	row.add_child(_input)
 	v.add_child(row)
 
-	_print("[color=#7c8698]WORKSTATION OS terminal — 'help' 를 입력해 보세요.[/color]")
+	_print("[color=#7c8698]%s[/color]" % Game.L("WORKSTATION OS terminal — 'help' 를 입력해 보세요.", "WORKSTATION OS terminal — type 'help' to get started."))
 	_update_prompt()
 	Workspace.repo_changed.connect(_update_prompt)
 	_input.call_deferred("grab_focus")
@@ -100,21 +108,21 @@ func _on_submit(line: String) -> void:
 
 func _execute(argv: PackedStringArray) -> void:
 	if not Workspace.is_ready:
-		_print("[color=#e06c75]워크스페이스가 준비되지 않았습니다.[/color]")
+		_print("[color=#e06c75]%s[/color]" % Game.L("워크스페이스가 준비되지 않았습니다.", "The workspace isn't ready."))
 		return
 	var cmd := argv[0]
 	Game.emit_event("cmd", {"argv": Array(argv)})
 	match cmd:
 		"help":
-			_print(HELP)
+			_print(Game.L(HELP, HELP_EN))
 		"clear":
 			_out.clear()
 		"pwd":
 			_print(Workspace.V_REPO)
 		"whoami":
-			_print("newhire  (New Hire · %s · NEXORA)" % Game.rank_name())
+			_print("newhire  (%s · %s · NEXORA)" % [Game.pname(), Game.rank_name()])
 		"cd":
-			_print("[color=#7c8698]이 터미널은 ~/commerce-api 저장소에서 동작합니다.[/color]")
+			_print("[color=#7c8698]%s[/color]" % Game.L("이 터미널은 ~/commerce-api 저장소에서 동작합니다.", "This terminal works inside the ~/commerce-api repository."))
 		"ls":
 			_ls(argv[1] if argv.size() > 1 else "")
 		"cat":
@@ -136,20 +144,22 @@ func _execute(argv: PackedStringArray) -> void:
 			if text != "":
 				_print(_esc(text))
 			if "problem with the editor" in text or "Aborting commit due to empty" in text:
-				_print("[color=#7c8698]팁: 커밋 메시지는 -m 으로 바로 적어 주세요.  git commit -m \"fix: ...\"[/color]")
+				_print("[color=#7c8698]%s[/color]" % Game.L("팁: 커밋 메시지는 -m 으로 바로 적어 주세요.  git commit -m \"fix: ...\"", "Tip: write the commit message with -m.  git commit -m \"fix: ...\""))
+			if "Please tell me who you are" in text or "Author identity unknown" in text:
+				_print("[color=#f5a524]%s[/color]" % Game.L("팁: 먼저 내 정보를 설정하세요.  git config user.name \"이름\"  /  git config user.email \"me@nexora.dev\"", "Tip: set your identity first.  git config user.name \"Name\"  /  git config user.email \"me@nexora.dev\""))
 		"test", "npm":
 			if cmd == "npm" and (argv.size() < 2 or argv[1] != "test"):
-				_print("이 터미널에서는 npm test 만 지원합니다.")
+				_print(Game.L("이 터미널에서는 npm test 만 지원합니다.", "Only npm test is supported here."))
 			else:
 				await _run_tests()
 		_:
-			_print("[color=#e06c75]command not found:[/color] %s  [color=#7c8698](help 참고)[/color]" % _esc(cmd))
+			_print("[color=#e06c75]command not found:[/color] %s  [color=#7c8698](help)[/color]" % _esc(cmd))
 
 
 func _ls(rel: String) -> void:
 	var dir := Workspace.resolve(rel)
 	if dir == "" or not DirAccess.dir_exists_absolute(dir):
-		_print("ls: 경로를 찾을 수 없습니다: " + _esc(rel))
+		_print(Game.L("ls: 경로를 찾을 수 없습니다: ", "ls: no such path: ") + _esc(rel))
 		return
 	var items: Array[String] = []
 	for d in DirAccess.get_directories_at(dir):
@@ -163,7 +173,7 @@ func _ls(rel: String) -> void:
 func _make(cmd: String, rel: String) -> void:
 	var p := Workspace.resolve(rel)
 	if rel == "" or p == "" or p == Workspace.repo:
-		_print("%s: 경로를 입력하세요." % cmd)
+		_print(Game.L("%s: 경로를 입력하세요.", "%s: give a path.") % cmd)
 		return
 	if cmd == "mkdir":
 		DirAccess.make_dir_recursive_absolute(p)
@@ -175,7 +185,7 @@ func _make(cmd: String, rel: String) -> void:
 func _cat(rel: String) -> void:
 	var p := Workspace.resolve(rel)
 	if rel == "" or p == "" or not FileAccess.file_exists(p):
-		_print("cat: 파일을 찾을 수 없습니다: " + _esc(rel))
+		_print(Game.L("cat: 파일을 찾을 수 없습니다: ", "cat: no such file: ") + _esc(rel))
 		return
 	_print(_esc(FileAccess.get_file_as_string(p).strip_edges(false, true)))
 
@@ -198,7 +208,7 @@ func _run_tests() -> void:
 	if r.has("error"):
 		_print("[color=#e06c75]%s[/color]" % _esc(r["error"]))
 	var color := "#3ddc84" if r["ok"] else "#e06c75"
-	_print("[color=%s]통과 %d · 실패 %d[/color]" % [color, r["passed"], r["failed"]])
+	_print("[color=%s]%s[/color]" % [color, Game.L("통과 %d · 실패 %d", "%d passed · %d failed") % [r["passed"], r["failed"]]])
 
 
 ## Splits a command line into arguments, honouring "double" and 'single' quotes.
