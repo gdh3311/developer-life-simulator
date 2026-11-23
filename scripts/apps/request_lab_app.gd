@@ -9,6 +9,7 @@ var _retry: CheckButton
 var _keys: OptionButton
 var _clicks: OptionButton
 var _version: OptionButton
+var _timing: OptionButton
 var _run: Button
 var _error: Label
 var _plan_fields := {}
@@ -46,12 +47,16 @@ func _ready() -> void:
 	_keys = _option(grid, Game.L("요청 키", "Request keys"), [Game.L("같은 키 유지", "Reuse the same key"), Game.L("매번 새 키", "New key each time")])
 	_clicks = _option(grid, Game.L("구매 클릭", "Purchase clicks"), ["1", "2"])
 	_version = _option(grid, Game.L("실행 코드", "Run version"), [Game.L("현재 작업 코드", "Current working code"), Game.L("신고된 버전", "Reported version")])
+	if _concurrency_unlocked():
+		_timing = _option(grid, Game.L("요청 타이밍", "Request timing"), [Game.L("순차 (응답 뒤 재전송)", "Sequential (resend after reply)"), Game.L("동시 (요청이 겹침)", "Concurrent (requests overlap)")])
 	var previous: Dictionary = RequestLab.state()["latest"].get("config", {})
 	_network.select(1 if previous.get("network", "fast") == "slow" else 0)
 	_retry.button_pressed = previous.get("retry", true)
 	_keys.select(1 if previous.get("keys", "same") == "new" else 0)
 	_clicks.select(clampi(int(previous.get("clicks", 1)) - 1, 0, 1))
 	_version.select(1 if previous.get("version", "current") == "reported" else 0)
+	if _timing != null:
+		_timing.select(1 if previous.get("timing", "sequential") == "concurrent" else 0)
 	_run = UITheme.button(Game.L("조건대로 실험 실행", "Run this experiment"), "primary")
 	_run.custom_minimum_size.y = 38
 	_run.focus_mode = Control.FOCUS_ALL
@@ -66,7 +71,13 @@ func _ready() -> void:
 	tabs.tab_changed.connect(func(index: int) -> void:
 		if index == 0:
 			RequestLab.open_ticket())
-	if Story.active != null and Story.active.id != "c02_01":
+	if Story.status("c02_08") != "locked":
+		var reply := preload("res://scripts/apps/reply_composer.gd").new()
+		reply.name = Game.L("고객 답장", "Customer reply")
+		tabs.add_child(reply)
+	if Story.active != null and Story.active.id == "c02_08":
+		tabs.current_tab = tabs.get_tab_count() - 1
+	elif Story.active != null and Story.active.id != "c02_01":
 		tabs.current_tab = 1
 	RequestLab.open_ticket()
 	_render_ticket()
@@ -119,7 +130,7 @@ func _render_ticket() -> void:
 
 func _run_probe() -> void:
 	_error.text = ""
-	var result := await RequestLab.run_probe({"network": "fast" if _network.selected == 0 else "slow", "retry": _retry.button_pressed, "keys": "same" if _keys.selected == 0 else "new", "clicks": _clicks.selected + 1, "version": "current" if _version.selected == 0 else "reported"})
+	var result := await RequestLab.run_probe({"network": "fast" if _network.selected == 0 else "slow", "retry": _retry.button_pressed, "keys": "same" if _keys.selected == 0 else "new", "clicks": _clicks.selected + 1, "version": "current" if _version.selected == 0 else "reported", "timing": "concurrent" if _timing != null and _timing.selected == 1 else "sequential"})
 	if not is_instance_valid(_error):
 		return
 	if not result.get("ok", false):
@@ -131,8 +142,9 @@ func _refresh() -> void:
 	if _run == null:
 		return
 	_run.disabled = RequestLab.busy or Game.state["day_done"]
-	for control in [_network, _keys, _clicks, _version]:
-		control.disabled = RequestLab.busy
+	for control in [_network, _keys, _clicks, _version, _timing]:
+		if control != null:
+			control.disabled = RequestLab.busy
 	_retry.disabled = RequestLab.busy
 	UITheme.clear(_result)
 	var latest: Dictionary = RequestLab.state()["latest"]
@@ -146,7 +158,10 @@ func _refresh() -> void:
 	_result.add_child(UITheme.wrap(_conditions(latest["config"]), 12, UITheme.TEXT2))
 	for response in latest["responses"]:
 		_result.add_child(UITheme.label("+%dms  %s  →  %s" % [int(response["virtualMs"]), response["key"], response["orderId"]], 12, UITheme.TEXT2))
-	_result.add_child(UITheme.wrap(Game.L("같은 키를 유지한 순차 재전송은 같은 주문이어야 합니다. 매번 새 키를 쓰면 다른 구매 시도입니다. 동시 요청은 아직 검증하지 않았습니다.", "Sequential resends with the same key should return one order. New keys are separate purchase attempts. Concurrent requests have not been tested."), 12, UITheme.TEXT2))
+	if latest["config"].get("timing", "sequential") == "concurrent":
+		_result.add_child(UITheme.wrap(Game.L("동시 요청: 같은 키의 요청이 겹쳐 들어와도 주문은 하나여야 합니다. '있는지 확인 → 만들기'를 따로 하면 둘 다 '없음'을 보고 각자 만듭니다.", "Concurrent: overlapping requests with the same key must still create one order. Checking and creating as separate steps lets both see 'nothing yet' and each create one."), 12, UITheme.TEXT2))
+	else:
+		_result.add_child(UITheme.wrap(Game.L("같은 키를 유지한 순차 재전송은 같은 주문이어야 합니다. 매번 새 키를 쓰면 다른 구매 시도입니다.", "Sequential resends with the same key should return one order. New keys are separate purchase attempts.") + ("" if _concurrency_unlocked() else Game.L(" 동시 요청은 아직 검증하지 않았습니다.", " Concurrent requests have not been tested.")), 12, UITheme.TEXT2))
 	_result.add_child(UITheme.label(Game.L("최근 실험 기록", "Recent experiments"), 12, UITheme.MUTED))
 	var history: Array = RequestLab.state()["runs"]
 	for index in range(maxi(0, history.size() - 4), history.size()):
@@ -154,8 +169,13 @@ func _refresh() -> void:
 		_result.add_child(UITheme.wrap("%s  %s · %s  → %d / %d" % [run["time"], Game.L("현재", "current") if run["config"]["version"] == "current" else Game.L("신고", "reported"), _conditions(run["config"]), int(run["attempts"]), int(run["created"])], 11, UITheme.MUTED))
 
 
+func _concurrency_unlocked() -> bool:
+	return Story.status("c02_06") != "locked"
+
+
 func _conditions(config: Dictionary) -> String:
-	return "%s · %s · %s · %s" % [
+	var timing := (Game.L(" · 동시", " · concurrent") if config.get("timing", "sequential") == "concurrent" else "")
+	return timing.trim_prefix(" · ") + (" · " if timing != "" else "") + "%s · %s · %s · %s" % [
 		Game.L("응답 지연", "Delayed") if config["network"] == "slow" else Game.L("즉시 응답", "Immediate"),
 		Game.L("재전송 켬", "Retry on") if config["retry"] else Game.L("재전송 끔", "Retry off"),
 		Game.L("같은 키", "Same key") if config["keys"] == "same" else Game.L("새 키", "New keys"),

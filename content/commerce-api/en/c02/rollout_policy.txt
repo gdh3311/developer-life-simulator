@@ -1,0 +1,9 @@
+Rollout and observation (NXR-027)
+
+"Merged" and "the customer's problem is solved" happen at different times.
+
+1. Limited rollout: apply to the reporting shop (Moonlight) first.
+2. Observe: error rate, request volume, retry results and customer inquiries together.
+3. Evidence: "zero duplicates" alone is not enough. Orders and retries must actually have happened without duplicates.
+4. Record: the current scope, the next check time and the owner.
+5. Rolling back is not failure. If the bar isn't met, keep the limit or roll back, then check again.

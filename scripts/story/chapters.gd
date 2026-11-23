@@ -3,7 +3,7 @@ extends RefCounted
 
 const DATA := {
 	1: {"title": {"ko": "첫 출근", "en": "First days"}, "period": {"ko": "첫 번째 달", "en": "Month one"}, "first_day": 1, "last_day": 4, "planned": 10, "complete": true},
-	2: {"title": {"ko": "내 이름이 적힌 업무", "en": "A task with my name on it"}, "period": {"ko": "두 번째 달", "en": "Month two"}, "first_day": 5, "last_day": 5, "planned": 8, "complete": false},
+	2: {"title": {"ko": "내 이름이 적힌 업무", "en": "A task with my name on it"}, "period": {"ko": "두 번째 달", "en": "Month two"}, "first_day": 5, "last_day": 7, "planned": 8, "complete": true},
 }
 
 

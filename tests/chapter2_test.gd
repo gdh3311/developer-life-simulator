@@ -42,15 +42,15 @@ func command(line: String) -> void:
 	await _terminal._execute(_terminal.tokenize(line))
 
 
-func edit(content: String) -> void:
-	_ide.open_file("src/orders/request.ts")
+func edit(content: String, path := "src/orders/request.ts") -> void:
+	_ide.open_file(path)
 	_ide._code.text = content
 	_ide.save()
 	await get_tree().create_timer(0.1, true, false, true).timeout
 
 
-func probe(network: String, retry := true, version := "current", keys := "same") -> Dictionary:
-	var result := await RequestLab.run_probe({"network": network, "retry": retry, "keys": keys, "clicks": 1, "version": version})
+func probe(network: String, retry := true, version := "current", keys := "same", timing := "sequential") -> Dictionary:
+	var result := await RequestLab.run_probe({"network": network, "retry": retry, "keys": keys, "clicks": 1, "version": version, "timing": timing})
 	if not result.get("ok", false):
 		print("C02_PROBE_ERROR: ", result)
 	check(result.get("ok", false), "actual-code experiment: " + network + "/" + str(retry) + "/" + version + "/" + keys)
@@ -93,8 +93,8 @@ func _run() -> void:
 	get_tree().root.size = Vector2i(1000, 700)
 	get_tree().root.content_scale_size = Vector2i(1000, 700)
 	Game.reset_state()
-	if _stage == "after":
-		check(Game.load_game(), "loaded the previous process's reproduction checkpoint")
+	if _stage in ["after", "finale"]:
+		check(Game.load_game(), "loaded the previous process's checkpoint")
 	check((await Workspace.prepare()).get("ok", false), "mounted isolated real Git workspace")
 	_terminal = preload("res://scripts/desktop/terminal_app.gd").new()
 	_ide = preload("res://scripts/desktop/ide_app.gd").new()
@@ -104,6 +104,8 @@ func _run() -> void:
 	_ide.visible = false
 	if _stage == "before":
 		await before_restart()
+	elif _stage == "finale":
+		await finale()
 	else:
 		await after_restart()
 	await finish()
@@ -158,7 +160,7 @@ func before_restart() -> void:
 	check(Game.state["rank"] == 1 and Game.state["flags"]["kept_choice"] == "custom" and Game.rel("daniel", "tech") == 63, "career, choices and relationships are preserved")
 	check(Game.state["flags"]["ending"] == ("left" if _profile == "recover" else "stayed"), "legacy career choice is preserved")
 	check("MON" in Game.date_text() and not "FRI" in Game.date_text(), "chapter-two narrative date starts on Monday")
-	check(Story.chapter_missions(1).size() == 10 and Story.chapter_missions(2).size() == 3, "chapter progress counts are separated")
+	check(Story.chapter_missions(1).size() == 10 and Story.chapter_missions(2).size() == 8, "chapter progress counts are separated")
 	_desktop.queue_free()
 	await get_tree().process_frame
 	check(not RequestLab.save_plan(["payment"]), "a guess without records cannot finish customer investigation")
@@ -252,12 +254,187 @@ func after_restart() -> void:
 	var on_end := func() -> void: chapter_ended[0] += 1
 	Story.content_paused.connect(on_pause)
 	Story.chapter_finished.connect(on_end)
-	if not await wait_until(func() -> bool: return Game.state["day_done"], "completed all three available tasks"):
+	if not await wait_until(func() -> bool: return Game.state["day_done"], "finished the first chapter-two day"):
 		return
-	check(paused[0] == 1 and chapter_ended[0] == 0, "partial content never claims a completed chapter")
-	check(not Story.can_continue_chapter() and Game.state["monitor"]["status"]["api"] == "warn", "rollout is still pending; no empty next chapter is offered")
+	check(paused[0] == 0 and chapter_ended[0] == 0, "a mid-chapter day end claims neither pause nor completion")
+	check(not Story.can_continue_chapter() and Game.state["monitor"]["status"]["api"] == "warn", "rollout is still pending after the sequential fix")
+	var paid := Game.money()
 	Game.next_day()
-	check(Game.day() == 5, "cannot advance to an unimplemented day")
+	check(Game.day() == 6 and Game.money() > paid and not Game.state["day_done"], "the next chapter-two day opens and pays once")
+	Story.content_paused.disconnect(on_pause)
+	Story.chapter_finished.disconnect(on_end)
+	Game._save()
+
+
+# --- Days 6-7: logs, screen states, concurrency, rollout, customer reply -------------------
+
+const ANSWERS := {"c02_log": "minimal", "c02_states": "split", "c02_announce": "staged", "c02_retro": "rules", "c02_wrap": "note",
+	"c02_ledger": "ticket", "c02_questions": "try", "c02_mira": "doc"}
+
+
+func _process(_delta: float) -> void:
+	if _stage != "finale":
+		return
+	for message in Game.state["chat"].duplicate():
+		if message["answered"] == "" and not message["choices"].is_empty() and ANSWERS.has(message["key"]):
+			Game.answer(int(message["id"]), ANSWERS[message["key"]])
+			return
+
+
+func pr_by(id: int) -> Dictionary:
+	return CodeHub.get_pr(id)
+
+
+func ship(branch: String, title: String, body: String) -> Dictionary:
+	await command("git add .")
+	await command('git commit -m "%s"' % title)
+	await command("git push")
+	var opened := await CodeHub.open_pr(branch, title, body)
+	check(opened.get("ok", false), "opened PR " + branch)
+	return opened.get("pr", {})
+
+
+func next_day_to(day: int) -> bool:
+	if not await wait_until(func() -> bool: return Game.state["day_done"], "day %d ends after its missions" % Game.day()):
+		return false
+	Game.next_day()
+	Story.start_day(Game.day())
+	check(Game.day() == day, "advanced to day %d" % day)
+	return true
+
+
+func finale() -> void:
+	check(Game.day() == 6 and not Game.state["day_done"], "restart lands on the second chapter-two day")
+	var chapter_ended := [0]
+	var paused := [0]
+	Story.chapter_finished.connect(func() -> void: chapter_ended[0] += 1)
+	Story.content_paused.connect(func() -> void: paused[0] += 1)
+	await Story.resume()
+	# M04 - logs
+	if not await wait_until(func() -> bool: return active("c02_04"), "logs task starts on day 6"):
+		return
+	await command("git switch main")
+	await command("git pull")
+	check(Story.active.is_done("sync") and "...event" in Workspace.read_file("src/orders/request_log.ts"), "debug log module arrives via pull")
+	await wait_until(func() -> bool: return Story.active.is_done("talk"), "agreed with Mina on what logs keep")
+	await command("git switch -c fix/request-log")
+	await command("npm test")
+	check(not Story.active.is_done("logfix"), "public tests reject logging buyer data")
+	await edit(Workspace.content("c02/request_log_fixed.ts"), "src/orders/request_log.ts")
+	await command("npm test")
+	check(Story.active.is_done("logfix"), "allowlisted log passes public tests")
+	var log_pr := await ship("fix/request-log", "fix: keep only tracing fields in request logs", "Allowlist: requestId, shopId, result, attempt, retried, durationMs.")
+	if log_pr.is_empty() or not await wait_until(func() -> bool: return log_pr["state"] == "merged", "log fix merged after hidden CI"):
+		return
+	check(int(log_pr["ci"]["hidden"]) >= 1, "log PR ran hidden CI checks")
+	# M05 - screen states
+	if not await wait_until(func() -> bool: return active("c02_05"), "screen-state review starts"):
+		return
+	var target := int(Story.active.data()["target"])
+	check(pr_by(target)["flags"].get("needs_my_comment", false), "Sophie's PR asks for my review")
+	CodeHub.submit_comments(target, "concern", [{"file": "src/orders/order_status.ts", "line": 21, "text": "      return { state: 'confirmed', orderId: response.orderId };"}], "")
+	check(not Story.active.is_done("review"), "a concern on the wrong line does not count")
+	pr_by(target)["flags"]["needs_my_comment"] = true
+	if _profile == "recover":
+		CodeHub.submit_comments(target, "lgtm", [], "")
+	else:
+		CodeHub.submit_comments(target, "concern", [{"file": "src/orders/order_status.ts", "line": 23, "text": "    case 'timeout':"}], "A timeout may already have an order; a new key defeats the server check.")
+	check(Story.active.is_done("review") and Story.active.data().get("found_by", "") == ("mina" if _profile == "recover" else "me"), "review outcome depends on who found the bug")
+	if not await wait_until(func() -> bool: return pr_by(target)["state"] == "merged", "Sophie's agreed fix merges"):
+		print("C02_PR: ", JSON.stringify(pr_by(target)))
+		return
+	check(Game.state["flags"].get("c02_states_agreed", false), "agreed screen states recorded for the Wiki")
+	if not await next_day_to(7):
+		return
+	check(Game.state["side"].has("c02_ledger") and Game.state["side"].has("c02_questions"), "day-6 side events happened")
+	# M06 - concurrency
+	if not await wait_until(func() -> bool: return active("c02_06"), "concurrency task starts on day 7"):
+		return
+	await command("git switch main")
+	await command("git pull")
+	check(Story.active.is_done("sync"), "concurrency tests arrive via pull")
+	var seq := await probe("slow", true, "current", "same", "sequential")
+	check(int(seq.get("created", 0)) == 1, "sequential fix still holds for sequential calls")
+	var race := await probe("slow", true, "current", "same", "concurrent")
+	check(int(race.get("created", 0)) == 2 and Story.active.is_done("repro"), "overlapping calls reproduce duplicates")
+	await lab_preview("concurrent_" + Game.lang)
+	await command("git switch -c fix/concurrent-requests")
+	await command("npm test")
+	check(not Story.active.is_done("concfix"), "check-then-create fails the concurrency tests")
+	var reference := Workspace.content("c02/request_concurrent.ts")
+	var conc_pr := {}
+	if _profile == "recover":
+		var ai := preload("res://scripts/apps/ai_app.gd").new()
+		add_child(ai)
+		await ai._on_delegate()
+		ai.queue_free()
+		await command("npm test")
+		check(Story.active.is_done("concfix"), "AI draft passes the public tests")
+		conc_pr = await ship("fix/concurrent-requests", "fix: claim request keys atomically", "Claim/complete/release for concurrent calls.")
+		if conc_pr.is_empty() or not await wait_until(func() -> bool: return conc_pr["ci"]["state"] == "fail", "hidden CI catches the pending conflict gap"):
+			return
+		await edit(reference)
+		await command("git add .")
+		await command('git commit -m "fix: compare fingerprints while pending"')
+		await command("git push")
+	else:
+		await edit(reference)
+		await command("npm test")
+		check(Story.active.is_done("concfix"), "atomic claim passes the public tests")
+		conc_pr = await ship("fix/concurrent-requests", "fix: claim request keys atomically", "Covers concurrent calls, retry after a failed create, and conflicting contents while pending.")
+	if conc_pr.is_empty() or not await wait_until(func() -> bool: return conc_pr["state"] == "merged", "concurrency fix merged"):
+		print("C02_PR: ", JSON.stringify(conc_pr))
+		return
+	var fixed := await probe("slow", true, "current", "same", "concurrent")
+	check(int(fixed.get("created", 0)) == 1, "current code turns overlapping calls into one order")
+	# M07 - rollout
+	if not await wait_until(func() -> bool: return active("c02_07"), "rollout task starts"):
+		return
+	var monitor := preload("res://scripts/apps/monitor_app.gd").new()
+	monitor.theme = UITheme.build()
+	monitor.position = Vector2(40, 40)
+	monitor.size = Vector2(900, 600)
+	add_child(monitor)
+	var m = Story.active
+	await wait_until(func() -> bool: return m.is_done("announce"), "agreed with Alex on the announcement")
+	m.apply("all")
+	check(m.rollout()["scope"] == "" and not m.is_done("scope"), "rolling out to every shop is refused")
+	m.apply("moonlight")
+	m.observe()
+	m.choose_evidence("quiet")
+	check(not m.is_done("evidence"), "an empty window is not evidence")
+	if _profile == "recover":
+		m.roll_back()
+		check(not m.is_done("scope") and int(m.rollout()["rollbacks"]) == 1, "rolling back resets the observation")
+		m.apply("moonlight")
+		m.observe()
+	m.choose_evidence("traffic")
+	m.record("", "")
+	check(not m.is_done("record"), "recording needs a time and an owner")
+	await get_tree().process_frame
+	await capture("rollout_" + Game.lang)
+	m.record(Game.L("내일 10:00", "Tomorrow 10:00"), Game.pname())
+	if not await wait_until(func() -> bool: return active("c02_08"), "rollout recorded and observed"):
+		return
+	monitor.queue_free()
+	check(Game.state["monitor"]["status"]["api"] == "ok", "monitor returns to normal after the rollout")
+	# M08 - customer reply
+	var reply = Story.active
+	var notes: Array = reply.submit({"change": "jargon", "verified": "all", "existing": "omit", "contact": "devteam"})
+	check(notes.size() == 4 and not reply.reply_state()["sent"], "Yuri rejects jargon, overclaiming and a missing follow-up")
+	await lab_preview("reply_" + Game.lang)
+	notes = reply.submit({"change": "plain", "verified": "scoped", "existing": "follow", "contact": "support"})
+	check(notes.is_empty() and reply.reply_state()["sent"] and reply.is_done("sent"), "the scoped plain-language reply is sent")
+	if not await wait_until(func() -> bool: return Game.state["day_done"], "the chapter's last day ends"):
+		return
+	check(chapter_ended[0] == 1 and paused[0] == 0, "Chapter 2 reports completion exactly once")
+	check(Story.chapter_missions(2).all(func(x) -> bool: return Story.status(x.id) == "done"), "all eight chapter-two tasks are done")
+	check(Game.state["issues"].any(func(i: Dictionary) -> bool: return i["id"] == "LEGACY-17"), "LEGACY-17 teaser is filed")
+	check(Game.state["side"].has("c02_mira"), "day-7 side event happened")
+	check(Game.state["flags"].get("c02_wrap", "") == "note", "wrap-up choice recorded")
+	check(not Story.can_continue_chapter(), "no empty Chapter 3 is offered")
+	Game.next_day()
+	check(Game.day() == 7, "cannot advance past the last implemented chapter")
 	var rewards: Dictionary = Game.state["rel"].duplicate(true)
 	_desktop = Desktop.new()
 	_desktop.theme = UITheme.build()
@@ -265,16 +442,14 @@ func after_restart() -> void:
 	add_child(_desktop)
 	_desktop._boot.visible = false
 	await Story.resume()
-	check(_desktop._content_done and Game.state["rel"] == rewards, "completed slice resumes without duplicate rewards")
+	check(_desktop._chapter_done and Game.state["rel"] == rewards, "completed chapter resumes without duplicate rewards")
 	_desktop._show_day_summary()
 	_desktop._on_next_day()
 	await get_tree().create_timer(0.1, true, false, true).timeout
-	await capture("chapter2_segment_" + Game.lang)
+	await capture("chapter2_ending_" + Game.lang)
 	var paid := Game.money()
-	check(not Game.claim_salary() and Game.money() == paid, "slice summary cannot duplicate salary")
+	check(not Game.claim_salary() and Game.money() == paid, "ending cannot duplicate salary")
 	_desktop.queue_free()
-	Story.content_paused.disconnect(on_pause)
-	Story.chapter_finished.disconnect(on_end)
 	Game._save()
 
 

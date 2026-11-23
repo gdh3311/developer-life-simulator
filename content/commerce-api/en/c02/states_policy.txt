@@ -1,0 +1,13 @@
+Order screen states (NXR-025 · agreed with Sophie)
+
+| State | Screen | Promise with the server |
+| Before request | Order button enabled | Prepare a new request key |
+| Waiting | Processing indicator | Keep the same key for this attempt |
+| Result unknown (timeout) | "Checking" + a check action | Check or retry with the same key |
+| Confirmed (created / existing) | Show the existing order number | Same key returns the same result |
+| Content conflict | Ask to review the order | New attempt uses a new key |
+| Failed before processing (error) | Failure message | A new attempt is allowed |
+
+Key point: not receiving a response is not a failure. Showing "failed" makes customers click again,
+and resending with a new key defeats the server's duplicate protection.
+State names are up to you. Never show a false failure, and keep the key while the result is unknown.

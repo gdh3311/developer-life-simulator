@@ -1,0 +1,12 @@
+What logs keep (NXR-024)
+
+We printed the whole request while reproducing, but production logs keep only what tracing needs.
+
+Keep: request ID, shop ID, result code, attempt count or a retry flag, duration
+Never keep: buyer name, address and phone, payment token, card data, free-text notes
+
+Principle: build an allowlist of fields to keep, not a denylist of fields to remove.
+That way a field added to the event later never leaks into logs by default.
+
+Field names are up to you. Tracing data must remain and excluded data must not appear in any form.
+When customer details are needed, authorized staff look them up by order number in the support tool.

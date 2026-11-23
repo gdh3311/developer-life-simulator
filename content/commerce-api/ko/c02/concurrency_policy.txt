@@ -1,0 +1,20 @@
+동시 요청과 선점 (NXR-026)
+
+순차 요청에서는 '있는지 확인(get) → 만들기(create) → 저장(set)'으로 충분했다.
+두 요청이 동시에 오면 둘 다 확인 단계에서 '없음'을 보고 각자 주문을 만든다.
+
+저장소의 선점 계약 (tests/request_store.ts):
+  store.claim(key, fingerprint) — 한 번에 판정한다(원자적).
+    { status: 'new' }                          → 내가 선점했다. 주문을 만들어야 한다.
+    { status: 'pending', fingerprint, wait }   → 다른 요청이 만드는 중. wait(Promise)을 기다린다.
+    { status: 'done', fingerprint, order }     → 이미 완료된 주문.
+  store.complete(key, order) — 완료를 기록하고 기다리던 요청에 결과를 전달한다.
+  store.release(key, error) — 생성 실패 시 선점을 풀어 다음 재시도가 가능하게 한다.
+
+규칙:
+1. 순차 계약(빈 키, 상점·키 쌍, 내용 충돌)은 그대로다.
+2. pending이나 done인데 fingerprint가 다르면 REQUEST_CONFLICT다.
+3. 생성이 실패하면 반드시 release한다. 실패가 고정되면 고객은 영원히 주문할 수 없다.
+
+비유: 택배 접수증. 접수증(선점)을 먼저 받은 사람만 물건을 보내고,
+같은 접수 번호로 온 사람은 이미 보낸 택배의 송장(결과)을 받는다.

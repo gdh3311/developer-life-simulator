@@ -72,7 +72,7 @@ static func _valid_probe(run) -> bool:
 		if typeof(value) not in [TYPE_INT, TYPE_FLOAT] or not is_finite(float(value)) or value < 0 or value != floor(value):
 			return false
 	var config: Dictionary = run["config"]
-	if config.get("network", "") not in ["fast", "slow"] or typeof(config.get("retry")) != TYPE_BOOL or config.get("keys", "") not in ["same", "new"] or typeof(config.get("clicks")) not in [TYPE_INT, TYPE_FLOAT] or int(config.get("clicks", 0)) not in [1, 2] or config["clicks"] != floor(config["clicks"]) or config.get("version", "") not in ["current", "reported"]:
+	if config.get("network", "") not in ["fast", "slow"] or typeof(config.get("retry")) != TYPE_BOOL or config.get("keys", "") not in ["same", "new"] or typeof(config.get("clicks")) not in [TYPE_INT, TYPE_FLOAT] or int(config.get("clicks", 0)) not in [1, 2] or config["clicks"] != floor(config["clicks"]) or config.get("version", "") not in ["current", "reported"] or config.get("timing", "sequential") not in ["sequential", "concurrent"]:
 		return false
 	for response in run["responses"]:
 		if typeof(response) != TYPE_DICTIONARY or typeof(response.get("virtualMs")) not in [TYPE_INT, TYPE_FLOAT] or typeof(response.get("key")) != TYPE_STRING or typeof(response.get("orderId")) != TYPE_STRING:

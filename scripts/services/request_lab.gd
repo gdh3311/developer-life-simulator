@@ -52,9 +52,10 @@ func _error(ko: String, en: String) -> Dictionary:
 func run_probe(options: Dictionary) -> Dictionary:
 	if not available() or Game.state["day_done"] or busy:
 		return _error("지금은 실험을 시작할 수 없습니다.", "An experiment cannot start right now.")
-	if options.get("network", "") not in ["fast", "slow"] or typeof(options.get("retry")) != TYPE_BOOL or options.get("keys", "") not in ["same", "new"] or typeof(options.get("clicks")) not in [TYPE_INT, TYPE_FLOAT] or int(options.get("clicks", 0)) not in [1, 2] or options["clicks"] != floor(options["clicks"]) or options.get("version", "") not in ["reported", "current"]:
+	if options.get("network", "") not in ["fast", "slow"] or typeof(options.get("retry")) != TYPE_BOOL or options.get("keys", "") not in ["same", "new"] or typeof(options.get("clicks")) not in [TYPE_INT, TYPE_FLOAT] or int(options.get("clicks", 0)) not in [1, 2] or options["clicks"] != floor(options["clicks"]) or options.get("version", "") not in ["reported", "current"] or options.get("timing", "sequential") not in ["sequential", "concurrent"]:
 		return _error("실험 조건을 다시 선택해 주세요.", "Please select valid experiment conditions.")
 	var config := options.duplicate()
+	config["timing"] = String(options.get("timing", "sequential"))
 	var module := Workspace.resolve("src/orders/request.ts")
 	var directory := Workspace.root.path_join("lab")
 	DirAccess.make_dir_recursive_absolute(directory)

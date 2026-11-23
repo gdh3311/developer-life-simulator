@@ -1,0 +1,20 @@
+Concurrent requests and claims (NXR-026)
+
+For sequential calls, "check (get) → create → save (set)" was enough.
+When two requests arrive at once, both see "nothing yet" and each creates an order.
+
+The store's claim contract (tests/request_store.ts):
+  store.claim(key, fingerprint) — decides in one step (atomic).
+    { status: 'new' }                          → you hold the claim; create the order.
+    { status: 'pending', fingerprint, wait }   → someone else is creating it; await wait (a Promise).
+    { status: 'done', fingerprint, order }     → an order already exists.
+  store.complete(key, order) — records completion and hands the result to waiting requests.
+  store.release(key, error) — on failure, frees the claim so a later retry can succeed.
+
+Rules:
+1. The sequential contract (empty key, shop/key pair, content conflict) still holds.
+2. A pending or done claim with a different fingerprint is REQUEST_CONFLICT.
+3. Always release when creation fails. A stuck failure means the customer can never order.
+
+Analogy: a parcel receipt. Only the person holding the receipt (claim) ships the parcel;
+anyone arriving with the same receipt number gets the tracking number (result) of that parcel.

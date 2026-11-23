@@ -753,6 +753,9 @@ func _advance_workday() -> void:
 
 
 func _show_ending() -> void:
+	if Game.chapter() >= 2:
+		_show_chapter2_ending()
+		return
 	UITheme.clear(_overlay)
 	Sfx.play("promote")
 	confetti(220)
@@ -776,7 +779,7 @@ func _show_ending() -> void:
 		UITheme.label(sub, 15, UITheme.TEXT2),
 		UITheme.label(Game.L("직급: %s   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Rank: %s   ·   Avg. team trust %d   ·   Balance %s") % [Game.rank_name(), roundi(float(Game.state["flags"].get("review_avg", Game.avg_trust()))), Game.won(Game.money())], 13, UITheme.MUTED),
 		UITheme.label(Game.L("커밋 %d · PR %d · CI 통과 %d / 실패 %d · 리뷰 %d · 딴짓 적발 %d", "Commits %d · PRs %d · CI %d green / %d red · Reviews %d · Caught slacking %d") % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews"), Game.stat("caught_slacking")], 13, UITheme.MUTED),
-		UITheme.label(Game.L("챕터 2 · 첫 고객의 중복 주문 조사 — 현재 3개 업무를 플레이할 수 있습니다.", "Chapter 2 · Investigate a customer's duplicate orders — three tasks are playable."), 13, UITheme.TEXT2),
+		UITheme.label(Game.L("챕터 2 · 내 이름이 적힌 업무 — 첫 고객의 중복 주문을 끝까지 맡습니다.", "Chapter 2 · A task with my name on it — own a customer's duplicate orders end to end."), 13, UITheme.TEXT2),
 	]:
 		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(lab)
@@ -799,6 +802,39 @@ func _show_ending() -> void:
 	v.add_child(btn)
 
 
+func _show_chapter2_ending() -> void:
+	UITheme.clear(_overlay)
+	Sfx.play("promote")
+	confetti(160)
+	(_overlay as ColorRect).color = Color(0.02, 0.03, 0.05, 0.96)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.add_child(center)
+	var v := UITheme.vbox(14)
+	center.add_child(v)
+	var r: Dictionary = Game.state["flags"].get("c02_rollout", {})
+	var reply: Dictionary = Game.state["flags"].get("c02_reply", {})
+	for lab in [
+		UITheme.label("CHAPTER 2  —  " + Game.L("내 이름이 적힌 업무", "A TASK WITH MY NAME ON IT"), 13, UITheme.ACCENT),
+		UITheme.bold(Game.L("오늘 저녁, 달빛상점은 주문 목록을 대조하지 않았습니다", "Tonight, Moonlight didn't cross-check its order list"), 26),
+		UITheme.label(Game.L("고객 기록 → 재현 → 순차·동시 요청 계약 → 로그 · 화면 상태 → 제한 적용과 관찰 → 고객 답장", "Customer records → reproduction → sequential & concurrent contracts → logs · screen states → limited rollout → customer reply"), 14, UITheme.TEXT2),
+		UITheme.label(Game.L("관찰 담당 %s · 되돌림 %d회 · 답장 시도 %d회   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Observation owner %s · Rollbacks %d · Reply drafts %d   ·   Avg. team trust %d   ·   Balance %s") % [String(r.get("owner", "-")), int(r.get("rollbacks", 0)), int(reply.get("attempts", 0)), roundi(Game.avg_trust()), Game.won(Game.money())], 13, UITheme.MUTED),
+		UITheme.label(Game.L("커밋 %d · PR %d · CI 통과 %d / 실패 %d · 리뷰 %d", "Commits %d · PRs %d · CI %d green / %d red · Reviews %d") % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews")], 13, UITheme.MUTED),
+		UITheme.label(Game.L("다음 이야기: LEGACY-17 · 예전 주문의 번호가 맞지 않는다 — 챕터 3 개발 중", "Next: LEGACY-17 · old orders whose IDs don't match — Chapter 3 in development"), 13, UITheme.WARN),
+	]:
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(lab)
+	var btn := UITheme.button(Game.L("현재 데스크톱 둘러보기", "Review this desktop"), "primary")
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.custom_minimum_size = Vector2(240, 40)
+	btn.pressed.connect(func() -> void:
+		_overlay.queue_free()
+		_overlay = null
+		_day_transitioning = false
+		_end_day_btn.visible = true)
+	v.add_child(btn)
+
+
 func _show_content_summary() -> void:
 	UITheme.clear(_overlay)
 	(_overlay as ColorRect).color = Color(0.02, 0.03, 0.05, 0.96)
@@ -808,7 +844,7 @@ func _show_content_summary() -> void:
 	var v := UITheme.vbox(16)
 	center.add_child(v)
 	for item in [
-		UITheme.label("CHAPTER 2 · 3 / 8", 14, UITheme.ACCENT),
+		UITheme.label("CHAPTER %d · %d / %d" % [Game.chapter(), Story.chapter_missions(Game.chapter()).size(), int(preload("res://scripts/story/chapters.gd").DATA[Game.chapter()]["planned"])], 14, UITheme.ACCENT),
 		UITheme.bold(Game.L("같은 요청, 하나의 주문", "The same request, one order"), 28),
 		UITheme.label(Game.L("고객 기록 조사 → 지연·재전송 재현 → 순차 요청 계약 검증", "Customer records → delay and retry reproduction → sequential contract verified"), 14, UITheme.TEXT2),
 		UITheme.label(Game.L("현재 제공되는 3개 업무를 마쳤습니다. 계획된 8개 중 나머지는 개발 중입니다.", "You finished the three available tasks. The remaining five of eight are in development."), 13, UITheme.MUTED),

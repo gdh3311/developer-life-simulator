@@ -14,6 +14,9 @@ const SCHEDULE := [
 	["d2_quiz", 2, 14 * 60, ""],
 	["d3_checkin", 3, 11 * 60, "d3_07"],
 	["d3_offer", 3, 15 * 60, ""],
+	["c02_ledger", 6, 11 * 60 + 30, ""],
+	["c02_questions", 6, 16 * 60 + 30, ""],
+	["c02_mira", 7, 10 * 60 + 30, ""],
 ]
 
 
@@ -84,6 +87,28 @@ func fire(id: String) -> void:
 				"We'd like to continue talks with our backend team next month and hear about your work. This is not a confirmed hire yet. Shall we arrange a time?"), id, [
 				["accept", t("네, 면담을 이어 갈게요.", "Yes, let's continue the conversations.")],
 				["stay", t("고민해 봤는데, NEXORA에 남을게요.", "I thought about it. I'm staying at NEXORA.")]], "connectly")
+		_:
+			_fire_chapter2(id)
+
+
+func _fire_chapter2(id: String) -> void:
+	match id:
+		"c02_ledger":
+			_choice("yuri", t("고객이 보내 준 수작업 장부 예시예요. 구매자 정보는 지웠어요. 매일 저녁 주문 목록을 한 줄씩 대조하며 체크하셨대요.",
+				"Here's the customer's handwritten ledger, buyer details removed. Every evening they checked the order list line by line."), id, [
+				["ticket", t("자동 대조 아이디어를 후속 티켓으로 남겨 둘게요.", "I'll file the auto-reconciliation idea as a follow-up ticket.")],
+				["scope", t("오늘은 중복 방지 범위에 집중할게요. 끝나면 다시 볼게요.", "Today I'll stay on the duplicate fix. I'll revisit after.")]])
+		"c02_questions":
+			_choice("sophie", t("저 궁금한 게 있는데요. 모르는 거 물어보는 데도 시간이 걸리죠? 다들 언제 물어봐요?",
+				"Can I ask something? Asking questions takes time too, right? When do you all ask?"), id, [
+				["now", t("막히면 바로 물어봐요. 기다리는 시간이 더 아까워요.", "Right when I'm stuck. Waiting costs more.")],
+				["try", t("짧게 실험해 보고, 뭘 시도했는지 같이 들고 가요.", "I try a small experiment first and bring what I tried.")],
+				["slot", t("질문을 모아 뒀다가 Daniel이랑 시간을 잡아요.", "I batch questions and book time with Daniel.")]])
+		"c02_mira":
+			_choice("mina", t("근데 테스트 계정 'Mira' 있잖아요. 그거 누구예요? 예전부터 있던 예시인데 저도 몰라요.",
+				"By the way, the test account 'Mira'... who is that? It's been around forever and I don't know either."), id, [
+				["doc", t("테스트 계정 설명을 한 줄 추가해 둘게요.", "I'll add a one-line note describing the test account.")],
+				["mystery", t("미스터리로 남겨 두죠. 팀 전통이니까요.", "Let's leave it a mystery. It's team tradition.")]])
 
 
 func on_event(kind: String, d: Dictionary) -> void:
@@ -97,6 +122,22 @@ func on_event(kind: String, d: Dictionary) -> void:
 		return
 	var opt: String = d["option"]
 	match d["key"]:
+		"c02_ledger":
+			if opt == "ticket":
+				Game.add_issue("NXR-031", Game.LL("주문 목록 자동 대조 (고객 장부 사례)", "Auto-reconcile the order list (from the customer's ledger)"), "idea", "Yuri", "todo")
+				Game.say("yuri", t("좋아요. 고객 장부 사례와 같이 붙여 둘게요.", "Good. I'll attach the ledger example to it."))
+			else:
+				Game.say("sophie", t("우리는 버튼 하나라고 생각했는데, 고객에겐 매일 하던 일이 하나 있었네요.", "We thought it was one button, but for the customer it was a daily chore."))
+		"c02_questions":
+			Game.state["flags"]["question_style"] = opt
+			Game.relate("sophie", {"close": 2})
+			Game.say("sophie", t("다 좋은 방법이네요. 저도 제 방식을 정해 봐야겠어요.", "Those all work. I should pick my own style too."))
+		"c02_mira":
+			if opt == "doc":
+				Game.relate("mina", {"work": 1})
+				Game.say("daniel", t("...제가 이름 정했던가요? 기억이 안 나네요. 설명 추가 고마워요.", "...Did I name it? I can't remember. Thanks for documenting it."))
+			else:
+				Game.say("daniel", t("저도 모르겠어요. 그냥 Mira예요.", "I don't know either. Mira is just Mira."))
 		"d1_lunch":
 			if opt == "join":
 				Game.relate("mina", {"close": 4})

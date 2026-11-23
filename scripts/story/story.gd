@@ -21,6 +21,11 @@ const MISSIONS := [
 	preload("res://scripts/story/missions/c02_01_customer.gd"),
 	preload("res://scripts/story/missions/c02_02_reproduction.gd"),
 	preload("res://scripts/story/missions/c02_03_idempotency.gd"),
+	preload("res://scripts/story/missions/c02_04_logs.gd"),
+	preload("res://scripts/story/missions/c02_05_screen_states.gd"),
+	preload("res://scripts/story/missions/c02_06_concurrency.gd"),
+	preload("res://scripts/story/missions/c02_07_rollout.gd"),
+	preload("res://scripts/story/missions/c02_08_reply.gd"),
 ]
 const SideEvents := preload("res://scripts/story/side_events.gd")
 const Chapters := preload("res://scripts/story/chapters.gd")

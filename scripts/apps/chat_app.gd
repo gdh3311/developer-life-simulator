@@ -51,7 +51,7 @@ func _ready() -> void:
 
 func _channels() -> Array:
 	var result := [["general", "# general"]]
-	for npc in ["alex", "daniel", "mina", "sophie", "ai"]:
+	for npc in (["alex", "daniel", "mina", "sophie", "yuri", "ai"] if Game.chapter() >= 2 else ["alex", "daniel", "mina", "sophie", "ai"]):
 		result.append(["dm:" + npc, Game.npc_name(npc)])
 	return result
 

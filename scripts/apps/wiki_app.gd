@@ -13,6 +13,11 @@ const PAGES := [
 	["auth", {"ko": "인증 / 장애 대응", "en": "Auth & incidents"}],
 	["git", {"ko": "Git 치트시트", "en": "Git cheat sheet"}],
 	["requests", {"ko": "주문 요청과 재시도", "en": "Order requests and retries"}],
+	["logs", {"ko": "로그에 남길 것", "en": "What logs keep"}],
+	["states", {"ko": "주문 화면 상태", "en": "Order screen states"}],
+	["concurrency", {"ko": "동시 요청과 선점", "en": "Concurrent requests and claims"}],
+	["rollout", {"ko": "배포와 관찰 기준", "en": "Rollout and observation"}],
+	["legacy17", {"ko": "LEGACY-17", "en": "LEGACY-17"}],
 ]
 
 var _page := "overview"
@@ -90,6 +95,19 @@ func _content(id: String) -> String:
 	match id:
 		"requests":
 			return _h(Game.L("주문 요청과 순차 재시도", "Order requests and sequential retries")) + Workspace.content("c02/policy.txt")
+		"logs":
+			return _h(Game.L("로그에 남길 것", "What logs keep")) + Workspace.content("c02/log_policy.txt")
+		"states":
+			if not Game.state["flags"].get("c02_states_agreed", false):
+				return _h(Game.L("주문 화면 상태", "Order screen states")) + Game.L("초안 작성 중 · Sophie와 합의하면 표가 올라옵니다.", "Draft in progress · the table appears once you agree with Sophie.")
+			return _h(Game.L("주문 화면 상태", "Order screen states")) + Workspace.content("c02/states_policy.txt")
+		"concurrency":
+			return _h(Game.L("동시 요청과 선점", "Concurrent requests and claims")) + Workspace.content("c02/concurrency_policy.txt")
+		"rollout":
+			return _h(Game.L("배포와 관찰 기준", "Rollout and observation")) + Workspace.content("c02/rollout_policy.txt")
+		"legacy17":
+			return _h("LEGACY-17") + Game.L("예전 주문 일부는 결제 쪽 번호와 주문 쪽 번호가 다르다. 현재 금액은 맞다.\n이관 전에 대조 규칙을 정해야 한다. (담당 미정 · 다음 분기 조사)",
+				"Some old orders have different payment-side and order-side IDs. Current amounts are correct.\nWe need a reconciliation rule before migration. (Owner TBD · investigate next quarter)")
 		"overview":
 			if en:
 				return _h("Commerce Cloud") + "[color=#8a93a5]NEXORA's B2B commerce SaaS backend · repository %s[/color]\n" % _c("commerce-api") \

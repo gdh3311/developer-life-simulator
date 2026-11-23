@@ -38,7 +38,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or -not ($preflight -match 'QA_PREFLIGHT_OK') -or ($preflight -match 'SCRIPT ERROR:|ERROR:')) { throw ('QA compilation failed. See ' + (Join-Path $outputPath 'preflight.log')) }
     $scenePath = 'res://tests/' + $Suite + '_test.tscn'
     $resultTag = $Suite.ToUpper() + '_QA'
-    $stages = if ($Suite -in @('recovery', 'chapter2')) { @('before', 'after') } elseif ($Suite -eq 'chapter' -and $Profile -eq 'resume') { @('before', 'review', 'after') } else { @('') }
+    $stages = if ($Suite -eq 'chapter2') { @('before', 'after', 'finale') } elseif ($Suite -eq 'recovery') { @('before', 'after') } elseif ($Suite -eq 'chapter' -and $Profile -eq 'resume') { @('before', 'review', 'after') } else { @('') }
     foreach ($stage in $stages) {
         $runArgs = @('--path', $qaPath, $scenePath, '--max-fps', '120', '--quit-after', '72000')
         if ($EngineVerbose) { $runArgs += '--verbose' }
