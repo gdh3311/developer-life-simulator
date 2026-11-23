@@ -10,6 +10,7 @@ extends RefCounted
 
 var id := ""
 var day := 1
+var chapter := 1
 var title := {}
 var issue := ""
 var tutorial := false           # show the guide card with step-by-step help
@@ -18,6 +19,7 @@ var hints: Array = []           # [{ko,en}] revealed one by one in AICode
 var ai_task := {}               # { label, files: {path: content_path}, summary }
 var default_reviewer := "daniel"
 var story: Node
+var handling_merge := false
 
 
 # --- Overridables -----------------------------------------------------------------
@@ -27,7 +29,10 @@ func begin() -> void:
 
 
 func resume() -> void:
-	pass
+	if has_objective("merged") and (is_done("merged") or pr().get("state", "") == "merged"):
+		story._on_event("pr_merged", {"pr": int(data().get("pr", 0)), "by": pr().get("reviewer", "daniel")})
+	elif all_done():
+		finish()
 
 
 func on_event(_kind: String, _data: Dictionary) -> void:
@@ -66,6 +71,18 @@ func st() -> Dictionary:
 
 func data() -> Dictionary:
 	return st()["data"]
+
+
+func is_current() -> bool:
+	return story.active == self and story.status(id) == "active"
+
+
+func once(key: String) -> bool:
+	if data().get(key, false):
+		return false
+	data()[key] = true
+	Game.save_soon()
+	return true
 
 
 func is_done(obj_id: String) -> bool:
@@ -110,7 +127,17 @@ func pr() -> Dictionary:
 # --- Helpers -----------------------------------------------------------------------
 
 func say(from: String, text, opts := {}) -> Dictionary:
-	return Game.say(from, text, opts)
+	# A restarted introduction may revisit this line, but must not resend a choice or message.
+	var key := from + "|" + JSON.stringify(text) + "|" + String(opts.get("key", ""))
+	var posted: Dictionary = data().get("_posted", {})
+	if posted.has(key):
+		for message in Game.state["chat"]:
+			if int(message["id"]) == int(posted[key]):
+				return message
+	var message := Game.say(from, text, opts)
+	posted[key] = message["id"]
+	data()["_posted"] = posted
+	return message
 
 
 func wait(sec: float) -> void:
@@ -122,7 +149,7 @@ func choice(from: String, text, key: String, options: Array, opts := {}) -> Dict
 	var o := opts.duplicate()
 	o["key"] = key
 	o["choices"] = options.map(func(c: Array) -> Dictionary: return {"id": c[0], "label": c[1]})
-	return Game.say(from, text, o)
+	return say(from, text, o)
 
 
 func load_tests(folder: String) -> Dictionary:
@@ -184,9 +211,8 @@ func auto_event(kind: String, d: Dictionary) -> void:
 				complete("push")
 				if not data().get("tests_ok", true) and has_objective("tests") and not data().get("warned_red", false):
 					data()["warned_red"] = true
-					Game.relate("mina", {"work": -3})
-					say("mina", t("%s 브랜치 올라온 거 봤는데, 로컬 테스트가 아직 실패하지 않나요? push 전에 꼭 돌려 주세요." % d["branch"],
-						"I saw %s get pushed, but aren't the local tests still failing? Please run them before pushing." % d["branch"]))
+					say("mina", t("%s 브랜치의 실패 케이스는 CI에서도 확인할 수 있어요. 기대 결과와 실제 결과를 비교해 보세요. 병합 전까지 고치면 됩니다." % d["branch"],
+						"CI can help inspect the failing cases on %s. Compare expected and actual results; fix them before merging." % d["branch"]))
 		"git_committed_main":
 			pass
 		"git_synced":

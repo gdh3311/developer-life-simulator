@@ -253,7 +253,7 @@ func _connectly() -> void:
 		v.add_child(UITheme.wrap(Game.tx(m["text"]), 13, UITheme.TEXT))
 		if not (m["choices"] as Array).is_empty() and m["answered"] == "":
 			for ch in m["choices"]:
-				var b := UITheme.button(Game.tx(ch["label"]), "primary")
+				var b := UITheme.choice_button(Game.tx(ch["label"]))
 				b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 				var mid := int(m["id"])
 				var cid: String = ch["id"]

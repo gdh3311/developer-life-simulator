@@ -46,6 +46,22 @@ func _ready() -> void:
 	_render()
 
 
+func open_mission_diff(mission_id: String) -> void:
+	for p in CodeHub.prs():
+		if p.get("mission", "") == mission_id:
+			_selected = int(p["id"])
+			_mode = "pr"
+			_tab = 1
+			_render()
+			return
+
+
+func _report_diff(p: Dictionary) -> void:
+	var cache: Dictionary = _diff_cache.get(int(p["id"]), {})
+	if _tab == 1 and _selected == int(p["id"]) and not String(cache.get("text", "")).is_empty():
+		Game.emit_event("pr_diff_viewed", {"mission": p.get("mission", ""), "text": cache["text"]})
+
+
 func _render() -> void:
 	_render_list()
 	match _mode:
@@ -248,7 +264,9 @@ func _render_detail() -> void:
 	cires.name = Game.L("CI 결과", "CI results")
 	tabs.add_child(cires)
 	tabs.current_tab = _tab
-	tabs.tab_changed.connect(func(i: int) -> void: _tab = i)
+	tabs.tab_changed.connect(func(i: int) -> void:
+		_tab = i
+		_report_diff(p))
 	_fill_diff(p, diff)
 
 	var footer := UITheme.panel(UITheme.BG0, 0, 12, Color(0, 0, 0, 0))
@@ -280,7 +298,7 @@ func _conversation(p: Dictionary) -> Control:
 		if not choices.is_empty() and item["answered"] == "":
 			var opts := UITheme.vbox(6)
 			for c in choices:
-				var b := UITheme.button(Game.tx(c["label"]), "primary")
+				var b := UITheme.choice_button(Game.tx(c["label"]))
 				b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 				var idx := i
 				var cid: String = c["id"]
@@ -377,6 +395,7 @@ func _fill_diff(p: Dictionary, holder: VBoxContainer) -> void:
 			new_line += 1
 		v.add_child(_diff_line(file, new_line if kind != "-" else 0, line, selectable))
 	holder.add_child(UITheme.scroll(v))
+	_report_diff(p)
 
 
 func _diff_line(file: String, num: int, line: String, selectable: bool) -> Control:

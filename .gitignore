@@ -3,6 +3,7 @@
 /android/
 /build/
 *.tmp
+__pycache__/
 
 # Runtime game data (generated company repos, saves)
 /VirtualCompany/

@@ -34,6 +34,9 @@ func _ready() -> void:
 	Game.chat_added.connect(func(m: Dictionary) -> void:
 		if m["channel"] == _channel:
 			Game.mark_read(_channel)
+			if m["from"] not in ["me", "system"]:
+				_show_typing(int(m["id"]))
+				return
 		_render())
 	Game.chat_updated.connect(_render)
 	Game.relation_changed.connect(func(_n: String, _k: String, _d: int) -> void: _render_header())
@@ -82,6 +85,9 @@ func _render() -> void:
 		if m["channel"] != _channel:
 			continue
 		any = true
+		if int(m["id"]) in _typing:
+			_msgs.add_child(_typing_row(m["from"]))
+			continue
 		_msgs.add_child(_message(m))
 	if not any:
 		_msgs.add_child(UITheme.label(Game.L("아직 메시지가 없습니다.", "No messages yet."), 13, UITheme.MUTED))
@@ -144,8 +150,9 @@ func _message(m: Dictionary) -> Control:
 	var choices: Array = m["choices"]
 	if not choices.is_empty() and m["answered"] == "":
 		var opts := UITheme.vbox(6)
+		opts.add_child(UITheme.choice_header())
 		for c in choices:
-			var b := UITheme.button(Game.tx(c["label"]), "primary")
+			var b := UITheme.choice_button(Game.tx(c["label"]))
 			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 			var mid := int(m["id"])
@@ -154,4 +161,39 @@ func _message(m: Dictionary) -> Control:
 			opts.add_child(b)
 		col.add_child(opts)
 	row.add_child(col)
+	return row
+
+
+# --- "is typing..." --------------------------------------------------------------
+
+var _typing: Array = []
+
+
+## Shows a typing indicator before revealing a teammate's new message (longer text, longer typing).
+func _show_typing(id: int) -> void:
+	_typing.append(id)
+	_render()
+	var text := ""
+	for m in Game.state["chat"]:
+		if int(m["id"]) == id:
+			text = Game.tx(m["text"])
+	await get_tree().create_timer(clampf(0.5 + text.length() * 0.012, 0.6, 1.8)).timeout
+	_typing.erase(id)
+	if is_inside_tree():
+		_render()
+
+
+func _typing_row(from: String) -> Control:
+	var row := UITheme.hbox(10)
+	row.add_child(UITheme.avatar(from, 32))
+	var bubble := UITheme.panel(UITheme.BG3, 10, 10, Color(0, 0, 0, 0))
+	var dots := UITheme.label("•  •  •", 14, UITheme.TEXT2)
+	bubble.add_child(dots)
+	var col := UITheme.vbox(4)
+	col.add_child(UITheme.label(Game.L("%s 님이 입력 중...", "%s is typing...") % Game.npc_name(from), 11, UITheme.MUTED))
+	col.add_child(bubble)
+	row.add_child(col)
+	var t := dots.create_tween().set_loops()
+	t.tween_property(dots, "modulate:a", 0.3, 0.35)
+	t.tween_property(dots, "modulate:a", 1.0, 0.35)
 	return row

@@ -3,6 +3,7 @@ extends Control
 ## Drag the title bar to move, double-click it to maximize, drag the corner to resize.
 
 signal closed
+signal minimized
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const Icon := preload("res://scripts/ui/icon.gd")
@@ -61,7 +62,21 @@ func setup(id: String, title: String, accent: Color, icon_name: String, content:
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title_label.size_flags_vertical = Control.SIZE_FILL
 	row.add_child(title_label)
+	var min_btn := Button.new()
+	min_btn.flat = true
+	min_btn.focus_mode = Control.FOCUS_NONE
+	min_btn.custom_minimum_size = Vector2(28, 24)
+	min_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	min_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	min_btn.tooltip_text = "Ctrl+M"
+	min_btn.add_theme_stylebox_override("hover", UITheme.box(Color(1, 1, 1, 0.08), 6))
+	var mi := Icon.make("minus", UITheme.TEXT2, 12)
+	mi.position = Vector2(8, 6)
+	min_btn.add_child(mi)
+	min_btn.pressed.connect(func() -> void: minimized.emit())
+	row.add_child(min_btn)
 	var close_btn := Button.new()
+	close_btn.tooltip_text = "Ctrl+W"
 	close_btn.flat = true
 	close_btn.focus_mode = Control.FOCUS_NONE
 	close_btn.custom_minimum_size = Vector2(28, 24)

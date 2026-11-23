@@ -9,6 +9,7 @@ var _thread := Thread.new()      # drains stdout
 var _err_thread := Thread.new()  # drains stderr in parallel (avoids pipe deadlock)
 var _pid := -1
 var _timed_out := false
+var _timeout_timer: SceneTreeTimer
 
 
 func run(path: String, args: PackedStringArray, timeout_sec: float) -> Dictionary:
@@ -19,7 +20,9 @@ func run(path: String, args: PackedStringArray, timeout_sec: float) -> Dictionar
 	_err_thread.start(_read_all.bind(info["stderr"]))
 	_thread.start(_drain.bind(info["stdio"]))
 	var tree := Engine.get_main_loop() as SceneTree
-	tree.create_timer(timeout_sec).timeout.connect(_on_timeout)
+	# External process limits are wall-clock limits, independent of game speed or pause.
+	_timeout_timer = tree.create_timer(timeout_sec, true, false, true)
+	_timeout_timer.timeout.connect(_on_timeout)
 	return await _finished
 
 
@@ -46,6 +49,9 @@ static var _orphans: Array = []
 
 
 func _finish(out: String, code: int) -> void:
+	if _timeout_timer != null and _timeout_timer.timeout.is_connected(_on_timeout):
+		_timeout_timer.timeout.disconnect(_on_timeout)
+	_timeout_timer = null
 	_thread.wait_to_finish()
 	# A detached grandchild can keep stderr open; never block the main thread on it.
 	for i in 60:

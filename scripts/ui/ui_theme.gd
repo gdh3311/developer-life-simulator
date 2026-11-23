@@ -151,6 +151,27 @@ static func button(text: String, kind := "default") -> Button:
 	return b
 
 
+## A reply option the player can pick (outlined, so it never looks like a sent message).
+static func choice_button(text: String) -> Button:
+	var b := Button.new()
+	b.text = "→  " + text
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.focus_mode = Control.FOCUS_NONE
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.add_theme_stylebox_override("normal", box(Color(ACCENT, 0.06), 8, Color(ACCENT, 0.55), 9))
+	b.add_theme_stylebox_override("hover", box(Color(ACCENT, 0.18), 8, ACCENT, 9))
+	b.add_theme_stylebox_override("pressed", box(Color(ACCENT, 0.28), 8, ACCENT, 9))
+	b.add_theme_color_override("font_color", ACCENT.lightened(0.45))
+	b.add_theme_color_override("font_hover_color", Color.WHITE)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	return b
+
+
+## Header shown above a set of reply options.
+static func choice_header() -> Label:
+	return label(Game.L("답장 고르기", "Choose a reply"), 11, MUTED)
+
+
 ## A horizontal bar for a 0..100 value.
 static func bar(value: float, color: Color, width := 120.0) -> Control:
 	var back := Panel.new()

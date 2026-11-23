@@ -16,8 +16,10 @@ config/icon="res://icon.svg"
 
 Workspace="*res://scripts/services/workspace.gd"
 Game="*res://scripts/autoload/game.gd"
+Cases="*res://scripts/autoload/cases.gd"
 CodeHub="*res://scripts/services/codehub.gd"
 Story="*res://scripts/story/story.gd"
+RequestLab="*res://scripts/services/request_lab.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
 
 [display]

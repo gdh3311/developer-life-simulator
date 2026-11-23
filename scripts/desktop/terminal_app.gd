@@ -9,7 +9,7 @@ const HELP_EN := """[color=#9aa4b5]Commands[/color]
   cat <file>       print a file
   touch <file>     create an empty file      mkdir <dir>   create a folder
   pwd / whoami / clear / help
-[color=#6f7a8c]Use ↑/↓ to recall earlier commands.[/color]"""
+[color=#6f7a8c]Tab completes commands, branches and paths · ↑/↓ history · Ctrl+L clear · Ctrl+C cancel[/color]"""
 const HELP := """[color=#9aa4b5]명령어[/color]
   git <...>        Git 명령 (status, switch -c, add, commit -m, push, pull, log, blame, diff ...)
   npm test         테스트 실행 (test 로 줄여 써도 됨)
@@ -17,7 +17,7 @@ const HELP := """[color=#9aa4b5]명령어[/color]
   cat <파일>        파일 내용 보기
   touch <파일>      빈 파일 만들기        mkdir <폴더>   폴더 만들기
   pwd / whoami / clear / help
-[color=#6f7a8c]↑/↓ 로 이전 명령을 불러올 수 있어요.[/color]"""
+[color=#6f7a8c]Tab 자동 완성(명령·브랜치·경로) · ↑/↓ 이전 명령 · Ctrl+L 화면 지우기 · Ctrl+C 입력 취소[/color]"""
 
 var _out: RichTextLabel
 var _prompt: Label
@@ -73,9 +73,29 @@ static func _esc(text: String) -> String:
 	return text.replace("[", "[lb]")
 
 
+const COMMANDS := ["git", "npm", "test", "ls", "cat", "touch", "mkdir", "pwd", "whoami", "clear", "help"]
+const BRANCH_SUBCOMMANDS := ["switch", "checkout", "merge", "rebase", "branch", "log", "diff", "show", "cherry-pick", "pull", "push"]
+
+
 func _on_input_key(event: InputEvent) -> void:
 	var key := event as InputEventKey
-	if key == null or not key.pressed or _history.is_empty():
+	if key == null or not key.pressed:
+		return
+	if key.keycode == KEY_TAB:
+		_input.accept_event()
+		if not _busy:
+			_complete()
+		return
+	if key.ctrl_pressed and key.keycode == KEY_L:
+		_out.clear()
+		_input.accept_event()
+		return
+	if key.ctrl_pressed and key.keycode == KEY_C and not _input.has_selection():
+		_print("[color=#3ddc84]$[/color] " + _esc(_input.text) + "^C")
+		_input.clear()
+		_input.accept_event()
+		return
+	if _history.is_empty():
 		return
 	if key.keycode == KEY_UP:
 		_history_pos = maxi(_history_pos - 1, 0)
@@ -86,6 +106,71 @@ func _on_input_key(event: InputEvent) -> void:
 	_input.text = _history[_history_pos] if _history_pos < _history.size() else ""
 	_input.caret_column = _input.text.length()
 	_input.accept_event()
+
+
+## Bash-like Tab completion: commands, git subcommands, branch names and repo paths.
+## A unique match completes in place; several matches are listed.
+func _complete() -> void:
+	var text := _input.text.left(_input.caret_column)
+	var rest := _input.text.substr(_input.caret_column)
+	var words := text.split(" ")
+	var word := words[-1]
+	var sub := words[1] if words.size() > 1 else ""
+	var candidates: Array = []
+	if words.size() == 1:
+		candidates = COMMANDS
+	elif words[0] == "npm" and words.size() == 2:
+		candidates = ["test"]
+	elif words[0] == "git" and words.size() == 2:
+		candidates = Workspace.GIT_ALLOWED
+	elif words[0] in ["cat", "ls", "touch", "mkdir"] or (words[0] == "git" and sub in ["add", "restore", "rm", "blame"]):
+		candidates = _path_candidates(word)
+	elif words[0] == "git" and sub in ["push", "pull"] and words.size() == 3:
+		candidates = ["origin"]
+	elif words[0] == "git" and sub in BRANCH_SUBCOMMANDS:
+		candidates = await Workspace.local_branches()
+		if sub in ["merge", "rebase", "log", "diff", "show"]:
+			for b in await Workspace.remote_branches():
+				candidates.append("origin/" + b)
+		if word.contains(".") or (word.contains("/") and not word.begins_with("origin/")):
+			candidates = _path_candidates(word)
+	var matches: Array = candidates.filter(func(c: String) -> bool: return c.begins_with(word))
+	if matches.is_empty():
+		return
+	if matches.size() == 1:
+		var done: String = matches[0]
+		var suffix := "" if done.ends_with("/") else " "
+		_set_input(text.left(text.length() - word.length()) + done + suffix, rest)
+		return
+	var common: String = matches[0]
+	for m in matches:
+		while not String(m).begins_with(common):
+			common = common.left(common.length() - 1)
+	if common.length() > word.length():
+		_set_input(text.left(text.length() - word.length()) + common, rest)
+	else:
+		_print("[color=#6f7a8c]%s[/color]" % _esc("  ".join(PackedStringArray(matches))))
+
+
+func _set_input(before: String, after: String) -> void:
+	_input.text = before + after
+	_input.caret_column = before.length()
+
+
+## Repo-relative paths matching a partial path ("src/us" → "src/users/").
+func _path_candidates(word: String) -> Array:
+	var dir := word.get_base_dir() if word.contains("/") else ""
+	var full := Workspace.resolve(dir)
+	if full == "" or not DirAccess.dir_exists_absolute(full):
+		return []
+	var prefix := (dir + "/") if dir != "" else ""
+	var result: Array = []
+	for d in DirAccess.get_directories_at(full):
+		if d != ".git":
+			result.append(prefix + d + "/")
+	for f in DirAccess.get_files_at(full):
+		result.append(prefix + f)
+	return result
 
 
 func _on_submit(line: String) -> void:
@@ -137,6 +222,7 @@ func _execute(argv: PackedStringArray) -> void:
 				_print("[color=#f5a524]%s[/color]" % _esc(why))
 				return
 			var r := await Workspace.git(args)
+			Game.emit_event("command_finished", {"argv": Array(argv), "code": r["code"], "out": r["out"]})
 			var text := String(r["out"]) + String(r["err"])
 			if r["timed_out"]:
 				text += "\n(시간 초과로 중단됨)"

@@ -37,11 +37,17 @@ func begin() -> void:
 	Game.add_issue("#007", Game.LL("[P0] 로그인 무한 로딩 (인증 서버 응답 지연)", "[P0] Login spins forever (identity provider not responding)"), "bug", Game.L("나", "me"), "progress")
 	monitor("auth", "down", "auth_down")
 	await wait(1.0)
+	if not is_current():
+		return
 	say("system", t("[ALERT] auth-service p99 latency > 30s · error rate 38%", "[ALERT] auth-service p99 latency > 30s · error rate 38%"), {"channel": "general"})
 	await wait(1.5)
+	if not is_current():
+		return
 	say("alex", t("로그인이 안 된다는 고객 문의가 쏟아지고 있어요!! Daniel은 오늘 휴가라 연락이 안 돼요... 부탁드려요!",
 		"Customers are flooding us: nobody can log in!! Daniel is on vacation and unreachable... please help!"))
 	await wait(2.0)
+	if not is_current():
+		return
 	say("mina", t("로그인 버튼을 누르면 무한 로딩이에요. Monitor 앱에서 로그를 확인해 보세요. 오늘 리뷰는 제가 볼게요.",
 		"Login spins forever. Check the logs in Monitor. I'll do the review today."))
 
@@ -52,6 +58,8 @@ func hidden_tests() -> Dictionary:
 
 func review(p: Dictionary) -> void:
 	var touches := await diff_touches_tests(p)
+	if not is_current():
+		return
 	CodeHub.review(p["id"], "mina", "approved", t("CI 통과 확인했어요. 장애 중이니 바로 병합할게요!", "CI is green. We're mid-outage, so merging right away!"))
 	if not touches:
 		CodeHub.comment(p["id"], "mina", t("핫픽스라도 타임아웃 케이스 테스트는 있으면 좋겠어요. 다음 장애를 막아 주니까요.", "Even for a hotfix, a timeout test would be good. It prevents the next outage."))
@@ -68,16 +76,20 @@ func on_event(kind: String, d: Dictionary) -> void:
 		"ci":
 			if int(d["pr"]) == int(data().get("pr", 0)) and not d["ok"] and data().get("ai_used", false) and not data().get("ai_warned", false):
 				data()["ai_warned"] = true
-				Game.relate("alex", {"work": -3})
 				say("ai", t("CI에서 제 변경이 실패했네요. 모든 예외를 AUTH_TIMEOUT 으로 바꾸는 catch 블록이 원인일 수 있습니다. 검토 부탁드립니다.",
 					"My change failed CI. The catch block that turns every error into AUTH_TIMEOUT may be the cause. Please review it."))
 		"pr_merged":
 			if int(d["pr"]) == int(data().get("pr", 0)):
 				monitor("auth", "ok", "normal")
-				Game.relate("alex", {"work": 8, "close": 3})
-				Game.relate("mina", {"work": 5})
+				if once("_merge_reward"):
+					Game.relate("alex", {"work": 8, "close": 3})
+					Game.relate("mina", {"work": 5})
 				await wait(1.0)
+				if not is_current():
+					return
 				say("system", t("[RESOLVED] auth-service 정상화 · error rate 0.2%", "[RESOLVED] auth-service recovered · error rate 0.2%"), {"channel": "general"})
 				await wait(1.5)
+				if not is_current():
+					return
 				say("alex", t("로그인 정상화됐어요!! 정말 고마워요. 고객사에도 공지 나갔습니다.", "Logins are back!! Thank you so much. We've notified customers."))
 				finish()

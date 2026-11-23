@@ -25,17 +25,27 @@ func _init() -> void:
 
 func begin() -> void:
 	Game.set_time(16 * 60)
-	await Workspace.bot_commit("sophie", "main", {
-		"src/users/displayName.ts": Workspace.content("m04/displayName.ts"),
-		"tests/nickname.test.ts": Workspace.content("m04/nickname.test.ts"),
-	}, "feat(users): support nickname on profile (#3)")
+	if not data().get("_prepared", false):
+		await Workspace.bot_commit("sophie", "main", {
+			"src/users/displayName.ts": Workspace.content("m04/displayName.ts"),
+			"tests/nickname.test.ts": Workspace.content("m04/nickname.test.ts"),
+		}, "feat(users): support nickname on profile (#3)")
+		if not is_current():
+			return
+		data()["_prepared"] = true
 	Game.add_issue("#005", Game.LL("닉네임 배포 후 프로필 이름 'undefined' 재발", "'undefined' is back on profiles after the nickname release"), "bug", Game.L("나", "me"), "progress")
 	monitor("api", "warn", "profile_bug")
 	await wait(1.0)
+	if not is_current():
+		return
 	say("mina", t("급해요! 방금 배포된 버전에서 이름이 다시 'undefined Choi'로 나와요. #005로 올렸어요.", "Urgent! The build that just shipped shows 'undefined Choi' again. Filed as #005."))
 	await wait(2.5)
+	if not is_current():
+		return
 	say("alex", t("내일 오전에 고객 데모가 있어요. 오늘 안에 해결 가능할까요?", "We have a customer demo tomorrow morning. Can this be fixed today?"))
 	await wait(2.5)
+	if not is_current():
+		return
 	say("sophie", t("헉, 혹시 제 닉네임 기능 때문일까요..? 머지 전에 테스트를 못 돌렸어요 ㅠㅠ", "Oh no, is it my nickname feature..? I didn't run the tests before merging :("))
 
 
@@ -45,6 +55,8 @@ func hidden_tests() -> Dictionary:
 
 func review(p: Dictionary) -> void:
 	var touches := await diff_touches_tests(p)
+	if not is_current():
+		return
 	CodeHub.review(p["id"], "daniel", "approved",
 		t("닉네임 기능은 살리면서 회귀를 막았네요. 테스트까지 좋습니다.", "You kept the nickname feature and stopped the regression, with tests. Nice.") if touches
 		else t("수정 확인했습니다. 다음엔 이번 회귀 케이스를 테스트로 남겨 두면 좋겠어요.", "Fix confirmed. Next time, leave this regression case behind as a test."))
@@ -54,18 +66,25 @@ func review(p: Dictionary) -> void:
 
 func on_event(kind: String, d: Dictionary) -> void:
 	match kind:
-		"cmd":
+		"command_finished":
+			if int(d.get("code", -1)) != 0:
+				return
 			var argv: Array = d["argv"]
 			if is_git(argv, "log") or is_git(argv, "blame") or is_git(argv, "show"):
 				complete("cause")
 		"pr_merged":
 			if int(d["pr"]) == int(data().get("pr", 0)):
 				monitor("api", "ok", "normal")
-				Game.relate("mina", {"work": 5})
-				Game.relate("alex", {"work": 5})
+				if once("_merge_reward"):
+					Game.relate("mina", {"work": 5})
+					Game.relate("alex", {"work": 5})
 				await wait(1.5)
+				if not is_current():
+					return
 				say("mina", t("확인했어요! 닉네임도, 이름 없는 프로필도 모두 정상입니다.", "Confirmed! Nicknames and empty-name profiles both look right."))
 				await wait(2.0)
+				if not is_current():
+					return
 				choice("sophie", t("도와주셔서 고마워요... 제가 테스트를 안 돌리고 머지해서 일이 커졌네요.", "Thanks for the help... It blew up because I merged without running the tests."), "d2_sophie", [
 					["kind", t("괜찮아요! 다음엔 머지 전에 같이 테스트 돌려봐요.", "It's okay! Let's run the tests together before merging next time.")],
 					["firm", t("다음부턴 머지 전에 테스트는 꼭 돌려 주세요.", "Please always run the tests before merging from now on.")]])
@@ -77,5 +96,7 @@ func on_event(kind: String, d: Dictionary) -> void:
 					Game.relate("sophie", {"work": 3, "close": -2})
 					Game.relate("daniel", {"agree": 3})
 				await wait(1.5)
+				if not is_current():
+					return
 				say("daniel", t("오늘 버그 두 개 잡았네요. 수고했어요. 퇴근하세요.", "Two bugs fixed today. Good work. Go home."))
 				finish()

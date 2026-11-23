@@ -79,9 +79,10 @@ func fire(id: String) -> void:
 				["decline", t("감사하지만 지금 회사에서 더 배우고 싶어요.", "Thanks, but I want to keep learning where I am.")],
 				["later", t("나중에 다시 연락드릴게요.", "I'll get back to you later.")]], "connectly")
 		"final_offer":
-			_choice("recruiter", t("면접 결과가 좋아서 정식 오퍼를 드리려고 해요. Brightloop 주니어 백엔드, 연봉 +18%. 금요일까지 답 주실 수 있을까요?",
-				"Your interviews went well, so here's a formal offer: Junior Backend at Brightloop, +18% pay. Can you answer by Friday?"), id, [
-				["accept", t("오퍼를 수락할게요.", "I accept the offer.")],
+			Game.state["flags"]["offer_stage"] = "interview"
+			_choice("recruiter", t("다음 달에 백엔드 팀과 면담을 이어 가고 싶어요. 지금 맡은 업무 이야기도 듣고 싶습니다. 아직 입사 확정 단계는 아니고, 일정부터 맞춰 볼까요?",
+				"We'd like to continue talks with our backend team next month and hear about your work. This is not a confirmed hire yet. Shall we arrange a time?"), id, [
+				["accept", t("네, 면담을 이어 갈게요.", "Yes, let's continue the conversations.")],
 				["stay", t("고민해 봤는데, NEXORA에 남을게요.", "I thought about it. I'm staying at NEXORA.")]], "connectly")
 
 
@@ -140,7 +141,10 @@ func on_event(kind: String, d: Dictionary) -> void:
 		"final_offer":
 			Game.state["flags"]["ending"] = "left" if opt == "accept" else "stayed"
 			if opt == "accept":
-				Game.relate("alex", {"close": -5})
-				Game.say("alex", t("...아쉽네요. 짧았지만 같이 일해서 좋았어요. 새 회사에서도 잘할 거예요.", "...That's a shame. It was short, but good working with you. You'll do great there."))
+				if Game.state["flags"].get("offer_stage", "") == "interview":
+					Game.say("alex", t("새 기회를 알아보는 것도 좋죠. 다음 달 고객 업무는 같이 마무리해 봅시다.", "It's good to explore opportunities. Let's work through next month's customer assignment together."))
+				else:
+					Game.relate("alex", {"close": -5})
+					Game.say("alex", t("...아쉽네요. 짧았지만 같이 일해서 좋았어요. 새 회사에서도 잘할 거예요.", "...That's a shame. It was short, but good working with you. You'll do great there."))
 			else:
 				Game.relate("alex", {"close": 4, "work": 3})

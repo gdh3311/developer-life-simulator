@@ -1,0 +1,25 @@
+Order requests and sequential retries
+
+createOrder(request, store) -> Promise<Order>
+request: { shopId, requestKey, items }
+items is an ordered, normalized list of { sku, price, quantity }.
+
+1. Trim requestKey. Null, missing, or whitespace-only keys throw REQUEST_KEY_REQUIRED without creating an order.
+2. The same shopId and normalized requestKey pair with the same items returns the first order.
+3. The same pair with different items throws REQUEST_CONFLICT. Price and quantity are part of the content.
+4. Changing either shopId or requestKey makes a separate request. Preserve pair boundaries even when strings contain ':'.
+5. This task covers sequential calls only. Concurrent requests, expiry, and actual database deployment come later.
+
+store.get(key): saved Entry or undefined
+store.set(key, { fingerprint, order }): save the completed order and content fingerprint
+store.create(request): a Promise creating a new order
+Choose your implementation freely, while preserving pair boundaries and content equality.
+Example: key = JSON.stringify([request.shopId, requestKey]); fingerprint = JSON.stringify(request.items)
+
+Lab simulates response conditions and runs the actual request.ts function sequentially.
+Slow response + retries on + same key: two calls should create one order after the fix.
+Slow response + retries off: one call.
+New keys represent separate purchase attempts, so multiple orders are expected.
+
+Compare the reported version with current working code in Lab.
+A successful experiment is not a production rollout. Concurrency and customer verification are still pending.

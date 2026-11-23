@@ -47,11 +47,20 @@ func begin() -> void:
 	Game.add_issue("#002", Game.LL("로그인 타임아웃 처리 (1차)", "Login timeout handling (part 1)"), "bug", "Daniel", "done")
 	Game.add_issue("#003", Game.LL("주문 목록 페이지네이션", "Order list pagination"), "feature", "Sophie", "progress")
 	await wait(1.2)
+	if not is_current():
+		return
 	say("system", t("오늘부터 NEXORA 개발팀에 합류한 %s 님을 환영합니다!" % Game.pname(), "Please welcome %s, who joins the NEXORA dev team today!" % Game.pname()),
 		{"channel": "general", "silent": true})
 	choice("alex", t("%s 님, NEXORA에 오신 걸 환영해요! 저는 PM Alex예요. 오늘은 업무 환경을 익히는 날이에요. 궁금한 건 온보딩 버디 Sophie에게 물어보세요 :)" % Game.pname(),
 		"Welcome to NEXORA, %s! I'm Alex, the PM. Today is about getting set up. Sophie is your onboarding buddy, so ask her anything :)" % Game.pname()),
 		"d1_hello", [["warm", t("안녕하세요! 잘 부탁드립니다 :)", "Hi! Great to be here :)")], ["ready", t("네, 바로 시작하겠습니다.", "Thanks, I'll get started right away.")]])
+
+
+func resume() -> void:
+	for o in objectives:
+		if o["id"] == "identity":
+			o["guide"] = t(o["guide"]["ko"].replace("%s", Game.pname()), o["guide"]["en"].replace("%s", Game.pname()))
+	super.resume()
 
 
 func on_event(kind: String, d: Dictionary) -> void:
@@ -61,12 +70,16 @@ func on_event(kind: String, d: Dictionary) -> void:
 				Game.relate("alex", {"close": 3} if d["option"] == "warm" else {"work": 2})
 				complete("hello")
 				await wait(1.0)
+				if not is_current():
+					return
 				say("sophie", t("안녕하세요! 온보딩 버디 Sophie예요. 먼저 Wiki의 '온보딩 가이드'부터 읽어 보세요. 우리 팀 일하는 방식이 다 있어요!",
 					"Hi! I'm Sophie, your onboarding buddy. Start with the 'Onboarding guide' in the Wiki. It explains how our team works!"))
 		"wiki_page":
 			if d["page"] == "workflow" and is_done("hello"):
 				complete("wiki")
 				await wait(1.0)
+				if not is_current():
+					return
 				say("sophie", t("다 읽었어요? 이제 터미널을 열어 볼게요. help 를 치면 쓸 수 있는 명령이 나와요.",
 					"Done? Now let's open the Terminal. Type help to see what you can do."))
 		"cmd":
@@ -83,9 +96,17 @@ func on_event(kind: String, d: Dictionary) -> void:
 				complete("explore")
 				say("sophie", t("README에 우리 서비스 소개가 있죠? 이제 커밋에 남을 내 이름과 이메일을 설정해야 해요. 가이드 카드를 보세요!",
 					"See the service intro in the README? Next, set the name and email your commits will carry. Check the guide card!"))
+		"command_finished":
+			if int(d.get("code", -1)) != 0:
+				return
+			var argv: Array = d["argv"]
 			if is_git(argv, "config"):
 				var name := String(await Workspace.git_config("user.name"))
+				if not is_current():
+					return
 				var email := String(await Workspace.git_config("user.email"))
+				if not is_current():
+					return
 				if name != "" and "@" in email and not is_done("identity"):
 					complete("identity")
 					say("sophie", t("좋아요, 이제 커밋에 '%s'로 남아요. 마지막으로 git status 와 git log --oneline 을 쳐 보세요." % name,
@@ -100,6 +121,8 @@ func on_event(kind: String, d: Dictionary) -> void:
 		data()["finished"] = true
 		Game.relate("sophie", {"close": 3})
 		await wait(1.0)
+		if not is_current():
+			return
 		say("sophie", t("완벽해요! 이제 진짜 업무를 해 볼 차례예요. Daniel이 첫 업무를 줄 거예요.",
 			"Perfect! Time for real work. Daniel will give you your first task."))
 		finish()

@@ -30,10 +30,14 @@ func begin() -> void:
 	Game.add_issue("#008", Game.LL("[P1] 쿠폰 적용 시 결제 금액 0원 이하", "[P1] Coupon orders charge zero or less"), "bug", Game.L("나", "me"), "progress")
 	monitor("payments", "warn", "payments")
 	await wait(1.0)
+	if not is_current():
+		return
 	say("mina", t("10% 쿠폰을 쓴 주문의 결제 금액이 0원 이하로 찍혀요!! 어제 머지된 쿠폰 기능 같아요. #008", "Orders with a 10% coupon are charging zero or less!! Probably yesterday's coupon feature. #008"))
 	Game.relate("alex", {"work": -4})
 	Game.relate("daniel", {"tech": -3})
 	await wait(2.0)
+	if not is_current():
+		return
 	say("sophie", t("제 PR이에요... 리뷰 때 다들 놓쳤나 봐요 ㅠㅠ 같이 고쳐 주실 수 있나요?", "That's my PR... we all missed it in review :( Can you help fix it?"))
 
 
@@ -48,7 +52,10 @@ func review(p: Dictionary) -> void:
 func on_event(kind: String, d: Dictionary) -> void:
 	if kind == "pr_merged" and int(d["pr"]) == int(data().get("pr", 0)):
 		monitor("payments", "ok", "normal")
-		Game.relate("sophie", {"close": 5, "tech": 4})
+		if once("_merge_reward"):
+			Game.relate("sophie", {"close": 5, "tech": 4})
 		await wait(1.5)
+		if not is_current():
+			return
 		say("sophie", t("고마워요! 앞으로 리뷰할 땐 정책 문서랑 대조하는 체크리스트를 써 볼게요.", "Thank you! I'll use a checklist against the policy docs when reviewing from now on."))
 		finish()

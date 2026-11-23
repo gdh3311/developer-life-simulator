@@ -1,24 +1,39 @@
-extends HBoxContainer
+extends VBoxContainer
 ## TaskBoard: issues by status + the current mission's checklist.
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const Icon := preload("res://scripts/ui/icon.gd")
+const CasePanel := preload("res://scripts/apps/case_panel.gd")
 
+var desktop: Control
 var _board: HBoxContainer
 var _current: VBoxContainer
+var _tabs: TabContainer
+var _shown_mission := ""
 
 
 func _ready() -> void:
 	add_theme_constant_override("separation", 0)
+	_tabs = TabContainer.new()
+	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	add_child(_tabs)
+	var work := HBoxContainer.new()
+	work.name = Game.L("업무 보드", "Work board")
+	_tabs.add_child(work)
 	_board = UITheme.hbox(10)
 	_board.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	add_child(UITheme.margin(_board, 12))
+	work.add_child(UITheme.margin(_board, 12))
 	_board.get_parent().size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var side := UITheme.panel(UITheme.BG0, 0, 14, Color(0, 0, 0, 0))
 	side.custom_minimum_size.x = 280
 	_current = UITheme.vbox(8)
-	side.add_child(_current)
-	add_child(side)
+	side.add_child(UITheme.scroll(_current))
+	work.add_child(side)
+	var notes := CasePanel.new()
+	notes.desktop = desktop
+	var scroll := UITheme.scroll(UITheme.margin(notes, 16))
+	scroll.name = Game.L("조사 노트", "Investigation")
+	_tabs.add_child(scroll)
 	Game.issues_changed.connect(_render)
 	Story.objectives_changed.connect(_render)
 	_render()
@@ -44,12 +59,20 @@ func _render() -> void:
 	UITheme.clear(_current)
 	_current.add_child(UITheme.label(Game.L("현재 업무", "Current task"), 11, UITheme.MUTED))
 	var m = Story.active
+	var mission_id: String = m.id if m != null else ""
+	if mission_id != _shown_mission:
+		_shown_mission = mission_id
+		_tabs.current_tab = 1 if Cases.has_case(mission_id) else 0
 	if m == null:
 		_current.add_child(UITheme.bold(Game.L("진행 중인 업무 없음", "No active task"), 15))
 		_current.add_child(UITheme.wrap(Game.L("오늘 업무를 모두 마쳤다면 상단의 '퇴근하기'를 누르세요.", "If you're done for the day, press 'Clock out' at the top.") if Game.state["day_done"] else Game.L("잠시 후 새 업무가 도착합니다.", "A new task will arrive shortly."), 13, UITheme.TEXT2))
 		return
 	_current.add_child(UITheme.bold(("%s  " % m.issue if m.issue != "" else "") + m.title_text(), 16))
-	_current.add_child(UITheme.label("DAY %d" % m.day, 11, UITheme.MUTED))
+	_current.add_child(UITheme.label("CHAPTER %d · %s" % [m.chapter, Game.date_text()], 11, UITheme.MUTED))
+	if m.chapter == 2 and desktop != null:
+		var lab := UITheme.button(Game.L("Request Lab 열기", "Open Request Lab"))
+		lab.pressed.connect(func() -> void: desktop.open_resource("lab", ""))
+		_current.add_child(lab)
 	for o in m.objectives:
 		var done: bool = m.is_done(o["id"])
 		var row := UITheme.hbox(8)

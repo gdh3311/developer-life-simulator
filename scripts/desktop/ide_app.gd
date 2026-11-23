@@ -53,6 +53,7 @@ func _ready() -> void:
 	_code.add_theme_color_override("line_number_color", Color("4b5263"))
 	_code.text_changed.connect(_on_text_changed)
 	_code.gui_input.connect(_on_code_input)
+	right.add_child(_build_find_bar())
 	right.add_child(_code)
 
 	var status := PanelContainer.new()
@@ -74,6 +75,9 @@ func open_file(path: String) -> void:
 	_set_text(_buffers.get(path, _saved_text))
 	_code.clear_undo_history()
 	_update_labels()
+	var resolved := Workspace.resolve(path)
+	if resolved != "" and FileAccess.file_exists(resolved):
+		Game.emit_event("code_viewed", {"path": path})
 
 
 func save() -> void:
@@ -106,9 +110,84 @@ func _on_text_changed() -> void:
 
 func _on_code_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
-	if key != null and key.pressed and key.keycode == KEY_S and key.is_command_or_control_pressed():
+	if key == null or not key.pressed:
+		return
+	if key.keycode == KEY_S and key.is_command_or_control_pressed():
 		save()
 		_code.accept_event()
+	elif key.keycode == KEY_F and key.is_command_or_control_pressed():
+		_open_find()
+		_code.accept_event()
+	elif key.keycode == KEY_ESCAPE and _find_bar.visible:
+		_find_bar.visible = false
+
+
+# --- Find (Ctrl+F) ---------------------------------------------------------------
+
+var _find_bar: PanelContainer
+var _find_edit: LineEdit
+var _find_count: Label
+
+
+func _build_find_bar() -> Control:
+	_find_bar = PanelContainer.new()
+	_find_bar.add_theme_stylebox_override("panel", UITheme.box(UITheme.BG2, 0, Color(0, 0, 0, 0), 6))
+	_find_bar.visible = false
+	var row := UITheme.hbox(8)
+	row.add_child(UITheme.label(Game.L("찾기", "Find"), 12, UITheme.MUTED))
+	_find_edit = LineEdit.new()
+	_find_edit.custom_minimum_size.x = 260
+	_find_edit.placeholder_text = Game.L("검색어 · Enter 다음 · Shift+Enter 이전 · Esc 닫기", "Search · Enter next · Shift+Enter previous · Esc close")
+	_find_edit.text_changed.connect(func(_t: String) -> void: _find(true, false))
+	_find_edit.text_submitted.connect(func(_t: String) -> void: _find(false, Input.is_key_pressed(KEY_SHIFT)))
+	_find_edit.gui_input.connect(func(e: InputEvent) -> void:
+		var k := e as InputEventKey
+		if k != null and k.pressed and k.keycode == KEY_ESCAPE:
+			_find_bar.visible = false
+			_code.set_search_text("")
+			_code.grab_focus())
+	row.add_child(_find_edit)
+	_find_count = UITheme.label("", 12, UITheme.TEXT2)
+	row.add_child(_find_count)
+	_find_bar.add_child(row)
+	return _find_bar
+
+
+func _open_find() -> void:
+	_find_bar.visible = true
+	var sel := _code.get_selected_text()
+	if sel != "" and not "
+" in sel:
+		_find_edit.text = sel
+	_find_edit.grab_focus()
+	_find_edit.select_all()
+	_find(true, false)
+
+
+## Highlights every match and moves the caret to the next (or previous) one.
+func _find(from_start: bool, backwards: bool) -> void:
+	var q := _find_edit.text
+	_code.set_search_text(q)
+	_code.queue_redraw()
+	if q == "":
+		_find_count.text = ""
+		return
+	var count := _code.text.countn(q)
+	_find_count.text = Game.L("%d개", "%d found") % count
+	if count == 0:
+		return
+	var line := 0 if from_start else _code.get_caret_line()
+	var col := 0 if from_start else _code.get_caret_column()
+	var flags := TextEdit.SEARCH_BACKWARDS if backwards else 0
+	if backwards:
+		col = maxi(0, col - q.length() - 1)
+	var hit := _code.search(q, flags, line, col)
+	if hit.x == -1:
+		return
+	_code.set_caret_line(hit.y)
+	_code.set_caret_column(hit.x + (0 if backwards else q.length()))
+	_code.select(hit.y, hit.x, hit.y, hit.x + q.length())
+	_code.center_viewport_to_caret()
 
 
 func _update_labels() -> void:

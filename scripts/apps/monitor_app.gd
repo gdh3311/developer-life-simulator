@@ -5,6 +5,8 @@ const UITheme := preload("res://scripts/ui/ui_theme.gd")
 
 const SERVICES := [["api", "commerce-api"], ["auth", "auth-service"], ["payments", "payments"]]
 const LOGS := {
+	"order_duplicates": ["[c=#f5a524]WARN[/c] orders.create request=buy-17 order=ML-1042", "[c=#f5a524]WARN[/c] orders.create request=buy-17 order=ML-1043 +700ms", "[c=#3ddc84]200[/c] payments.lookup ref=pay-8 verification=pending"],
+	"order_observing": ["[c=#f5a524]INFO[/c] requests: sequential contract verified in Lab", "[c=#f5a524]TODO[/c] concurrent requests and customer rollout still pending"],
 	"normal": [
 		"[c=#3ddc84]200[/c] GET  /api/orders            38ms",
 		"[c=#3ddc84]200[/c] POST /api/login             112ms",
@@ -40,6 +42,7 @@ var _log: RichTextLabel
 var _timer: Timer
 var _series: Array = []
 var _rng := RandomNumberGenerator.new()
+var _reported_mode := ""
 
 
 func _ready() -> void:
@@ -104,11 +107,16 @@ func _tick() -> void:
 	_chart.queue_redraw()
 	var pool: Array = LOGS.get(_mode(), LOGS["normal"])
 	var line: String = pool[_rng.randi() % pool.size()]
+	var incident_line := _mode() != "normal"
 	if _mode() != "normal" and _rng.randf() < 0.4:
 		line = LOGS["normal"][_rng.randi() % LOGS["normal"].size()]
+		incident_line = false
 	line = line.replace("[c=", "[color=").replace("[/c]", "[/color]")
 	var t := Time.get_time_dict_from_system()
 	_log.append_text("[color=#6f7a8c]%02d:%02d:%02d[/color]  %s\n" % [t["hour"], t["minute"], t["second"], line])
+	if incident_line and is_visible_in_tree() and _reported_mode != _mode():
+		_reported_mode = _mode()
+		Game.emit_event("monitor_viewed", {"mode": _mode()})
 
 
 func _render_cards() -> void:

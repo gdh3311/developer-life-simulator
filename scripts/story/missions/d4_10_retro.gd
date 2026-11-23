@@ -15,6 +15,8 @@ func _init() -> void:
 func begin() -> void:
 	Game.set_time(17 * 60)
 	await wait(1.0)
+	if not is_current():
+		return
 	var options := [
 		["process", t("타임아웃·에러 케이스 테스트를 CI 필수 항목으로 추가하자고 제안한다", "Propose making timeout/error-case tests mandatory in CI")],
 		["blame", t("원인이 된 코드를 작성한 사람을 찾아 책임을 묻자고 한다", "Suggest finding who wrote the code and holding them accountable")],
@@ -23,6 +25,23 @@ func begin() -> void:
 		options.append(["ai", t("AI가 작성한 코드에 대한 리뷰 체크리스트를 만들자고 제안한다", "Propose a review checklist for AI-written code")])
 	choice("alex", t("오늘 장애 회고를 짧게 할게요. 원인과 재발 방지책을 어떻게 정리하면 좋을까요?", "Quick incident retro. How should we capture the cause and prevent a repeat?"),
 		"d4_retro", options, {"channel": "general"})
+
+
+func resume() -> void:
+	if is_done("review"):
+		_finish_offer()
+	elif is_done("retro") and not Game.state["chat"].any(func(m: Dictionary) -> bool: return m["key"] == "d4_review"):
+		_performance_review()
+
+
+func _finish_offer() -> void:
+	if Game.state["flags"].get("offer_interest", false):
+		Story.side.fire_if_pending("final_offer")
+		while Game.pending_choice("final_offer"):
+			await wait(0.5)
+			if not is_current():
+				return
+	finish()
 
 
 func on_event(kind: String, d: Dictionary) -> void:
@@ -46,14 +65,20 @@ func on_event(kind: String, d: Dictionary) -> void:
 					say("sophie", t("저도 AI 코드 리뷰할 때 그 체크리스트 쓰고 싶어요!", "I want to use that checklist when reviewing AI code too!"), {"channel": "general"})
 			complete("retro")
 			await wait(2.5)
+			if not is_current():
+				return
 			_performance_review()
 		"d4_review":
 			complete("review")
 			if Game.state["flags"].get("offer_interest", false):
 				await wait(2.0)
-				Story.side.fire("final_offer")
+				if not is_current():
+					return
+				Story.side.fire_if_pending("final_offer")
 				while Game.pending_choice("final_offer"):
 					await wait(0.5)
+					if not is_current():
+						return
 			finish()
 
 
@@ -73,9 +98,9 @@ func _performance_review() -> void:
 		Game.emit_event("promoted", {})
 	var ko: Array = ["4일 동안 많은 일이 있었죠. 팀 평균 신뢰도는 %d점이에요." % roundi(avg)]
 	var en: Array = ["A lot happened in four days. Your average team trust is %d." % roundi(avg)]
-	if Game.stat("ci_fail") <= 2:
-		ko.append("CI를 거의 깨뜨리지 않은 점이 인상적이었어요.")
-		en.append("Hardly breaking CI was impressive.")
+	if Game.stat("test_runs") > 0:
+		ko.append("테스트로 결과를 확인하며 문제를 해결한 점이 좋았어요.")
+		en.append("It was good to see you use tests to verify your work.")
 	if Game.stat("main_commits") > 0:
 		ko.append("main 직접 커밋은 앞으로 조심해 주세요.")
 		en.append("Please be careful about committing to main.")

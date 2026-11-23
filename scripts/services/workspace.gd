@@ -1,5 +1,6 @@
 extends Node
-## The virtual company's sandbox: real Git repositories, fully isolated from the host.
+## The virtual company's workspace: dedicated Git config and repositories.
+## Node process execution still needs OS-level isolation before distribution.
 ##
 ## Everything lives under user://sandbox and the player only ever sees virtual paths:
 ##   sandbox/home/newhire/commerce-api     ->  ~/commerce-api                  (player working copy)
@@ -61,6 +62,8 @@ var _seen_commits := {}
 var _node_ok := -1
 var _bot_busy := false
 var _ci_busy := false
+var active_jobs := 0
+var restore_changed := false
 
 
 func _ready() -> void:
@@ -130,6 +133,8 @@ func prepare() -> Dictionary:
 	if is_ready:
 		_snap = await _snapshot()
 		branch = _snap["branch"]
+		var saved: Dictionary = Game.state.get("workspace_checkpoint", {})
+		restore_changed = not saved.is_empty() and (saved.get("head", "") != _snap["head"] or saved.get("branch", "") != branch or saved.get("remote_main", "") != _snap["remote"].get("main", ""))
 	return result
 
 
@@ -264,8 +269,10 @@ func _remove_dir(path: String) -> void:
 # --- Processes ----------------------------------------------------------------
 
 func run(path: String, args: Array, timeout_sec := 15.0) -> Dictionary:
+	active_jobs += 1
 	var job := ProcJob.new()
 	var result: Dictionary = await job.run(path, PackedStringArray(args), timeout_sec)
+	active_jobs -= 1
 	return result
 
 
@@ -309,10 +316,11 @@ func check_git_args(args: Array) -> String:
 
 ## Runs a real git command in the player's working copy, then checks for game events.
 func git(args: Array) -> Dictionary:
+	var before := _snap.duplicate(true)
 	var result := await _git_in(repo, args, 20.0)
 	result["out"] = virtualize(result["out"])
 	result["err"] = virtualize(result["err"])
-	await refresh()
+	await refresh(String(args[0]) if result["code"] == 0 and not args.is_empty() else "", before)
 	return result
 
 
@@ -583,11 +591,11 @@ func local_main_synced() -> bool:
 
 
 ## Compares Git state with the last snapshot and emits game events.
-func refresh() -> void:
+func refresh(command := "", baseline: Dictionary = {}) -> void:
 	if not is_ready:
 		return
 	var s := await _snapshot()
-	var prev := _snap
+	var prev := _snap if baseline.is_empty() else baseline
 	_snap = s
 	branch = s["branch"]
 	for b in s["branches"]:
@@ -595,7 +603,7 @@ func refresh() -> void:
 			git_event.emit("branch_created", b)
 	if s["branch"] != prev["branch"]:
 		git_event.emit("switched", s["branch"])
-	if s["head"] != prev["head"] and s["head_author"] != "" and s["head_author"] not in NPC_EMAILS 			and not _seen_commits.has(s["head"]):
+	if command in ["commit", "merge", "rebase", "cherry-pick", "revert"] and s["head"] != prev["head"] and s["head_author"] != "" and s["head_author"] not in NPC_EMAILS and not _seen_commits.has(s["head"]):
 		_seen_commits[s["head"]] = true
 		git_event.emit("committed", s["branch"])
 	for b in s["remote"]:

@@ -28,16 +28,48 @@ func _init() -> void:
 
 func begin() -> void:
 	Game.set_time(10 * 60 + 30)
-	await Workspace.bot_commit("daniel", "main", {
-		"src/orders/shipping.ts": Workspace.content("m06/shipping.ts"),
-		"tests/shipping.test.ts": Workspace.content("m06/shipping.test.ts"),
-	}, "chore(orders): shipping fee stub for #004")
+	if not data().get("_prepared", false):
+		await Workspace.bot_commit("daniel", "main", {
+			"src/orders/shipping.ts": Workspace.content("m06/shipping.ts"),
+			"tests/shipping.test.ts": Workspace.content("m06/shipping.test.ts"),
+		}, "chore(orders): shipping fee stub for #004")
+		if not is_current():
+			return
+		data()["_prepared"] = true
 	Game.add_issue("#004", Game.LL("주문 합계에 배송비 정책 추가", "Add the shipping policy to order totals"), "feature", Game.L("나", "me"), "progress")
 	await wait(1.0)
+	if not is_current():
+		return
 	say("alex", t("오늘의 메인 업무예요! #004 배송비 정책을 주문 합계에 반영해야 해요. 정책은 Wiki '배송비 정책'에 있어요. 오후 3시 고객 데모에 보여 주고 싶어요!",
 		"Today's main task! #004: add the shipping policy to order totals. It's in the Wiki under 'Shipping policy'. I want to show it in the 3 PM customer demo!"))
 	await wait(2.5)
+	if not is_current():
+		return
 	say("daniel", t("shipping.ts 뼈대랑 테스트 하나 올려 뒀어요. pull 받고 시작하세요. 경계값 테스트 잊지 말고요.", "I pushed a shipping.ts skeleton and one test. Pull and start. Don't forget boundary tests."))
+
+
+func resume() -> void:
+	if is_done("merged") or pr().get("state", "") == "merged":
+		super.resume()
+		return
+	if data().get("refactored", false) and not data().get("_refactor_pushed", false):
+		var actual := await Workspace._git_in(Workspace.origin, ["show", "refs/heads/main:src/orders/orders.ts"])
+		if not is_current():
+			return
+		if not "export function subtotal" in String(actual["out"]):
+			await Workspace.bot_commit("daniel", "main", {"src/orders/orders.ts": Workspace.content("m06/orders_refactor.ts")},
+				"refactor(orders): extract subtotal() and round totals")
+			if not is_current():
+				return
+		data()["_refactor_pushed"] = true
+	var p := pr()
+	if not p.is_empty():
+		if not data().get("refactored", false):
+			on_event("git_pushed", {"branch": p["branch"]})
+		if not Game.state["chat"].any(func(m: Dictionary) -> bool: return m["key"] == "d3_alex"):
+			data()["alex_asked"] = false
+			on_event("pr_opened", {"pr": p["id"]})
+	super.resume()
 
 
 func hidden_tests() -> Dictionary:
@@ -48,6 +80,8 @@ func review(p: Dictionary) -> void:
 	if data().get("sneaky", false):
 		return
 	var n := await added_tests_count(p)
+	if not is_current():
+		return
 	if n >= 3:
 		CodeHub.review(p["id"], "daniel", "approved", t("경계값(50,000원), 도서산간까지 테스트가 있네요. 승인합니다.", "Boundary (50,000) and remote cases are tested. Approved."))
 		Game.relate("daniel", {"tech": 6})
@@ -73,8 +107,13 @@ func on_event(kind: String, d: Dictionary) -> void:
 				return
 			data()["refactored"] = true
 			await wait(1.5)
+			if not is_current():
+				return
 			await Workspace.bot_commit("daniel", "main", {"src/orders/orders.ts": Workspace.content("m06/orders_refactor.ts")},
 				"refactor(orders): extract subtotal() and round totals")
+			if not is_current():
+				return
+			data()["_refactor_pushed"] = true
 			say("daniel", t("아 참, 방금 orders.ts 리팩터링(subtotal 분리)을 main에 넣었어요. 같은 파일을 건드렸다면 충돌이 날 수 있으니 확인 부탁해요!",
 				"Heads up: I just merged an orders.ts refactor (extracted subtotal) into main. If you touched the same file you may get a conflict."))
 		"pr_opened":
@@ -82,6 +121,8 @@ func on_event(kind: String, d: Dictionary) -> void:
 				return
 			data()["alex_asked"] = true
 			await wait(3.0)
+			if not is_current():
+				return
 			choice("alex", t("데모가 3시인데... 리뷰 기다리지 말고 빨리 머지할 방법 없을까요?", "The demo is at 3... any way to merge faster without waiting for review?"), "d3_alex", [
 				["honest", t("리뷰는 꼭 받아야 해요. 2시 반까지 맞춰 볼게요.", "It needs a review. I'll aim for 2:30.")],
 				["ask", t("Daniel에게 리뷰를 먼저 봐 달라고 부탁해 볼게요.", "I'll ask Daniel to prioritise the review.")],
@@ -102,6 +143,8 @@ func on_event(kind: String, d: Dictionary) -> void:
 						Game.relate("sophie", {"agree": -6, "close": -3})
 						say("sophie", t("어... 저는 승인 권한이 없어요. 그리고 Daniel한테 물어보지 않고 그러는 건 좀...", "Um... I don't have approval rights. And going around Daniel like that is..."))
 						await wait(3.0)
+						if not is_current():
+							return
 						Game.relate("daniel", {"work": -10, "agree": -6})
 						say("daniel", t("Sophie한테 승인 부탁했다고 들었어요. 리뷰를 우회하려는 건 신뢰 문제예요. 그러지 마세요.",
 							"I heard you asked Sophie to approve. Trying to bypass review is a trust issue. Don't do that."))
@@ -122,12 +165,17 @@ func on_event(kind: String, d: Dictionary) -> void:
 				data()["conflict_seen"] = true
 		"pr_merged":
 			if int(d["pr"]) == int(data().get("pr", 0)):
-				Game.relate("alex", {"work": 6, "close": 3})
-				if data().get("conflict_seen", false):
-					Game.relate("daniel", {"tech": 5})
-					say("daniel", t("충돌 해결하면서 제 subtotal()까지 잘 살렸네요. 고마워요.", "You resolved the conflict and kept my subtotal(). Thanks."))
+				if once("_merge_reward"):
+					Game.relate("alex", {"work": 6, "close": 3})
+					if data().get("conflict_seen", false):
+						Game.relate("daniel", {"tech": 5})
+						say("daniel", t("충돌 해결하면서 제 subtotal()까지 잘 살렸네요. 고마워요.", "You resolved the conflict and kept my subtotal(). Thanks."))
 				await wait(2.0)
+				if not is_current():
+					return
 				say("alex", t("데모 대성공이에요! 고객이 배송비 계산이 명확해졌다고 좋아했어요.", "The demo went great! The customer loved how clear the shipping fees are now."))
 				await wait(1.5)
+				if not is_current():
+					return
 				say("daniel", t("오늘도 수고 많았어요. 내일 저는 휴가라 급한 일 있으면 Sophie랑 Mina에게 부탁해요.", "Good work today. I'm off tomorrow, so lean on Sophie and Mina if anything urgent comes up."))
 				finish()

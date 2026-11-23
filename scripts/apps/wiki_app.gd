@@ -12,6 +12,7 @@ const PAGES := [
 	["shipping", {"ko": "배송비 정책", "en": "Shipping policy"}],
 	["auth", {"ko": "인증 / 장애 대응", "en": "Auth & incidents"}],
 	["git", {"ko": "Git 치트시트", "en": "Git cheat sheet"}],
+	["requests", {"ko": "주문 요청과 재시도", "en": "Order requests and retries"}],
 ]
 
 var _page := "overview"
@@ -42,6 +43,12 @@ func _ready() -> void:
 	if Story.active != null and Story.active.id == "d1_01":
 		_page = "workflow" if Story.active.is_done("hello") else "overview"
 	_render()
+
+
+func open_page(page: String) -> void:
+	if PAGES.any(func(p: Array) -> bool: return p[0] == page):
+		_page = page
+		_render()
 
 
 func _render() -> void:
@@ -81,6 +88,8 @@ static func _c(t: String) -> String:
 func _content(id: String) -> String:
 	var en := Game.lang == "en"
 	match id:
+		"requests":
+			return _h(Game.L("주문 요청과 순차 재시도", "Order requests and sequential retries")) + Workspace.content("c02/policy.txt")
 		"overview":
 			if en:
 				return _h("Commerce Cloud") + "[color=#8a93a5]NEXORA's B2B commerce SaaS backend · repository %s[/color]\n" % _c("commerce-api") \

@@ -17,6 +17,7 @@ var apps: Array[Dictionary] = [
 	{"id": "codehub", "name": "CodeHub", "icon": "pr", "color": Color("a78bfa"), "size": Vector2(940, 560)},
 	{"id": "chat", "name": "TeamChat", "icon": "chat", "color": Color("f5a524"), "size": Vector2(800, 520)},
 	{"id": "tasks", "name": "TaskBoard", "icon": "tasks", "color": Color("ec4899"), "size": Vector2(900, 520)},
+	{"id": "lab", "name": "Request Lab", "icon": "lab", "color": Color("2dd4bf"), "size": Vector2(860, 560)},
 	{"id": "wiki", "name": "Wiki", "icon": "wiki", "color": Color("22c3c3"), "size": Vector2(800, 540)},
 	{"id": "monitor", "name": "Monitor", "icon": "monitor", "color": Color("ff6b6b"), "size": Vector2(860, 520)},
 	{"id": "ai", "name": "AICode", "icon": "ai", "color": Color("c084fc"), "size": Vector2(600, 500)},
@@ -44,11 +45,13 @@ var _badges := {}
 var _dock_buttons := {}
 var _cascade := 0
 var _chapter_done := false
+var _content_done := false
 var _slack_time := 0.0
 var _walkby_cooldown := 25.0
 var _walkby_active := false
 var _highlight := ""
 var _pulse := 0.0
+var _day_transitioning := false
 
 
 func _ready() -> void:
@@ -81,6 +84,7 @@ func _ready() -> void:
 	Story.objectives_changed.connect(_on_objectives_changed)
 	Game.day_finished.connect(_on_day_finished)
 	Story.chapter_finished.connect(func() -> void: _chapter_done = true)
+	Story.content_paused.connect(func() -> void: _content_done = true)
 
 
 func _process(delta: float) -> void:
@@ -99,7 +103,23 @@ func _process(delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key != null and key.pressed and not key.echo and key.keycode != KEY_F2:
-		Sfx.type_key()
+		Sfx.type_key(key.keycode)
+		if key.ctrl_pressed and _overlay == null and not (is_instance_valid(_boot) and _boot.visible and not _boot.is_queued_for_deletion()):
+			# Ctrl+1..0 opens dock apps, Ctrl+W closes, Ctrl+M minimizes the front window.
+			var digit := key.keycode - KEY_1 if key.keycode >= KEY_1 and key.keycode <= KEY_9 else (9 if key.keycode == KEY_0 else -1)
+			if digit >= 0 and digit < apps.size():
+				open_app(apps[digit]["id"])
+				get_viewport().set_input_as_handled()
+				return
+			var front := top_window_app()
+			if front != "" and key.keycode == KEY_W:
+				(_open[front] as Control).close()
+				get_viewport().set_input_as_handled()
+				return
+			if front != "" and key.keycode == KEY_M:
+				minimize(front)
+				get_viewport().set_input_as_handled()
+				return
 	var mb := event as InputEventMouseButton
 	if mb == null or not mb.pressed:
 		return
@@ -119,7 +139,16 @@ func _input(event: InputEvent) -> void:
 func open_app(id: String) -> void:
 	Game.emit_event("app_opened", {"app": id})
 	if _open.has(id):
-		(_open[id] as Control).move_to_front()
+		var w: Control = _open[id]
+		if not w.visible:
+			w.visible = true
+			w.move_to_front()
+			Sfx.play("window", 1.1, -8.0)
+			w.pop_in()
+		elif top_window_app() == id:
+			minimize(id)
+		else:
+			w.move_to_front()
 		return
 	var app := _app(id)
 	var win_size: Vector2 = app["size"]
@@ -132,10 +161,27 @@ func open_app(id: String) -> void:
 	_cascade = (_cascade + 1) % 6
 	_windows.add_child(win)
 	win.closed.connect(_on_window_closed.bind(id))
+	win.minimized.connect(minimize.bind(id))
 	_open[id] = win
 	(_dots[id] as Control).modulate.a = 1.0
 	Sfx.play("window", 1.1, -6.0)
 	win.pop_in()
+
+
+## Hide a window into the dock (click the dock icon to bring it back).
+func minimize(id: String) -> void:
+	if not _open.has(id):
+		return
+	var w: Control = _open[id]
+	Sfx.play("window", 0.85, -10.0)
+	w.pivot_offset = Vector2(w.size.x / 2.0, w.size.y)
+	var t := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	t.tween_property(w, "scale", Vector2.ONE * 0.6, 0.16)
+	t.parallel().tween_property(w, "modulate:a", 0.0, 0.16)
+	t.tween_callback(func() -> void:
+		w.visible = false
+		w.scale = Vector2.ONE
+		w.modulate.a = 1.0)
 
 
 func close_all() -> void:
@@ -143,6 +189,16 @@ func close_all() -> void:
 		(_open[id] as Control).queue_free()
 		_on_window_closed(id)
 	_open.clear()
+
+
+## Source shortcuts only navigate; they never execute terminal commands.
+func open_resource(app_id: String, target: String) -> void:
+	open_app(app_id)
+	var method := {"wiki": "open_page", "ide": "open_file", "codehub": "open_mission_diff"}.get(app_id, "") as String
+	if method != "":
+		var content := _find_method(_open[app_id], method)
+		if content != null:
+			content.call(method, Story.active.id if app_id == "codehub" and Story.active != null else target)
 
 
 func _on_window_closed(id: String) -> void:
@@ -163,7 +219,7 @@ func top_window_app() -> String:
 	var n := _windows.get_child_count()
 	for i in range(n - 1, -1, -1):
 		var w = _windows.get_child(i)
-		if not w.is_queued_for_deletion():
+		if not w.is_queued_for_deletion() and w.visible:
 			return w.app_id
 	return ""
 
@@ -178,7 +234,7 @@ func _is_slacking() -> bool:
 
 
 func _check_slacking(delta: float) -> void:
-	if _walkby_active or _overlay != null or Story.active == null or Game.state["day_done"]:
+	if _walkby_active or _overlay != null or Story.active == null or Game.state["day_done"] or not Game.walkby_enabled:
 		return
 	_walkby_cooldown -= delta
 	if not _is_slacking():
@@ -418,6 +474,10 @@ func _render_guide() -> void:
 # --- Boot ---------------------------------------------------------------------
 
 func boot() -> void:
+	if Workspace.exists() != Game.has_save():
+		_boot_log.text += Game.L("작업 저장소와 진행 파일 중 하나를 찾을 수 없습니다. 기존 파일은 유지했습니다.\n", "The repository or progress file is missing. Existing files were retained.\n")
+		_show_load_recovery()
+		return
 	if not Game.has_settings() or not (Workspace.exists() and Game.has_save()):
 		await _first_run_setup()
 	var lines := [
@@ -433,7 +493,13 @@ func boot() -> void:
 	if Workspace.exists() and not continuing:
 		Workspace.wipe()
 	if continuing:
-		Game.load_game()
+		if not Game.load_game():
+			_boot_log.text += Game.L("\n저장 파일을 읽지 못했습니다. 원본과 백업은 유지했습니다.\n", "\nCould not read the save. Original and backup files were retained.\n")
+			_boot_log.text += Game.L("저장 버전 또는 파일 상태를 확인한 뒤 다시 실행해 주세요.", "Check the save version or file contents, then restart.")
+			_show_load_recovery()
+			return
+		if Game.last_load_recovered:
+			_boot_log.text += Game.L("이전 백업에서 진행을 복구했습니다.\n", "Progress recovered from the previous backup.\n")
 	_boot_log.text += "Mounting /home/newhire ................ "
 	var ws := await Workspace.prepare()
 	_boot_log.text += ("OK" if ws["ok"] else "FAILED") + "\n"
@@ -458,6 +524,8 @@ func boot() -> void:
 	Sfx.start_music()
 	Game.event.connect(_on_fx_event)
 	booted.emit()
+	if continuing and Workspace.restore_changed:
+		Game.notify("dashboard", Game.L("저장된 상태와 Git 상태가 다릅니다", "Git changed since the saved checkpoint"), Game.L("현재 파일과 커밋은 유지했습니다. 진행 중인 PR과 CI를 다시 확인합니다.", "Current files and commits were preserved. Pending PRs and CI will be checked again."))
 	_update_badges()
 	if continuing:
 		Story.resume()
@@ -466,6 +534,27 @@ func boot() -> void:
 	else:
 		Story.start_new()
 	_on_objectives_changed()
+
+
+func _show_load_recovery() -> void:
+	var actions := UITheme.vbox(10)
+	actions.position = Vector2(36, 250)
+	actions.custom_minimum_size.x = 650
+	_boot.add_child(actions)
+	actions.add_child(UITheme.wrap(Game.L("진행을 임의로 초기화하지 않았습니다. 파일을 복구한 뒤 다시 시도하거나, 두 번 확인하고 새 게임을 시작할 수 있어요.", "Progress was not reset. Restore the files and retry, or confirm a new game in two steps."), 14, UITheme.TEXT2))
+	var retry := UITheme.button(Game.L("다시 읽기", "Retry loading"), "primary")
+	retry.pressed.connect(func() -> void: get_tree().reload_current_scene())
+	actions.add_child(retry)
+	var reset := UITheme.button(Game.L("새 게임 시작…", "Start a new game…"))
+	var confirmed := [false]
+	reset.pressed.connect(func() -> void:
+		if not confirmed[0]:
+			confirmed[0] = true
+			reset.text = Game.L("진행과 회사 저장소를 모두 지우고 새로 시작", "Delete progress and the company repository, then start over")
+			return
+		if Game.new_game():
+			get_tree().reload_current_scene())
+	actions.add_child(reset)
 
 
 ## First run: pick a language and enter your name.
@@ -552,7 +641,7 @@ func _show_day_summary() -> void:
 	center.add_child(card)
 	var v := UITheme.vbox(12)
 	card.add_child(v)
-	v.add_child(UITheme.label("DAY %d · %s" % [Game.day(), Game.DAY_NAMES[(Game.day() - 1) % 7]], 12, UITheme.MUTED))
+	v.add_child(UITheme.label(Game.date_text(), 12, UITheme.MUTED))
 	v.add_child(UITheme.bold(Game.L("업무 종료  ·  %s 퇴근", "Clocking out at %s") % Game.time_text(), 24))
 
 	var today: Dictionary = Game.state["stats_today"]
@@ -563,7 +652,7 @@ func _show_day_summary() -> void:
 		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var bv := UITheme.vbox(0)
 		var val := int(today.get(s[0], 0))
-		var n := UITheme.bold(str(val), 22, UITheme.ERR if s[0] in ["ci_fail", "caught_slacking"] and val > 0 else UITheme.TEXT)
+		var n := UITheme.bold(str(val), 22, UITheme.ERR if s[0] == "caught_slacking" and val > 0 else UITheme.TEXT)
 		n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		bv.add_child(n)
 		var l := UITheme.label(s[1], 11, UITheme.MUTED)
@@ -572,6 +661,9 @@ func _show_day_summary() -> void:
 		box.add_child(bv)
 		stats.add_child(box)
 	v.add_child(stats)
+	var investigations_today := Cases.archive().filter(func(id: String) -> bool: return int(Cases.record(id)["day"]) == Game.day()).size()
+	if investigations_today > 0:
+		v.add_child(UITheme.wrap(Game.L("오늘 조사 %d개를 정리했어요. Dashboard에서 가설과 배운 점을 다시 볼 수 있습니다.", "Filed %d investigations today. Revisit your hypotheses and lessons in Dashboard.") % investigations_today, 13, UITheme.ACCENT.lightened(0.3)))
 
 	v.add_child(UITheme.label(Game.L("오늘의 팀 관계 변화", "Team relationships today"), 12, UITheme.MUTED))
 	var rel_today: Dictionary = Game.state["rel_today"]
@@ -592,9 +684,9 @@ func _show_day_summary() -> void:
 		row.add_child(chips)
 		v.add_child(row)
 	var salary: int = Game.SALARY[clampi(Game.state["rank"], 0, Game.SALARY.size() - 1)]
-	v.add_child(UITheme.label(Game.L("오늘 급여 +%s", "Today's pay +%s") % Game.won(salary), 13, UITheme.OK))
+	v.add_child(UITheme.label((Game.L("오늘 급여 지급 완료 · %s", "Today's pay already received · %s") if Game.state["salary_days"].has(str(Game.day())) else Game.L("오늘 급여 +%s", "Today's pay +%s")) % Game.won(salary), 13, UITheme.OK))
 
-	var btn := UITheme.button(Game.L("엔딩 보기", "See the ending") if _chapter_done else Game.L("다음 날 출근하기  →", "Next day  →"), "primary")
+	var btn := UITheme.button(Game.L("챕터 결과 보기", "Chapter result") if _chapter_done else (Game.L("현재 구간 정리", "Review this segment") if _content_done else Game.L("다음 날 출근하기  →", "Next day  →")), "primary")
 	btn.custom_minimum_size = Vector2(0, 40)
 	btn.pressed.connect(_on_next_day)
 	v.add_child(btn)
@@ -605,10 +697,29 @@ func _show_day_summary() -> void:
 
 
 func _on_next_day() -> void:
+	if _day_transitioning:
+		return
+	_day_transitioning = true
 	if _chapter_done:
-		Game.earn(Game.SALARY[clampi(Game.state["rank"], 0, Game.SALARY.size() - 1)])
+		Game.claim_salary()
 		_show_ending()
 		return
+	if _content_done:
+		Game.claim_salary()
+		_show_content_summary()
+		return
+	_advance_workday()
+
+
+func _continue_chapter() -> void:
+	if not Story.can_continue_chapter() or not _chapter_done or not _day_transitioning:
+		return
+	_chapter_done = false
+	_content_done = false
+	_advance_workday()
+
+
+func _advance_workday() -> void:
 	var t := create_tween()
 	t.tween_property(_overlay, "color:a", 1.0, 0.5)
 	t.parallel().tween_property(_overlay.get_child(0), "modulate:a", 0.0, 0.3)
@@ -625,7 +736,7 @@ func _on_next_day() -> void:
 	UITheme.clear(_overlay)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var title := UITheme.bold("DAY %d · %s   09:00" % [Game.day(), Game.DAY_NAMES[(Game.day() - 1) % 7]], 30, UITheme.TEXT)
+	var title := UITheme.bold(Game.date_text() + "   09:00", 30, UITheme.TEXT)
 	center.add_child(title)
 	_overlay.add_child(center)
 	title.modulate.a = 0.0
@@ -636,6 +747,7 @@ func _on_next_day() -> void:
 	await t2.finished
 	_overlay.queue_free()
 	_overlay = null
+	_day_transitioning = false
 	Story.start_day(Game.day())
 	_on_objectives_changed()
 
@@ -652,29 +764,65 @@ func _show_ending() -> void:
 	center.add_child(v)
 	var left: bool = Game.state["flags"].get("ending", "") == "left"
 	var promoted: bool = int(Game.state["rank"]) >= 1
-	var headline := Game.L("Brightloop으로 이직합니다", "You're moving to Brightloop") if left else (
+	var interviewing: bool = left and Game.state["flags"].get("offer_stage", "") == "interview"
+	var headline := (Game.L("Brightloop 면담을 이어 갑니다", "Continuing talks with Brightloop") if interviewing else Game.L("Brightloop으로 이직합니다", "You're moving to Brightloop")) if left else (
 		Game.L("NEXORA 정규직 전환!", "Full-time at NEXORA!") if promoted else Game.L("인턴 기간이 연장되었습니다", "Your internship was extended"))
-	var sub := Game.L("짧았지만 NEXORA에서 배운 것들이 다음 커리어의 밑거름이 될 거예요.", "Short, but what you learned at NEXORA will carry your next role.") if left else (
+	var sub := (Game.L("현재 업무를 이어 가며 다음 기회를 알아봅니다.", "Keep building experience while exploring the next opportunity.") if interviewing else Game.L("NEXORA에서 배운 것들이 다음 커리어의 밑거름이 될 거예요.", "What you learned at NEXORA will carry your next role.")) if left else (
 		Game.L("인턴으로 시작해 4일 만에 팀의 신뢰를 얻었습니다.", "You started as an intern and earned the team's trust in four days.") if promoted
 		else Game.L("다음 달에는 더 많은 신뢰를 쌓아 보세요.", "Build more trust next month."))
 	for lab in [
 		UITheme.label("CHAPTER 1  —  " + Game.L("인턴의 첫 주", "THE INTERN WEEK"), 13, UITheme.ACCENT),
 		UITheme.bold(headline, 28),
 		UITheme.label(sub, 15, UITheme.TEXT2),
-		UITheme.label(Game.L("직급: %s   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Rank: %s   ·   Avg. team trust %d   ·   Balance %s") % [Game.rank_name(), roundi(float(Game.state["flags"].get("review_avg", 0))), Game.won(Game.money())], 13, UITheme.MUTED),
+		UITheme.label(Game.L("직급: %s   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Rank: %s   ·   Avg. team trust %d   ·   Balance %s") % [Game.rank_name(), roundi(float(Game.state["flags"].get("review_avg", Game.avg_trust()))), Game.won(Game.money())], 13, UITheme.MUTED),
 		UITheme.label(Game.L("커밋 %d · PR %d · CI 통과 %d / 실패 %d · 리뷰 %d · 딴짓 적발 %d", "Commits %d · PRs %d · CI %d green / %d red · Reviews %d · Caught slacking %d") % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews"), Game.stat("caught_slacking")], 13, UITheme.MUTED),
-		UITheme.label(Game.L("다음 챕터(새 회사, 프로덕션 배포, AI 에이전트 감독)는 Early Access에서 이어집니다.", "The next chapter (new companies, production deploys, supervising AI agents) continues in Early Access."), 13, UITheme.TEXT2),
+		UITheme.label(Game.L("챕터 2 · 첫 고객의 중복 주문 조사 — 현재 3개 업무를 플레이할 수 있습니다.", "Chapter 2 · Investigate a customer's duplicate orders — three tasks are playable."), 13, UITheme.TEXT2),
 	]:
 		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(lab)
-	var btn := UITheme.button(Game.L("자유 모드로 계속하기", "Keep playing (free mode)"), "primary")
+	if left and not interviewing:
+		v.add_child(UITheme.label(Game.L("기존 이직 선택을 유지합니다. 다음 장은 이직 전 NEXORA 업무 기록으로 이어집니다.", "Your saved career choice is preserved. The next chapter revisits your NEXORA work before that move."), 12, UITheme.MUTED))
+	if Story.can_continue_chapter():
+		var next := UITheme.button(Game.L("챕터 2 시작하기  →", "Start Chapter 2  →"), "primary")
+		next.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		next.custom_minimum_size = Vector2(260, 42)
+		next.pressed.connect(_continue_chapter)
+		v.add_child(next)
+	var btn := UITheme.button(Game.L("현재 데스크톱 둘러보기", "Review this desktop"))
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.custom_minimum_size = Vector2(240, 40)
 	btn.pressed.connect(func() -> void:
 		_overlay.queue_free()
 		_overlay = null
-		_end_day_btn.visible = false)
+		_day_transitioning = false
+		_end_day_btn.visible = true)
 	v.add_child(btn)
+
+
+func _show_content_summary() -> void:
+	UITheme.clear(_overlay)
+	(_overlay as ColorRect).color = Color(0.02, 0.03, 0.05, 0.96)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.add_child(center)
+	var v := UITheme.vbox(16)
+	center.add_child(v)
+	for item in [
+		UITheme.label("CHAPTER 2 · 3 / 8", 14, UITheme.ACCENT),
+		UITheme.bold(Game.L("같은 요청, 하나의 주문", "The same request, one order"), 28),
+		UITheme.label(Game.L("고객 기록 조사 → 지연·재전송 재현 → 순차 요청 계약 검증", "Customer records → delay and retry reproduction → sequential contract verified"), 14, UITheme.TEXT2),
+		UITheme.label(Game.L("현재 제공되는 3개 업무를 마쳤습니다. 계획된 8개 중 나머지는 개발 중입니다.", "You finished the three available tasks. The remaining five of eight are in development."), 13, UITheme.MUTED),
+		UITheme.label(Game.L("동시 요청, 고객 환경 배포와 후속 확인은 아직 남아 있습니다.", "Concurrent requests, customer rollout, and follow-up are still pending."), 13, UITheme.WARN),
+	]:
+		item.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(item)
+	var back := UITheme.button(Game.L("파일과 실험 기록 돌아보기", "Review files and experiment history"), "primary")
+	back.pressed.connect(func() -> void:
+		_overlay.queue_free()
+		_overlay = null
+		_day_transitioning = false
+		_end_day_btn.visible = true)
+	v.add_child(back)
 
 
 # --- Effects ------------------------------------------------------------------

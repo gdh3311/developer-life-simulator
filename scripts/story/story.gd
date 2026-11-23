@@ -5,6 +5,7 @@ extends Node
 signal objectives_changed
 signal mission_started(id: String)
 signal chapter_finished
+signal content_paused
 
 const MISSIONS := [
 	preload("res://scripts/story/missions/d1_01_first_day.gd"),
@@ -17,9 +18,12 @@ const MISSIONS := [
 	preload("res://scripts/story/missions/d4_08_login_incident.gd"),
 	preload("res://scripts/story/missions/d4_09_coupon_hotfix.gd"),
 	preload("res://scripts/story/missions/d4_10_retro.gd"),
+	preload("res://scripts/story/missions/c02_01_customer.gd"),
+	preload("res://scripts/story/missions/c02_02_reproduction.gd"),
+	preload("res://scripts/story/missions/c02_03_idempotency.gd"),
 ]
 const SideEvents := preload("res://scripts/story/side_events.gd")
-const LAST_DAY := 4
+const Chapters := preload("res://scripts/story/chapters.gd")
 
 var _missions: Array = []
 var active: RefCounted = null
@@ -55,6 +59,24 @@ func missions() -> Array:
 	return _missions
 
 
+func chapter_missions(id: int) -> Array:
+	return _missions.filter(func(m) -> bool: return m.chapter == id)
+
+
+func can_continue_chapter() -> bool:
+	var next := Game.chapter() + 1
+	return Game.state["day_done"] and Game.day() >= int(Chapters.DATA[Game.chapter()]["last_day"]) and Chapters.DATA.has(next) and not chapter_missions(next).is_empty()
+
+
+func _signal_chapter_end() -> void:
+	var info: Dictionary = Chapters.DATA[Game.chapter()]
+	if Game.day() >= int(info["last_day"]):
+		if info["complete"]:
+			chapter_finished.emit()
+		else:
+			content_paused.emit()
+
+
 func status(id: String) -> String:
 	return String(Game.state["story"].get(id, {}).get("status", "locked"))
 
@@ -64,14 +86,25 @@ func start_new() -> void:
 
 
 func resume() -> void:
+	# Fresh mission instances invalidate coroutines left behind by a scene/language reload.
+	active = null
+	_build()
 	for m in _missions:
 		if status(m.id) == "active":
 			active = m
+			if not m.data().get("_intro_complete", false) and not m.is_done("merged"):
+				await _introduce(m)
+			if active != m or status(m.id) != "active":
+				return
 			m.resume()
 			objectives_changed.emit()
+			CodeHub.resume_work()
 			return
 	if not Game.state["day_done"]:
 		_start_next()
+	else:
+		objectives_changed.emit()
+		_signal_chapter_end()
 
 
 func start_day(_d: int) -> void:
@@ -81,7 +114,7 @@ func start_day(_d: int) -> void:
 
 func _start_next() -> void:
 	for m in _missions:
-		if status(m.id) == "locked" and m.day == Game.day():
+		if status(m.id) == "locked" and m.chapter == Game.chapter() and m.day == Game.day():
 			if not m.should_run():
 				Game.state["story"][m.id] = {"status": "skipped", "obj": {}, "data": {}}
 				continue
@@ -90,8 +123,7 @@ func _start_next() -> void:
 	active = null
 	objectives_changed.emit()
 	side.flush_day()
-	if Game.day() >= LAST_DAY:
-		chapter_finished.emit()
+	_signal_chapter_end()
 	Game.finish_day()
 
 
@@ -102,8 +134,17 @@ func _start(m: RefCounted) -> void:
 		Game.set_issue(m.issue, "progress")
 	objectives_changed.emit()
 	mission_started.emit(m.id)
+	if Cases.has_case(m.id):
+		Game.notify("tasks", Game.L("새 조사 노트", "New investigation"), Game.tx(Cases.definitions[m.id]["question"]))
 	Game.save_soon()
-	m.begin()
+	_introduce(m)
+
+
+func _introduce(m: RefCounted) -> void:
+	await m.begin()
+	if active == m and status(m.id) == "active":
+		m.data()["_intro_complete"] = true
+		Game.save_soon()
 
 
 func finish_mission(m: RefCounted) -> void:
@@ -113,9 +154,11 @@ func finish_mission(m: RefCounted) -> void:
 	if m.issue != "":
 		Game.set_issue(m.issue, "done")
 	Game.inc_stat("missions")
+	Cases.close_case(m.id)
 	Game.save_soon()
 	await get_tree().create_timer(2.5).timeout
-	_start_next()
+	if active == m and status(m.id) == "done":
+		_start_next()
 
 
 func _on_event(kind: String, data: Dictionary) -> void:
@@ -125,10 +168,14 @@ func _on_event(kind: String, data: Dictionary) -> void:
 			Game.inc_stat("main_commits")
 			_main_commit_warning()
 	side.on_event(kind, data)
-	if active == null:
+	if active == null or status(active.id) != "active":
 		return
 	var m = active
 	m.auto_event(kind, data)
+	if kind == "pr_merged" and int(data.get("pr", 0)) == int(m.data().get("pr", -1)):
+		if m.handling_merge:
+			return
+		m.handling_merge = true
 	m.on_event(kind, data)
 
 
@@ -161,4 +208,5 @@ func next_hint() -> String:
 		return Game.tx(active.hints[-1])
 	d["hint"] = i + 1
 	Game.inc_stat("hints")
+	Game.save_soon()
 	return Game.tx(active.hints[i])

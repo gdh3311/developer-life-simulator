@@ -31,9 +31,15 @@ func _init() -> void:
 func begin() -> void:
 	Game.set_time(9 * 60 + 15)
 	Game.add_issue("#001", Game.LL("프로필 이름이 비어 있으면 'undefined' 표시", "Profile shows 'undefined' when the name is empty"), "bug", Game.L("나", "me"), "progress")
-	await Workspace.bot_commit("mina", "main", {"tests/displayName.test.ts": Workspace.content("m02/displayName.test.ts")},
-		"test(users): reproduce #001 display name bug")
+	if not data().get("_prepared", false):
+		await Workspace.bot_commit("mina", "main", {"tests/displayName.test.ts": Workspace.content("m02/displayName.test.ts")},
+			"test(users): reproduce #001 display name bug")
+		if not is_current():
+			return
+		data()["_prepared"] = true
 	await wait(1.2)
+	if not is_current():
+		return
 	say("system", t("DAY 2 · 화요일 아침입니다.", "DAY 2 · Tuesday morning."), {"channel": "general", "silent": true})
 	say("mina", t("안녕하세요! QA Mina예요. 이슈 #001 부탁드려요. 이름이 비어 있는 프로필에 'undefined'가 보여요. 재현 테스트를 main에 올려 뒀으니 pull 받고 npm test 로 확인해 보세요!",
 		"Hi! I'm Mina from QA. Could you take issue #001? Profiles with an empty name show 'undefined'. I pushed reproduction tests to main, so pull and run npm test!"))
@@ -45,6 +51,8 @@ func hidden_tests() -> Dictionary:
 
 func review(p: Dictionary) -> void:
 	var touches := await diff_touches_tests(p)
+	if not is_current():
+		return
 	if touches:
 		CodeHub.review(p["id"], "daniel", "approved", t("엣지 케이스 테스트까지 추가했네요. 깔끔합니다. 승인하고 병합할게요.", "You even added an edge-case test. Clean. Approving and merging."))
 		Game.relate("daniel", {"tech": 6, "work": 3})
@@ -79,7 +87,10 @@ func on_event(kind: String, d: Dictionary) -> void:
 					CodeHub.comment(int(d["pr"]), "daniel", t("좋아요. push 하면 다시 볼게요.", "Good. I'll look again once you push."))
 		"pr_merged":
 			if int(d["pr"]) == int(data().get("pr", 0)):
-				Game.relate("mina", {"work": 5, "close": 2})
+				if once("_merge_reward"):
+					Game.relate("mina", {"work": 5, "close": 2})
 				await wait(1.5)
+				if not is_current():
+					return
 				say("mina", t("dev 서버 배포 확인했어요. 이름 없는 프로필도 이제 정상이에요. 감사합니다!", "Verified on the dev server. Empty-name profiles look right now. Thanks!"))
 				finish()

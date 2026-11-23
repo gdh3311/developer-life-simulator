@@ -60,7 +60,7 @@ func _on_hint() -> void:
 
 func _on_delegate() -> void:
 	var m = Story.active
-	if m == null or m.ai_task.is_empty():
+	if _busy or m == null or m.ai_task.is_empty() or m.data().get("ai_used", false):
 		return
 	_busy = true
 	_render_actions()
@@ -68,10 +68,20 @@ func _on_delegate() -> void:
 	for step in [Game.L("저장소 구조 분석 중...", "Analysing the repository..."), Game.L("관련 파일 읽는 중: ", "Reading files: ") + ", ".join(m.ai_task["files"].keys()), Game.L("변경안 작성 중...", "Writing the change...")]:
 		_say("ai", step)
 		await get_tree().create_timer(0.9).timeout
+		if Story.active != m or Story.status(m.id) != "active":
+			_busy = false
+			_render_actions()
+			return
 	for path in m.ai_task["files"]:
 		Workspace.write_file(path, Workspace.content(m.ai_task["files"][path]))
 	await Workspace.refresh()
+	if Story.active != m or Story.status(m.id) != "active":
+		_busy = false
+		_render_actions()
+		return
 	Game.advance(15)
+	m.data()["ai_used"] = true
+	Game.inc_stat("ai_used")
 	Game.emit_event("ai_used", {})
 	_say("ai", Game.L("완료했습니다. %s\n변경된 파일: %s\n\n커밋하기 전에 DevIDE에서 코드를 검토하고 npm test 로 확인해 주세요.",
 		"Done. %s\nChanged files: %s\n\nBefore committing, review the code in DevIDE and run npm test.") % [Game.tx(m.ai_task["summary"]), ", ".join(m.ai_task["files"].keys())])

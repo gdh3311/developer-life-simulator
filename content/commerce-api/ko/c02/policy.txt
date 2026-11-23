@@ -1,0 +1,25 @@
+주문 요청과 순차 재시도
+
+createOrder(request, store) -> Promise<Order>
+request: { shopId, requestKey, items }
+items는 순서가 정규화된 { sku, price, quantity } 목록이다.
+
+1. requestKey의 앞뒤 공백을 제거한다. null, 누락, 공백뿐인 키는 REQUEST_KEY_REQUIRED 오류이며 주문을 만들지 않는다.
+2. 같은 shopId와 정규화한 requestKey의 쌍에 같은 items가 오면 처음 만든 주문을 반환한다.
+3. 같은 쌍인데 items가 다르면 REQUEST_CONFLICT 오류다. 수량과 가격도 내용에 포함한다.
+4. shopId나 requestKey 중 하나라도 다르면 별개의 요청이다. 문자열에 ':' 같은 문자가 있어도 쌍의 경계는 유지한다.
+5. 이번 업무는 순차 호출만 다룬다. 동시 요청, 만료, 실제 DB 배포는 다음 업무의 범위다.
+
+store.get(key): 저장한 Entry 또는 undefined
+store.set(key, { fingerprint, order }): 완료한 주문과 내용 지문 저장
+store.create(request): 새 주문을 만드는 Promise
+key와 fingerprint를 만드는 방식은 자유다. 쌍의 구분과 내용 비교가 지켜져야 한다.
+예: key = JSON.stringify([request.shopId, requestKey]); fingerprint = JSON.stringify(request.items)
+
+실험실은 요청 조건을 가상으로 조합하고 실제 request.ts 함수를 순차 실행한다.
+느린 응답 + 재시도 켜기 + 같은 키: 호출은 2번이지만 수정 후 주문은 1개여야 한다.
+느린 응답 + 재시도 끄기: 호출은 1번이다.
+매번 새 키는 서로 다른 구매 시도이므로 주문이 여러 개 생겨도 정상이다.
+
+Lab에서 신고된 버전과 현재 작업 코드의 차이를 비교할 수 있다.
+실험 성공은 배포 완료를 뜻하지 않는다. 실제 동시성·고객 적용 확인은 남아 있다.

@@ -9,6 +9,8 @@ signal pr_changed(id: int)
 signal prs_changed
 
 const ME := "me"
+var _epoch := 0
+var _ci_tokens := {}
 
 
 func prs() -> Array:
@@ -29,6 +31,36 @@ func open_prs_for(branch: String) -> Array:
 func _ready() -> void:
 	Game.event.connect(_on_event)
 	Workspace.main_updated.connect(recheck_all)
+	Game.state_reset.connect(func() -> void: _epoch += 1)
+
+
+## Resume saved work instead of leaving stale "running"/"merging" flags forever.
+func resume_work() -> void:
+	_epoch += 1
+	var epoch := _epoch
+	for pr in prs().duplicate():
+		if pr["state"] != "open":
+			continue
+		pr["flags"]["merging"] = false
+		pr["flags"]["_merge_busy"] = false
+		var sha := await Workspace.remote_sha(pr["branch"])
+		if epoch != _epoch:
+			return
+		if sha == "":
+			continue
+		if sha != pr["head"]:
+			pr["head"] = sha
+			pr["review"]["state"] = "pending"
+		var integrated := await Workspace._git_in(Workspace.origin, ["merge-base", "--is-ancestor", sha, "refs/heads/main"])
+		if epoch != _epoch:
+			return
+		if integrated["code"] == 0:
+			pr["state"] = "merged"
+			Game.inc_stat("merges")
+			Game.emit_event("pr_merged", {"pr": pr["id"], "by": pr["review"].get("by", pr["reviewer"])})
+			pr_changed.emit(int(pr["id"]))
+		else:
+			run_ci(int(pr["id"]), true)
 
 
 func _on_event(kind: String, data: Dictionary) -> void:
@@ -133,38 +165,44 @@ func refresh_pr(id: int, note = null) -> void:
 		await _on_new_commits(pr, note if note != null else Game.LL("새 커밋이 push 되었습니다.", "New commits were pushed."))
 
 
-func run_ci(id: int) -> void:
+func run_ci(id: int, restoring := false) -> void:
+	var epoch := _epoch
 	var pr := get_pr(id)
 	if pr.is_empty():
 		return
+	var token := int(_ci_tokens.get(id, 0)) + 1
+	_ci_tokens[id] = token
+	var counted_before: bool = restoring and pr["ci"]["state"] in ["pass", "fail"]
 	var sha: String = pr["head"]
 	pr["ci"] = {"state": "running", "passed": 0, "failed": 0, "failures": [], "error": "", "sha": sha}
 	pr_changed.emit(id)
 	var hidden := Story.hidden_tests_for(pr)
 	var r := await Workspace.ci_run(sha, hidden)
-	if pr["head"] != sha:
+	if epoch != _epoch or _ci_tokens.get(id, 0) != token or pr["state"] != "open" or pr["head"] != sha:
 		return  # a newer push started another run
 	var failures: Array = []
 	for t in r["tests"]:
 		if not t["ok"]:
 			failures.append({"name": t["name"], "detail": t["detail"]})
 	var ok: bool = r.get("ok", false)
+	var mergeable := await Workspace.can_merge(pr["branch"])
+	if epoch != _epoch or _ci_tokens.get(id, 0) != token or pr["state"] != "open" or pr["head"] != sha:
+		return
 	pr["ci"] = {"state": "pass" if ok else "fail", "passed": r["passed"], "failed": r["failed"],
 		"failures": failures, "error": r.get("error", ""), "sha": sha, "hidden": hidden.size()}
-	pr["mergeable"] = "clean" if await Workspace.can_merge(pr["branch"]) else "conflict"
+	pr["mergeable"] = "clean" if mergeable else "conflict"
 	_log(pr, "ci", Game.LL("CI 통과 · 테스트 %d개" % r["passed"], "CI passed · %d tests" % r["passed"]) if ok
 		else Game.LL("CI 실패 · 실패 %d / 성공 %d" % [r["failed"], r["passed"]], "CI failed · %d failed / %d passed" % [r["failed"], r["passed"]]))
 	if pr["mergeable"] == "conflict":
 		_log(pr, "system", Game.LL("main 브랜치와 충돌이 있습니다. main을 작업 브랜치에 병합(git pull origin main)하고 충돌을 해결한 뒤 push 하세요.",
 			"This branch conflicts with main. Merge main into it (git pull origin main), resolve the conflict and push."))
-	Game.inc_stat("ci_pass" if ok else "ci_fail")
-	Game.advance(10)
+	if not counted_before:
+		Game.inc_stat("ci_pass" if ok else "ci_fail")
+		Game.advance(10)
 	pr_changed.emit(id)
 	if pr["author"] == ME:
 		Game.notify("codehub", "PR #%d" % id, Game.L("CI 통과 ✓", "CI passed ✓") if ok else Game.L("CI 실패 ✗ — 실패한 테스트를 확인하세요", "CI failed ✗ — check the failing tests"))
-		if not ok:
-			# Breaking CI costs credibility, a little every time.
-			Game.relate("daniel", {"tech": -1})
+		# CI is a safe place to discover mistakes. Release decisions have their own consequences.
 	Game.emit_event("ci", {"pr": id, "ok": ok, "conflict": pr["mergeable"] == "conflict"})
 	_try_auto_merge(pr)
 
@@ -226,6 +264,8 @@ func answer(id: int, index: int, choice_id: String) -> void:
 ## stance: "concern" (points out problems) or "lgtm" (looks fine).
 func submit_comments(id: int, stance: String, lines: Array, note: String) -> void:
 	var pr := get_pr(id)
+	if pr.is_empty() or pr["state"] != "open" or pr["author"] == ME or not pr["flags"].get("needs_my_comment", false) or stance not in ["concern", "lgtm"]:
+		return
 	var ko := "문제가 있어 보여요." if stance == "concern" else "LGTM — 문제 없어 보여요."
 	var en := "I think there's a problem here." if stance == "concern" else "LGTM — looks fine to me."
 	var extra := ""
@@ -262,7 +302,10 @@ func _try_auto_merge(pr: Dictionary) -> void:
 	if pr["flags"].get("hold_merge", false):
 		return
 	pr["flags"]["merging"] = true
+	var epoch := _epoch
 	await get_tree().create_timer(2.0).timeout
+	if epoch != _epoch:
+		return
 	pr["flags"]["merging"] = false
 	if not merge_blockers(pr).is_empty():
 		return
@@ -271,10 +314,15 @@ func _try_auto_merge(pr: Dictionary) -> void:
 
 func merge(id: int, by: String) -> Dictionary:
 	var pr := get_pr(id)
-	if pr.is_empty() or not merge_blockers(pr).is_empty():
+	if pr.is_empty() or not merge_blockers(pr).is_empty() or pr["flags"].get("_merge_busy", false):
 		return {"ok": false}
+	pr["flags"]["_merge_busy"] = true
+	var epoch := _epoch
 	var msg := "Merge pull request #%d from %s\n\n%s" % [id, pr["branch"], pr["title"]]
 	var r := await Workspace.bot_merge(pr["branch"], msg, "bot")
+	if epoch != _epoch:
+		return {"ok": false, "stale": true}
+	pr["flags"]["_merge_busy"] = false
 	if r.get("conflict", false):
 		pr["mergeable"] = "conflict"
 		_log(pr, "system", Game.LL("병합 중 충돌이 발생했습니다. main을 작업 브랜치에 병합해 충돌을 해결하세요.",

@@ -19,6 +19,8 @@ const DAY_NAMES := ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 const DAY_START := 9 * 60
 const SAVE_PATH := "user://sandbox/save.json"
 const SETTINGS_PATH := "user://settings.json"
+const SaveStore := preload("res://scripts/services/save_store.gd")
+const Chapters := preload("res://scripts/story/chapters.gd")
 
 const NPCS := {
 	"alex": {"name": "Alex Kim", "role": {"ko": "프로덕트 매니저", "en": "Product Manager"}, "color": "f5a524"},
@@ -38,6 +40,8 @@ const SALARY := [80000, 120000, 140000, 170000]
 var lang := "ko"
 var state := {}
 var _save_pending := false
+var last_load_error := ""
+var last_load_recovered := false
 
 
 func _ready() -> void:
@@ -52,10 +56,18 @@ func _ready() -> void:
 
 
 func reset_state() -> void:
-	state = {
+	state = _default_state()
+
+
+func _default_state() -> Dictionary:
+	return {
+		"save_version": SaveStore.VERSION,
+		"workspace_checkpoint": {},
+		"request_lab": {"opened": false, "evidence": false, "plan": [], "runs": [], "latest": {}},
 		"day": 1, "minutes": DAY_START, "rank": 0, "day_done": false,
 		"player_name": "New Hire", "repo_lang": lang,
 		"money": 50000, "condition": 85, "owned": {},
+		"salary_days": {},
 		"rel": {
 			"alex": {"tech": 20, "work": 25, "close": 15, "agree": 35},
 			"daniel": {"tech": 10, "work": 15, "close": 5, "agree": 30},
@@ -67,6 +79,7 @@ func reset_state() -> void:
 		"issues": [],
 		"stats": {}, "stats_today": {},
 		"story": {}, "side": {},
+		"investigations": {},
 		"codehub": {"prs": [], "next_id": 1},
 		"monitor": {"status": {"api": "ok", "auth": "ok", "payments": "ok"}, "mode": "normal"},
 		"connectly": {"inbox": [], "endorsements": {}},
@@ -80,6 +93,7 @@ func _load_settings() -> void:
 	var data = JSON.parse_string(FileAccess.get_file_as_string(SETTINGS_PATH)) if FileAccess.file_exists(SETTINGS_PATH) else null
 	if typeof(data) == TYPE_DICTIONARY:
 		lang = String(data.get("lang", "ko"))
+		walkby_enabled = bool(data.get("walkby", true))
 
 
 func has_settings() -> bool:
@@ -88,8 +102,21 @@ func has_settings() -> bool:
 
 func set_language(l: String) -> void:
 	lang = l
+	_store_settings()
+
+
+## Accessibility: the "boss walks by while you're slacking" event can be turned off.
+var walkby_enabled := true
+
+
+func set_walkby(on: bool) -> void:
+	walkby_enabled = on
+	_store_settings()
+
+
+func _store_settings() -> void:
 	var f := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
-	f.store_string(JSON.stringify({"lang": lang}))
+	f.store_string(JSON.stringify({"lang": lang, "walkby": walkby_enabled}))
 	f.close()
 
 
@@ -117,18 +144,16 @@ func pname() -> String:
 # --- Persistence ---------------------------------------------------------------
 
 func has_save() -> bool:
-	return FileAccess.file_exists(SAVE_PATH)
+	return FileAccess.file_exists(SAVE_PATH) or FileAccess.file_exists(SAVE_PATH + ".bak")
 
 
 func load_game() -> bool:
-	var data = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
-	if typeof(data) != TYPE_DICTIONARY:
+	var loaded := SaveStore.read(SAVE_PATH, _default_state())
+	last_load_error = loaded.get("error", "")
+	last_load_recovered = loaded.get("recovered", false)
+	if not loaded["ok"]:
 		return false
-	reset_state()
-	for k in data:
-		state[k] = data[k]
-	for k in ["day", "minutes", "rank", "money", "condition"]:
-		state[k] = int(state[k])
+	state = loaded["data"]
 	time_changed.emit(day(), minutes())
 	return true
 
@@ -144,16 +169,20 @@ func _save() -> void:
 	_save_pending = false
 	if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path("user://sandbox")):
 		return
-	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if f:
-		f.store_string(JSON.stringify(state, "\t"))
-		f.close()
+	if Workspace.is_ready and not Workspace._snap.is_empty():
+		state["workspace_checkpoint"] = {"head": Workspace._snap["head"], "branch": Workspace._snap["branch"], "remote_main": Workspace._snap["remote"].get("main", "")}
+	if not SaveStore.write(SAVE_PATH, state, _default_state()):
+		notify("dashboard", L("저장하지 못했습니다", "Could not save"), L("이전 저장은 유지됩니다. 저장 공간과 파일 권한을 확인해 주세요.", "The previous save is retained. Check free space and file permissions."))
 
 
-func new_game() -> void:
+func new_game() -> bool:
+	if Workspace.active_jobs > 0 or Workspace._bot_busy or Workspace._ci_busy:
+		notify("dashboard", L("작업을 마치는 중입니다", "Work is still finishing"), L("Git 또는 테스트가 끝난 뒤 다시 시작해 주세요.", "Wait for Git or tests to finish, then try again."))
+		return false
 	reset_state()
 	Workspace.wipe()
 	state_reset.emit()
+	return true
 
 
 # --- Events & time ----------------------------------------------------------------
@@ -189,7 +218,15 @@ func set_time(mins: int) -> void:
 
 
 func clock_text() -> String:
-	return "%s %02d:%02d" % [DAY_NAMES[(day() - 1) % 7], floori(minutes() / 60.0), minutes() % 60]
+	return "%s %02d:%02d" % [DAY_NAMES[Chapters.weekday(day())], floori(minutes() / 60.0), minutes() % 60]
+
+
+func chapter() -> int:
+	return Chapters.for_day(day())
+
+
+func date_text() -> String:
+	return "%s · %s" % [tx(Chapters.DATA[chapter()]["period"]), DAY_NAMES[Chapters.weekday(day())]]
 
 
 func time_text() -> String:
@@ -205,7 +242,12 @@ func finish_day() -> void:
 
 
 func next_day() -> void:
-	earn(SALARY[clampi(state["rank"], 0, SALARY.size() - 1)])
+	if not state["day_done"]:
+		return
+	var info: Dictionary = Chapters.DATA[chapter()]
+	if day() >= int(info["last_day"]) and not Chapters.DATA.has(chapter() + 1):
+		return
+	claim_salary()
 	state["day"] = day() + 1
 	state["minutes"] = DAY_START
 	state["day_done"] = false
@@ -215,6 +257,15 @@ func next_day() -> void:
 	condition_changed.emit()
 	time_changed.emit(day(), minutes())
 	save_soon()
+
+
+func claim_salary() -> bool:
+	var key := str(day())
+	if not state["day_done"] or state["salary_days"].has(key):
+		return false
+	state["salary_days"][key] = true
+	earn(SALARY[clampi(state["rank"], 0, SALARY.size() - 1)])
+	return true
 
 
 func rank_name() -> String:
@@ -266,6 +317,17 @@ func won(amount: int) -> String:
 
 
 # --- Team ------------------------------------------------------------------------
+
+## Average of every teammate's trust values (0-100).
+func avg_trust() -> float:
+	var total := 0
+	var count := 0
+	for npc in state["rel"]:
+		for key in REL_KEYS:
+			total += rel(npc, key)
+			count += 1
+	return float(total) / maxi(count, 1)
+
 
 func rel(npc: String, key: String) -> int:
 	return int(state["rel"][npc][key])

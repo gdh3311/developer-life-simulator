@@ -23,26 +23,40 @@ func begin() -> void:
 	Story.side.fire_if_pending("d1_lunch")
 	while Game.pending_choice("d1_lunch"):
 		await wait(0.5)
+		if not is_current():
+			return
 	Game.set_time(13 * 60 + 30)
 	await wait(1.0)
+	if not is_current():
+		return
 	say("daniel", t("점심 잘 먹었어요? 오후엔 정리부터 하죠. 병합된 PR은 로컬 main도 최신으로 받아 두고, 다 쓴 브랜치는 지우는 습관을 들여요.",
 		"Good lunch? Let's tidy up first. After a merge, update your local main and delete the branch you no longer need."))
 	if await Workspace.local_main_synced():
+		if not is_current():
+			return
 		complete("sync")
 
 
 func on_event(kind: String, d: Dictionary) -> void:
-	if kind.begins_with("git_") or kind == "cmd":
-		if not is_done("sync") and await Workspace.local_main_synced():
-			complete("sync")
-		if kind == "cmd" and is_git(d["argv"], "branch") and is_done("sync"):
+	if kind.begins_with("git_") or kind == "command_finished":
+		if not is_done("sync"):
+			var synced := await Workspace.local_main_synced()
+			if not is_current():
+				return
+			if synced:
+				complete("sync")
+		if kind == "command_finished" and int(d.get("code", -1)) == 0 and is_git(d["argv"], "branch") and is_done("sync"):
 			var branches := await Workspace.local_branches()
+			if not is_current():
+				return
 			if not branches.any(func(b: String) -> bool: return b.begins_with("docs/")):
 				complete("cleanup")
 	if all_done() and not data().get("finished", false):
 		data()["finished"] = true
 		Game.relate("daniel", {"work": 2})
 		await wait(1.0)
+		if not is_current():
+			return
 		say("alex", t("첫날 고생 많았어요! 오늘은 여기까지예요. 내일부터 진짜 버그를 맡게 될 거예요. 상단의 '퇴근하기'를 누르세요.",
 			"Great first day! That's it for today. Tomorrow you'll get a real bug. Press 'Clock out' at the top."))
 		finish()

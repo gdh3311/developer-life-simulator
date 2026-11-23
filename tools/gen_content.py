@@ -7,6 +7,7 @@ Code is identical across languages; comments, docs and test names are localized.
 """
 import os
 import shutil
+from gen_chapter2_content import files as chapter2_files
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "content")
 
@@ -384,6 +385,7 @@ test('%s', async () => {
   assert.equal(s.token, 'tok');
 });
 """ % (t["c_timeout"], t["c_failed"], t["c_passthru"], t["c_ok_login"])
+    f.update(chapter2_files(lang))
     return f
 
 

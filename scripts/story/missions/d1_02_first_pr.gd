@@ -49,12 +49,23 @@ func begin() -> void:
 	Game.set_time(10 * 60)
 	Game.add_issue("#000", Game.LL("README 오타 수정 (온보딩)", "Fix README typo (onboarding)"), "docs", Game.L("나", "me"), "progress")
 	await wait(1.5)
+	if not is_current():
+		return
 	say("daniel", t("안녕하세요, 백엔드 시니어 Daniel입니다. 첫 업무로 가볍게 가죠. README에 'Commerse'라는 오타가 있어요. 고쳐서 PR로 올려 주세요. 오른쪽 아래 가이드대로 하면 됩니다.",
 		"Hi, I'm Daniel, senior backend. Let's start light: the README has a typo, 'Commerse'. Fix it and send a PR. Follow the guide at the bottom left."))
 
 
 func review(p: Dictionary) -> void:
+	var readme := await Workspace._git_in(Workspace.origin, ["show", "refs/heads/" + p["branch"] + ":README.md"])
+	if not is_current():
+		return
+	if readme["code"] != 0 or "Commerse" in String(readme["out"]) or not "Commerce" in String(readme["out"]):
+		CodeHub.review(p["id"], "daniel", "changes", t("README의 Commerse → Commerce 수정이 아직 반영되지 않았어요. DevIDE에서 고쳐 저장하고 새 커밋을 push해 주세요.", "The README typo fix (Commerse → Commerce) is still missing. Save it in DevIDE and push another commit."))
+		return
+	complete("edit")
 	var commits := await Workspace.pr_commits(p["branch"])
+	if not is_current():
+		return
 	var conventional := commits.any(func(c: String) -> bool:
 		var subject := c.get_slice("|", 2)
 		return subject.begins_with("docs") or subject.begins_with("fix") or subject.begins_with("chore"))
@@ -75,19 +86,19 @@ func review(p: Dictionary) -> void:
 
 func on_event(kind: String, d: Dictionary) -> void:
 	match kind:
-		"file_saved", "cmd":
+		"file_saved", "command_finished":
 			if not is_done("edit"):
 				var readme := Workspace.read_file("README.md")
 				if not "Commerse" in readme and "Commerce" in readme:
 					complete("edit")
-			if kind == "cmd" and is_git(d["argv"], "diff"):
+			if kind == "command_finished" and int(d.get("code", -1)) == 0 and is_git(d["argv"], "diff"):
 				complete("diff")
-		"git_committed":
-			if d["branch"] != "main":
-				complete("edit")
 		"pr_merged":
 			if int(d["pr"]) == int(data().get("pr", 0)):
 				await wait(1.5)
+				if not is_current():
+					return
 				say("sophie", t("첫 PR 병합 축하해요!! 이제 진짜 NEXORA 개발자네요 :)", "Congrats on your first merged PR!! You're officially a NEXORA developer :)"))
-				Game.relate("sophie", {"close": 2})
+				if once("_merge_reward"):
+					Game.relate("sophie", {"close": 2})
 				finish()

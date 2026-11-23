@@ -2,6 +2,7 @@ extends RefCounted
 ## App registry: builds the content control for each in-game application.
 
 const SCRIPTS := {
+	"lab": preload("res://scripts/apps/request_lab_app.gd"),
 	"ide": preload("res://scripts/desktop/ide_app.gd"),
 	"terminal": preload("res://scripts/desktop/terminal_app.gd"),
 	"codehub": preload("res://scripts/apps/codehub_app.gd"),

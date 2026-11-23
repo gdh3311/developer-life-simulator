@@ -17,6 +17,7 @@ func _ready() -> void:
 	Game.relation_changed.connect(func(_n: String, _k: String, _d: int) -> void: _render())
 	Story.objectives_changed.connect(_render)
 	Game.wallet_changed.connect(_render)
+	Cases.changed.connect(_render)
 	_render()
 
 
@@ -29,13 +30,16 @@ func _render() -> void:
 	var pv := UITheme.vbox(2)
 	pv.add_child(UITheme.bold(Game.pname(), 18))
 	pv.add_child(UITheme.label("%s · Backend · NEXORA" % Game.rank_name(), 13, UITheme.TEXT2))
-	pv.add_child(UITheme.label("DAY %d · %s   ·   %s %d%%   ·   %s" % [Game.day(), Game.clock_text(), Game.L("컨디션", "Energy"), Game.condition(), Game.won(Game.money())], 12, UITheme.MUTED))
+	pv.add_child(UITheme.label("%s · %s   ·   %s %d%%   ·   %s" % [Game.date_text(), Game.clock_text(), Game.L("컨디션", "Energy"), Game.condition(), Game.won(Game.money())], 12, UITheme.MUTED))
 	pr.add_child(pv)
 	pr.add_child(UITheme.spacer())
-	var done: int = Story.missions().filter(func(m) -> bool: return Story.status(m.id) == "done").size()
-	var total: int = Story.missions().filter(func(m) -> bool: return Story.status(m.id) != "skipped").size()
+	var available := Story.chapter_missions(Game.chapter())
+	var done: int = available.filter(func(m) -> bool: return Story.status(m.id) == "done").size()
+	var total: int = available.filter(func(m) -> bool: return Story.status(m.id) != "skipped").size()
 	var prog := UITheme.vbox(4)
-	prog.add_child(UITheme.label(Game.L("CHAPTER 1 진행도  %d / %d", "CHAPTER 1 progress  %d / %d") % [done, total], 12, UITheme.TEXT2))
+	prog.add_child(UITheme.label(Game.L("CHAPTER %d 진행도  %d / %d", "CHAPTER %d progress  %d / %d") % [Game.chapter(), done, total], 12, UITheme.TEXT2))
+	if not Story.Chapters.DATA[Game.chapter()]["complete"]:
+		prog.add_child(UITheme.label(Game.L("현재 %d / %d개 업무 제공", "%d of %d tasks available") % [available.size(), Story.Chapters.DATA[Game.chapter()]["planned"]], 11, UITheme.MUTED))
 	prog.add_child(UITheme.bar(100.0 * done / maxf(total, 1), UITheme.ACCENT, 200))
 	pr.add_child(prog)
 	prof.add_child(pr)
@@ -52,12 +56,14 @@ func _render() -> void:
 		var box := UITheme.panel(UITheme.BG2, 10, 12, Color(0, 0, 0, 0))
 		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var v := UITheme.vbox(0)
-		var bad: bool = s[0] in ["ci_fail", "main_commits", "caught_slacking"] and Game.stat(s[0]) > 0
+		var bad: bool = s[0] in ["main_commits", "caught_slacking"] and Game.stat(s[0]) > 0
 		v.add_child(UITheme.bold(str(Game.stat(s[0])), 22, UITheme.ERR if bad else UITheme.TEXT))
 		v.add_child(UITheme.label(s[1], 11, UITheme.MUTED))
 		box.add_child(v)
 		grid.add_child(box)
 	_root.add_child(grid)
+	_root.add_child(UITheme.label(Game.L("CI 실패는 실험 기록입니다. 실패 횟수만으로 신뢰가 떨어지지 않습니다.", "CI failures are experiments. Their count alone does not lower trust."), 11, UITheme.MUTED))
+	_render_cases()
 
 	# Team
 	_root.add_child(UITheme.label(Game.L("팀 관계 — 신뢰는 천천히 쌓이고, 실수하면 크게 떨어집니다.", "Team trust — earned slowly, lost quickly."), 12, UITheme.MUTED))
@@ -118,7 +124,18 @@ func _render() -> void:
 			get_tree().reload_current_scene())
 		srow.add_child(b)
 	_root.add_child(srow)
-	for vol in [["music", Game.L("음악", "Music")], ["sfx", Game.L("효과음", "Sound effects")]]:
+	var wrow := UITheme.hbox(10)
+	var wl := UITheme.label(Game.L("딴짓 단속 이벤트", "Boss walk-by event"), 13, UITheme.TEXT2)
+	wl.custom_minimum_size.x = 110
+	wrow.add_child(wl)
+	var wcheck := CheckButton.new()
+	wcheck.button_pressed = Game.walkby_enabled
+	wcheck.focus_mode = Control.FOCUS_NONE
+	wcheck.toggled.connect(func(on: bool) -> void: Game.set_walkby(on))
+	wrow.add_child(wcheck)
+	wrow.add_child(UITheme.label(Game.L("끄면 딴짓을 해도 상사가 지나가지 않아요.", "When off, nobody walks by while you browse."), 11, UITheme.MUTED))
+	_root.add_child(wrow)
+	for vol in [["music", Game.L("음악", "Music")], ["sfx", Game.L("효과음", "Sound effects")], ["ambience", Game.L("사무실 소리", "Office ambience")]]:
 		var vrow := UITheme.hbox(10)
 		var vl := UITheme.label(vol[1], 13, UITheme.TEXT2)
 		vl.custom_minimum_size.x = 110
@@ -128,14 +145,17 @@ func _render() -> void:
 		slider.max_value = 1.0
 		slider.step = 0.05
 		slider.custom_minimum_size.x = 220
-		slider.value = Sfx.music_volume if vol[0] == "music" else Sfx.sfx_volume
+		slider.value = {"music": Sfx.music_volume, "sfx": Sfx.sfx_volume, "ambience": Sfx.ambience_volume}[vol[0]]
 		var which: String = vol[0]
 		slider.value_changed.connect(func(v: float) -> void:
-			if which == "music":
-				Sfx.music_volume = v
-			else:
-				Sfx.sfx_volume = v
-				Sfx.play("tick")
+			match which:
+				"music":
+					Sfx.music_volume = v
+				"ambience":
+					Sfx.ambience_volume = v
+				_:
+					Sfx.sfx_volume = v
+					Sfx.play("tick")
 			Sfx.apply_volumes()
 			Sfx.save_settings())
 		vrow.add_child(slider)
@@ -150,6 +170,33 @@ func _render() -> void:
 			_confirm = true
 			_render()
 			return
-		Game.new_game()
-		get_tree().reload_current_scene())
+		if Game.new_game():
+			get_tree().reload_current_scene())
 	_root.add_child(reset)
+
+
+func _render_cases() -> void:
+	var archive := Cases.archive()
+	_root.add_child(UITheme.bold(Game.L("조사 수첩  ·  %d / %d", "Investigation journal  ·  %d / %d") % [archive.size(), Cases.definitions.size()], 16))
+	if archive.is_empty():
+		_root.add_child(UITheme.wrap(Game.L("TaskBoard의 조사 노트에서 단서와 가설을 기록해 보세요. 업무가 끝나면 실제 결과와 배운 점이 여기 남습니다.", "Record clues and hypotheses in TaskBoard. When a task ends, its outcome and lessons stay here."), 12, UITheme.TEXT2))
+	for id in archive:
+		var file: Dictionary = Cases.definitions[id]
+		var record := Cases.record(id)
+		var card := UITheme.panel(UITheme.BG2, 10, 12, UITheme.LINE)
+		var v := UITheme.vbox(6)
+		card.add_child(v)
+		var followup: bool = record.get("outcome", "") == "followup"
+		var status := Game.L("후속 조치 필요", "Follow-up needed") if followup else (Game.L("후속 수정으로 회복", "Recovered with a follow-up fix") if record.get("outcome", "") == "recovered" else Game.L("업무 완료", "Task complete"))
+		v.add_child(UITheme.label("DAY %d  ·  %s  ·  %s" % [int(record["day"]), status, Game.L("단서 %d개", "%d clues") % record["clues"].size()], 11, UITheme.WARN if followup else UITheme.OK))
+		v.add_child(UITheme.wrap(Game.tx(file["question"]), 15, UITheme.TEXT))
+		var selected := String(record.get("hypothesis", ""))
+		for h in file["hypotheses"]:
+			if h["id"] == selected:
+				v.add_child(UITheme.wrap(Game.L("내 가설: ", "My hypothesis: ") + Game.tx(h["text"]), 12, UITheme.TEXT2))
+		if selected == "":
+			v.add_child(UITheme.label(Game.L("가설을 기록하지 않고 진행했어요.", "No hypothesis was recorded."), 12, UITheme.MUTED))
+		elif selected != file["answer"]:
+			v.add_child(UITheme.wrap(Game.L("다른 원인이 확인됐어요. 다음 조사에 쓸 근거로 남겨 둡니다.", "The evidence points to a different cause. Keep this for the next investigation."), 12, UITheme.ACCENT.lightened(0.3)))
+		v.add_child(UITheme.wrap(Game.tx(file["lesson"]), 12, UITheme.TEXT2))
+		_root.add_child(card)
