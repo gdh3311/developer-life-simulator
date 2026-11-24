@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Godot,
     [switch]$Screenshots,
     [switch]$EngineVerbose,
-    [ValidateSet('gameplay', 'chapter', 'chapter2', 'chapter3', 'recovery', 'desk', 'events', 'desk_assets')][string]$Suite = 'gameplay',
+    [ValidateSet('gameplay', 'chapter', 'chapter2', 'chapter3', 'recovery', 'desk', 'browser', 'events', 'arcade', 'desk_assets', 'studio')][string]$Suite = 'gameplay',
     [ValidateSet('prevent', 'recover', 'resume')][string]$Profile = 'prevent'
 )
 
@@ -19,11 +19,14 @@ if ($Suite -eq 'recovery') { $outputPath = Join-Path $workspacePath 'build\recov
 if ($Suite -eq 'desk') { $outputPath = Join-Path $workspacePath 'build\desk-qa' }
 if ($Suite -eq 'events') { $outputPath = Join-Path $workspacePath 'build\events-qa' }
 if ($Suite -eq 'desk_assets') { $outputPath = Join-Path $workspacePath 'build\desk-assets-qa' }
+if ($Suite -eq 'studio') { $outputPath = Join-Path $workspacePath 'build\studio-qa' }
+if ($Suite -eq 'browser') { $outputPath = Join-Path $workspacePath 'build\browser-qa' }
+if ($Suite -eq 'arcade') { $outputPath = Join-Path $workspacePath 'build\arcade-qa' }
 New-Item -ItemType Directory -Path $qaPath, $outputPath -Force | Out-Null
 $buildIgnore = Join-Path $workspacePath 'build\.gdignore'
 if (-not (Test-Path -LiteralPath $buildIgnore)) { [IO.File]::WriteAllText($buildIgnore, '') }
 
-foreach ($entry in @('scripts', 'scenes', 'shaders', 'content', 'tests', 'icon.svg')) {
+foreach ($entry in @('scripts', 'scenes', 'shaders', 'content', 'audio', 'tests', 'icon.svg')) {
     Copy-Item -LiteralPath (Join-Path $workspacePath $entry) -Destination $qaPath -Recurse
 }
 $projectText = [IO.File]::ReadAllText((Join-Path $workspacePath 'project.godot'))

@@ -90,9 +90,32 @@ func _run() -> void:
 	Game.time_changed.emit(Game.day(), Game.minutes())
 	await pause(0.3)
 	check(_main._side != null, "loading a promoted save restores the side monitor without a promotion event")
+	_main._set_focus(true)
+	await pause(0.4)
+	press_key(KEY_F3)
+	await pause(0.35)
+	check(_main._desktop.top_window_app() == "browser", "F3 reaches Relay through the actual monitor viewport")
+	var arcade = _main._desktop._find_method(_main._desktop, "_select_product")
+	if arcade != null:
+		press_key(KEY_RIGHT)
+		await pause(0.1)
+		check(arcade._board.moves == 1, "a keyboard move reaches the focused arcade board through the monitor")
+		await capture("desk_packet_run")
+	else:
+		check(false, "the monitor opens a playable arcade page")
 	while Sfx._music.stream == null:
 		await get_tree().process_frame
 	Sfx.stop_all()
 	print("DESK_QA: %d checks, %d failures" % [_checks, _failures])
 	await pause(0.1)
 	get_tree().quit(0 if _failures == 0 else 1)
+
+
+func press_key(code: Key) -> void:
+	var event := InputEventKey.new()
+	event.keycode = code
+	event.pressed = true
+	Input.parse_input_event(event)
+	var released := event.duplicate() as InputEventKey
+	released.pressed = false
+	Input.parse_input_event(released)

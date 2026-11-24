@@ -22,7 +22,7 @@ var apps: Array[Dictionary] = [
 	{"id": "wiki", "name": "Wiki", "icon": "wiki", "color": Color("22c3c3"), "size": Vector2(800, 540)},
 	{"id": "monitor", "name": "Monitor", "icon": "monitor", "color": Color("ff6b6b"), "size": Vector2(860, 520)},
 	{"id": "ai", "name": "AICode", "icon": "ai", "color": Color("c084fc"), "size": Vector2(600, 500)},
-	{"id": "browser", "name": "Browser", "icon": "globe", "color": Color("38bdf8"), "size": Vector2(880, 560)},
+	{"id": "browser", "name": "Relay Browser", "icon": "relay", "color": Color("87dcc7"), "size": Vector2(940, 572)},
 	{"id": "dashboard", "name": "Dashboard", "icon": "dashboard", "color": Color("94a3b8"), "size": Vector2(860, 540)},
 ]
 
@@ -63,6 +63,7 @@ func _ready() -> void:
 	_windows.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_windows.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_windows)
+	_windows.child_order_changed.connect(_sync_window_focus)
 	_build_topbar()
 	_build_dock()
 	_build_guide()
@@ -107,7 +108,15 @@ func _process(delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key != null and key.pressed and not key.echo and key.keycode != KEY_F2:
-		Sfx.type_key(key.keycode)
+		if key.keycode == KEY_F3 and _overlay == null and not (is_instance_valid(_boot) and _boot.visible and not _boot.is_queued_for_deletion()):
+			open_resource("browser", "arcade")
+			get_viewport().set_input_as_handled()
+			return
+		var focused := get_viewport().gui_get_focus_owner()
+		if not key.is_command_or_control_pressed() and not key.alt_pressed:
+			var typing: bool = (focused is LineEdit and focused.editable) or (focused is TextEdit and focused.editable)
+			if typing and (key.unicode >= 32 or key.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_BACKSPACE, KEY_DELETE]):
+				Sfx.type_key(key.keycode)
 		if key.ctrl_pressed and _overlay == null and not (is_instance_valid(_boot) and _boot.visible and not _boot.is_queued_for_deletion()):
 			# Ctrl+1..0 opens dock apps, Ctrl+W closes, Ctrl+M minimizes the front window.
 			var digit := key.keycode - KEY_1 if key.keycode >= KEY_1 and key.keycode <= KEY_9 else (9 if key.keycode == KEY_0 else -1)
@@ -127,12 +136,10 @@ func _input(event: InputEvent) -> void:
 	var mb := event as InputEventMouseButton
 	if mb == null or not mb.pressed:
 		return
-	if mb.button_index == MOUSE_BUTTON_LEFT:
-		Sfx.play("click", randf_range(0.95, 1.05), -12.0)
 	var count := _windows.get_child_count()
 	for i in range(count - 1, -1, -1):
 		var w := _windows.get_child(i) as Control
-		if w.get_global_rect().has_point(mb.position):
+		if w.visible and not w._closing and not w.is_queued_for_deletion() and w.get_global_rect().has_point(mb.position):
 			if i != count - 1:
 				w.move_to_front()
 			return
@@ -159,13 +166,12 @@ func open_app(id: String) -> void:
 	var win := OSWindow.new()
 	win.setup(id, app["name"], app["color"], app["icon"], Apps.build(id, self), win_size)
 	var pos := Vector2(40 + _cascade * 30, TOPBAR_H + 14 + _cascade * 22)
-	pos.x = clampf(pos.x, 6, size.x - win_size.x - 6)
-	pos.y = clampf(pos.y, TOPBAR_H + 4, maxf(TOPBAR_H + 4, size.y - DOCK_H - win_size.y))
 	win.position = pos
 	_cascade = (_cascade + 1) % 6
 	_windows.add_child(win)
 	win.closed.connect(_on_window_closed.bind(id))
 	win.minimized.connect(minimize.bind(id))
+	win.visibility_changed.connect(_sync_window_focus)
 	_open[id] = win
 	(_dots[id] as Control).modulate.a = 1.0
 	Sfx.play("window", 1.1, -6.0)
@@ -197,8 +203,9 @@ func close_all() -> void:
 
 ## Source shortcuts only navigate; they never execute terminal commands.
 func open_resource(app_id: String, target: String) -> void:
-	open_app(app_id)
-	var method := {"wiki": "open_page", "ide": "open_file", "codehub": "open_mission_diff"}.get(app_id, "") as String
+	if top_window_app() != app_id:
+		open_app(app_id)
+	var method := {"wiki": "open_page", "ide": "open_file", "codehub": "open_mission_diff", "browser": "open_page", "tasks": "open_product_tab"}.get(app_id, "") as String
 	if method != "":
 		var content := _find_method(_open[app_id], method)
 		if content != null:
@@ -210,6 +217,7 @@ func _on_window_closed(id: String) -> void:
 		Sfx.play("window", 0.8, -8.0)
 	_open.erase(id)
 	(_dots[id] as Control).modulate.a = 0.0
+	_sync_window_focus()
 
 
 func _app(id: String) -> Dictionary:
@@ -223,9 +231,15 @@ func top_window_app() -> String:
 	var n := _windows.get_child_count()
 	for i in range(n - 1, -1, -1):
 		var w = _windows.get_child(i)
-		if not w.is_queued_for_deletion() and w.visible:
+		if not w.is_queued_for_deletion() and not w._closing and w.visible:
 			return w.app_id
 	return ""
+
+
+func _sync_window_focus() -> void:
+	var front := top_window_app()
+	for window in _windows.get_children():
+		window.set_active(window.app_id == front and not window._closing and not window.is_queued_for_deletion())
 
 
 # --- Slacking & the boss walk-by -----------------------------------------------------

@@ -5,14 +5,28 @@ extends VBoxContainer
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const Icon := preload("res://scripts/ui/icon.gd")
+const Content := preload("res://scripts/apps/browser_content.gd")
+const Arcade := preload("res://scripts/apps/arcade_app.gd")
+const ART := "res://content/web/editorial.png"
+const PAPER := Color("eeeae1")
+const INK := Color("1f2630")
+const INK_MUTED := Color("51545c")
+const NEWS_ACCENT := Color("984329")
+const RELAY := Color("87dcc7")
+const SHELL := Color("202a30")
+const SHELL_LINE := Color("36484f")
+const PAGE_MARGIN := 20
+const COMPACT_WIDTH := 680
 
 const SITES := [
-	{"id": "portal", "name": "NEXORA Portal", "url": "intranet.nexora.dev", "fun": false, "color": "5b8cff"},
-	{"id": "connectly", "name": "Connectly", "url": "connectly.com/in/me", "fun": false, "color": "38bdf8"},
-	{"id": "news", "name": "DevDaily", "url": "devdaily.io", "fun": true, "color": "f97316"},
-	{"id": "video", "name": "Streamly", "url": "streamly.tv", "fun": true, "color": "ef4444"},
-	{"id": "lounge", "name": "Lounge", "url": "lounge.anon/tech", "fun": true, "color": "a3e635"},
-	{"id": "shop", "name": "Shoply", "url": "shoply.shop", "fun": true, "color": "f472b6"},
+	{"id": "portal", "name": "NEXORA", "url": "nexora.test", "fun": false, "color": "5b8cff"},
+	{"id": "connectly", "name": "Connectly", "url": "connectly.test", "fun": false, "color": "38bdf8"},
+	{"id": "news", "name": "DevDaily", "url": "devdaily.test", "fun": true, "color": "f5a37b"},
+	{"id": "video", "name": "Streamly", "url": "streamly.test", "fun": true, "color": "bda1fa"},
+	{"id": "lounge", "name": "Lounge", "url": "lounge.test", "fun": true, "color": "a3e635"},
+	{"id": "shop", "name": "Shoply", "url": "shoply.test", "fun": true, "color": "7cc5ae"},
+	{"id": "arcade", "name": "Arcade", "url": "arcade.test", "fun": false, "color": "f1cd84"},
+	{"id": "moonlight", "name": "Moonlight", "url": "moonlight.shop", "fun": false, "color": "f4c95d"},
 ]
 
 const ITEMS := [
@@ -25,44 +39,125 @@ const ITEMS := [
 	{"id": "neon", "price": 120000, "name": {"ko": "네온사인 </>", "en": "Neon sign </>"}, "desc": {"ko": "벽에 다는 개발자 감성.", "en": "Developer vibes on your wall."}},
 ]
 
-const VIDEOS := [
-	{"ko": "10분 만에 이해하는 Git 내부 구조", "en": "Git internals in 10 minutes", "fun": false},
-	{"ko": "고양이가 키보드 위에서 배포함 (실화)", "en": "Cat deploys to production by walking on keyboard", "fun": true},
-	{"ko": "개발자 출근 브이로그 | 커피 4잔", "en": "Dev day-in-the-life vlog | 4 coffees", "fun": true},
-	{"ko": "시니어 개발자가 코드 리뷰에서 하는 말 모음", "en": "Things senior devs say in code review", "fun": true},
-	{"ko": "로파이 코딩 음악 3시간", "en": "3 hours of lo-fi coding beats", "fun": true},
-]
-
 var desktop: Control
 var _site := "portal"
-var _url: Label
-var _tabs: HBoxContainer
+var _route := "portal"
+var _history: Array[String] = []
+var _history_index := -1
+var _url: LineEdit
+var _address_error: Label
+var _back: Button
+var _forward: Button
+var _tabs: GridContainer
+var _nav: PanelContainer
+var _nav_title: Label
+var _panes: BoxContainer
+var _address_style: StyleBoxFlat
+var _address_mark: Control
+var _tile_grid: GridContainer
+var _lead_photo: TextureRect
+var _lead_copy: VBoxContainer
+var _lead_title: Label
 var _body: VBoxContainer
 var _scroll: ScrollContainer
+var _surface: PanelContainer
 var _timer: Timer
-var _video := -1
-var _video_progress := 0.0
-var _video_bar: Control
+var _art: Texture2D
+var _refresh_pending := false
+var _clip := {}
+var _clip_elapsed := 0.0
+var _clip_playing := false
+var _clip_toggle: Button
+var _clip_seek: HSlider
+var _clip_clock: Label
+var _clip_caption: Label
 
 
 func _ready() -> void:
+	_art = load(ART)
+	set_process(false)
 	add_theme_constant_override("separation", 0)
-	var chrome := UITheme.panel(UITheme.BG2, 0, 8, Color(0, 0, 0, 0))
-	var cv := UITheme.vbox(6)
-	_tabs = UITheme.hbox(4)
-	cv.add_child(_tabs)
-	var addr := UITheme.panel(UITheme.BG0, 14, 6, UITheme.LINE)
-	var ar := UITheme.hbox(8)
-	ar.add_child(Icon.make("ring", UITheme.OK, 10))
-	_url = UITheme.label("", 12, UITheme.TEXT2)
-	ar.add_child(_url)
-	addr.add_child(ar)
-	cv.add_child(addr)
-	chrome.add_child(cv)
+	var chrome := UITheme.panel(SHELL, 0, 0)
+	var chrome_style := UITheme.box(SHELL, 0, SHELL_LINE, 0)
+	chrome_style.set_border_width_all(0)
+	chrome_style.border_width_bottom = 1
+	chrome.add_theme_stylebox_override("panel", chrome_style)
+	var cv := UITheme.vbox(7)
+	var toolbar := UITheme.hbox(8)
+	_back = _toolbar_arrow("left", Game.L("뒤로", "Back"))
+	_back.pressed.connect(_move_history.bind(-1))
+	toolbar.add_child(_back)
+	_forward = _toolbar_arrow("right", Game.L("앞으로", "Forward"))
+	_forward.pressed.connect(_move_history.bind(1))
+	toolbar.add_child(_forward)
+	var address := PanelContainer.new()
+	address.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_address_style = UITheme.box(Color("111a20"), 7, SHELL_LINE, 0)
+	address.add_theme_stylebox_override("panel", _address_style)
+	var address_row := UITheme.hbox(8)
+	_address_mark = Icon.make("globe", RELAY, 14)
+	_address_mark.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	address_row.add_child(_address_mark)
+	_url = LineEdit.new()
+	_url.custom_minimum_size = Vector2(132, 36)
+	_url.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_url.select_all_on_focus = true
+	_url.placeholder_text = Game.L("게임 속 주소 입력", "Enter an in-game address")
+	_url.add_theme_font_size_override("font_size", 13)
+	_url.add_theme_font_override("font", UITheme.font(true))
+	_url.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	_url.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	_url.focus_entered.connect(func() -> void: _address_style.border_color = RELAY)
+	_url.focus_exited.connect(func() -> void: _address_style.border_color = SHELL_LINE)
+	_url.text_submitted.connect(_submit_address)
+	address_row.add_child(_url)
+	var field := UITheme.margin(address_row, 0)
+	field.add_theme_constant_override("margin_left", 11)
+	field.add_theme_constant_override("margin_right", 9)
+	address.add_child(field)
+	toolbar.add_child(address)
+	var go := _browser_button(Game.L("이동", "Go"), "", Color("112923"))
+	go.custom_minimum_size = Vector2(52, 36)
+	go.add_theme_stylebox_override("normal", UITheme.box(RELAY, 7, Color.TRANSPARENT, 7))
+	go.add_theme_stylebox_override("hover", UITheme.box(RELAY.lightened(0.14), 7, Color.TRANSPARENT, 7))
+	go.add_theme_stylebox_override("pressed", UITheme.box(RELAY.darkened(0.12), 7, Color.TRANSPARENT, 7))
+	go.add_theme_color_override("font_hover_color", Color("112923"))
+	go.add_theme_color_override("font_pressed_color", Color("112923"))
+	go.add_theme_color_override("font_focus_color", Color("112923"))
+	go.pressed.connect(func() -> void: _submit_address(_url.text))
+	toolbar.add_child(go)
+	cv.add_child(toolbar)
+	_address_error = UITheme.wrap("", 12, UITheme.WARN)
+	_address_error.hide()
+	cv.add_child(_address_error)
+	chrome.add_child(UITheme.margin(cv, 10))
 	add_child(chrome)
-	_body = UITheme.vbox(12)
-	_scroll = UITheme.scroll(UITheme.margin(_body, 18))
-	add_child(_scroll)
+
+	_panes = BoxContainer.new()
+	_panes.add_theme_constant_override("separation", 0)
+	_panes.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	add_child(_panes)
+	_nav = UITheme.panel(Color("182127"), 0, 10)
+	var nav_content := UITheme.vbox(7)
+	_nav_title = UITheme.label(Game.L("즐겨찾기", "Bookmarks"), 12, Color("a4b2bd"))
+	_nav_title.custom_minimum_size.y = 24
+	nav_content.add_child(_nav_title)
+	_tabs = GridContainer.new()
+	_tabs.add_theme_constant_override("h_separation", 5)
+	_tabs.add_theme_constant_override("v_separation", 5)
+	nav_content.add_child(_tabs)
+	_nav.add_child(nav_content)
+	_panes.add_child(_nav)
+	_body = UITheme.vbox(14)
+	_surface = UITheme.panel(UITheme.BG1, 0, 0, Color.TRANSPARENT)
+	_surface.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_surface.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_scroll = UITheme.scroll(UITheme.margin(_body, PAGE_MARGIN))
+	_surface.add_child(_scroll)
+	_panes.add_child(_surface)
+	resized.connect(_update_layout)
+	_surface.resized.connect(_update_page_layout)
+	_update_layout()
 	_timer = Timer.new()
 	_timer.wait_time = 1.0
 	_timer.timeout.connect(_tick)
@@ -70,16 +165,14 @@ func _ready() -> void:
 	_timer.start()
 	Game.chat_added.connect(func(m: Dictionary) -> void:
 		if m["channel"] == "connectly" and _site == "connectly":
-			_render())
+			_queue_refresh())
 	Game.chat_updated.connect(func() -> void:
 		if _site == "connectly":
-			_render())
+			_queue_refresh())
 	Game.wallet_changed.connect(func() -> void:
 		if _site == "shop":
-			_render())
-	if int(Game.state["unread"].get("connectly", 0)) > 0:
-		_site = "connectly"
-	_render()
+			_queue_refresh())
+	_go("connectly" if int(Game.state["unread"].get("connectly", 0)) > 0 else "portal")
 
 
 func current_site() -> Dictionary:
@@ -91,48 +184,198 @@ func current_site() -> Dictionary:
 
 ## True while a fun site is on screen (used by the boss walk-by check).
 func is_slacking() -> bool:
-	if _site == "video" and _video >= 0:
-		return VIDEOS[_video]["fun"]
+	if _site == "video" and not _clip.is_empty():
+		return _clip["fun"]
 	return current_site()["fun"]
 
 
 func _tick() -> void:
 	if not is_visible_in_tree():
 		return
+	if desktop != null and desktop.top_window_app() != "browser":
+		return
 	if is_slacking():
 		Game.change_condition(0.6)
 		Game.inc_stat("slack_seconds")
-	if _video >= 0 and is_instance_valid(_video_bar):
-		_video_progress = fmod(_video_progress + 0.012, 1.0)
-		_video_bar.queue_redraw()
 
 
-func _go(id: String) -> void:
-	_site = id
-	_video = -1
-	Game.emit_event("site", {"site": id})
+func open_page(site: String) -> void:
+	if SITES.any(func(entry: Dictionary) -> bool: return entry["id"] == site):
+		_go(site)
+
+
+func _go(route: String) -> void:
+	if _history_index >= 0 and route == _route:
+		_update_toolbar()
+		return
+	_history.resize(_history_index + 1)
+	_history.append(route)
+	_history_index = _history.size() - 1
+	_show_route(route)
+
+
+func _move_history(offset: int) -> void:
+	var target := _history_index + offset
+	if target >= 0 and target < _history.size():
+		_history_index = target
+		_show_route(_history[target])
+
+
+func _show_route(route: String) -> void:
+	_route = route
+	_site = route.get_slice("/", 0)
+	_clip = {}
+	_clip_playing = false
+	set_process(false)
+	if _site == "video" and _route.contains("/"):
+		var slug := _route.get_slice("/", 1)
+		for index in Content.VIDEOS.size():
+			if Content.VIDEOS[index]["id"] == slug:
+				_clip = Content.VIDEOS[index]
+				_clip_elapsed = 0.0
+				_clip_playing = true
+				set_process(true)
+				Game.emit_event("video", {"video": index})
+				break
+	Game.emit_event("site", {"site": _site})
+	_update_toolbar()
 	_render()
+	_scroll.scroll_vertical = 0
+
+
+func _address() -> String:
+	var path := _route.substr(_site.length())
+	return "https://" + String(current_site()["url"]) + path
+
+
+func _submit_address(text: String) -> void:
+	var address := text.strip_edges().to_lower().trim_prefix("https://").trim_prefix("http://").trim_suffix("/")
+	for site in SITES:
+		var host: String = site["url"]
+		if address == host:
+			_go(site["id"])
+			return
+		if address.begins_with(host + "/"):
+			var records: Array = Content.ARTICLES if site["id"] == "news" else (Content.VIDEOS if site["id"] == "video" else [])
+			var slug := address.trim_prefix(host + "/")
+			for item in records:
+				if item["id"] == slug:
+					_go(String(site["id"]) + "/" + slug)
+					return
+	_address_error.text = Game.L("주소를 찾을 수 없어요. 아래 즐겨찾기에서 사이트를 선택하세요.", "Page not found. Choose a site from your bookmarks below.")
+	_address_error.show()
+
+
+func _update_toolbar() -> void:
+	_url.text = _address()
+	_address_mark.color = Color(current_site()["color"])
+	_address_mark.queue_redraw()
+	_address_error.hide()
+	_back.disabled = _history_index <= 0
+	_forward.disabled = _history_index >= _history.size() - 1
+	_back.modulate.a = 0.45 if _back.disabled else 1.0
+	_forward.modulate.a = 0.45 if _forward.disabled else 1.0
+
+
+func _update_layout() -> void:
+	var compact := size.x < COMPACT_WIDTH
+	_panes.vertical = compact
+	_nav.custom_minimum_size.x = 0.0 if compact else 144.0
+	_nav_title.visible = not compact
+	_tabs.columns = 4 if compact else 1
+
+
+func _update_tile_columns() -> void:
+	if not is_instance_valid(_tile_grid) or not _tile_grid.is_inside_tree():
+		return
+	var available := _surface.size.x - PAGE_MARGIN * 2 - 12
+	if _site == "video" and available >= 682:
+		_tile_grid.columns = 3
+	else:
+		_tile_grid.columns = 2 if available >= 450 else 1
+
+
+func _update_page_layout() -> void:
+	_update_tile_columns()
+	if not is_instance_valid(_lead_photo) or not _lead_photo.is_inside_tree():
+		return
+	var compact := _surface.size.x < 570
+	_lead_photo.custom_minimum_size = Vector2(105, 108) if compact else Vector2(252, 178)
+	_lead_copy.custom_minimum_size.x = 160.0 if compact else 208.0
+	_lead_title.add_theme_font_size_override("font_size", 18 if compact else 22)
+
+
+func _queue_refresh() -> void:
+	if not _refresh_pending:
+		_refresh_pending = true
+		_refresh.call_deferred(_route)
+
+
+func _refresh(route: String) -> void:
+	_refresh_pending = false
+	if _route == route:
+		_render()
+
+
+func _browser_button(title: String, tooltip := "", accent := UITheme.TEXT2) -> Button:
+	var button := Button.new()
+	button.text = title
+	button.tooltip_text = tooltip
+	button.custom_minimum_size.y = 30
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_theme_font_size_override("font_size", 12)
+	button.add_theme_color_override("font_color", accent)
+	button.add_theme_stylebox_override("focus", UITheme.box(Color.TRANSPARENT, 5, RELAY))
+	return button
+
+
+func _toolbar_arrow(glyph: String, tooltip: String) -> Button:
+	var button := _browser_button("", tooltip)
+	button.custom_minimum_size = Vector2(36, 36)
+	button.add_theme_stylebox_override("normal", UITheme.box(Color("26353e"), 7, SHELL_LINE))
+	button.add_theme_stylebox_override("hover", UITheme.box(Color("30444d"), 7, RELAY))
+	button.add_theme_stylebox_override("pressed", UITheme.box(Color("17252b"), 7, RELAY))
+	var centered := CenterContainer.new()
+	centered.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(centered)
+	centered.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	centered.add_child(Icon.make(glyph, Color("d8e4ea"), 19))
+	return button
 
 
 func _render() -> void:
 	UITheme.clear(_tabs)
 	for s in SITES:
-		var b := Button.new()
-		b.text = s["name"]
-		b.focus_mode = Control.FOCUS_NONE
-		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var b := _browser_button(s["name"], "https://" + String(s["url"]))
 		var sel: bool = s["id"] == _site
-		b.add_theme_stylebox_override("normal", UITheme.box(UITheme.BG1 if sel else Color(0, 0, 0, 0), 6, Color(s["color"]) if sel else Color(0, 0, 0, 0), 6))
-		b.add_theme_stylebox_override("hover", UITheme.box(Color(1, 1, 1, 0.05), 6, Color(0, 0, 0, 0), 6))
-		b.add_theme_color_override("font_color", UITheme.TEXT if sel else UITheme.MUTED)
-		b.add_theme_font_size_override("font_size", 12)
+		var tint := Color(s["color"])
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size.y = 34
+		b.add_theme_stylebox_override("normal", _site_button_style(Color(tint, 0.13) if sel else Color.TRANSPARENT, Color(tint, 0.39) if sel else Color.TRANSPARENT))
+		b.add_theme_stylebox_override("hover", _site_button_style(Color(tint, 0.10), Color(tint, 0.23)))
+		b.add_theme_stylebox_override("pressed", _site_button_style(Color(tint, 0.19), Color(tint, 0.42)))
+		b.add_theme_color_override("font_color", tint.lightened(0.14) if sel else Color("c0cbd5"))
+		var dot := Icon.make("dot", tint, 13)
+		b.add_child(dot)
+		dot.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
+		dot.offset_left = 6
+		dot.offset_right = 19
+		dot.offset_top = -6.5
+		dot.offset_bottom = 6.5
 		var unread := int(Game.state["unread"].get("connectly", 0))
 		if s["id"] == "connectly" and unread > 0:
 			b.text += "  (%d)" % unread
 		var sid: String = s["id"]
 		b.pressed.connect(_go.bind(sid))
 		_tabs.add_child(b)
-	_url.text = "https://" + String(current_site()["url"])
+	var background := PAPER if _site == "news" else (Color("14111e") if _site == "video" else UITheme.BG1)
+	_surface.add_theme_stylebox_override("panel", UITheme.box(background, 0))
+	_tile_grid = null
+	_lead_photo = null
+	_lead_copy = null
+	_lead_title = null
 	UITheme.clear(_body)
 	match _site:
 		"portal":
@@ -147,13 +390,23 @@ func _render() -> void:
 			_lounge()
 		"shop":
 			_shop()
-	_scroll.scroll_vertical = 0
+		"arcade":
+			_body.add_child(Arcade.new())
+		"moonlight":
+			_body.add_child(preload("res://scripts/apps/page_view.gd").new())
+
+
+func _site_button_style(fill: Color, edge: Color) -> StyleBoxFlat:
+	var style := UITheme.box(fill, 6, edge, 4)
+	style.content_margin_left = 23
+	style.content_margin_right = 6
+	return style
 
 
 func _header(title: String, sub: String, color: Color) -> void:
 	var h := UITheme.vbox(2)
 	h.add_child(UITheme.bold(title, 22, color.lightened(0.2)))
-	h.add_child(UITheme.label(sub, 12, UITheme.MUTED))
+	h.add_child(UITheme.wrap(sub, 13, UITheme.TEXT2))
 	_body.add_child(h)
 
 
@@ -167,6 +420,10 @@ func _card() -> PanelContainer:
 
 func _portal() -> void:
 	_header("NEXORA Portal", Game.L("사내 포털 · DAY %d", "Intranet · DAY %d") % Game.day(), Color("5b8cff"))
+	var play := _browser_button(Game.L("Packet Run 체험하기  →", "Play Packet Run  →"), "arcade.test", Color("f1cd84"))
+	play.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	play.pressed.connect(_go.bind("arcade"))
+	_body.add_child(play)
 	var news := _card()
 	var nv := UITheme.vbox(6)
 	nv.add_child(UITheme.bold(Game.L("공지사항", "Announcements"), 14))
@@ -183,7 +440,7 @@ func _portal() -> void:
 	mv.add_child(UITheme.bold(Game.L("오늘의 구내식당", "Cafeteria today"), 14))
 	var menus := [Game.L("제육볶음 · 된장국 · 계란말이", "Spicy pork · miso soup · rolled omelette"), Game.L("돈까스 · 우동 · 샐러드", "Pork cutlet · udon · salad"),
 		Game.L("비빔밥 · 미역국 · 김치전", "Bibimbap · seaweed soup · kimchi pancake"), Game.L("치킨마요 · 어묵국 · 과일", "Chicken mayo bowl · fishcake soup · fruit")]
-	mv.add_child(UITheme.label(menus[(Game.day() - 1) % menus.size()], 13, UITheme.TEXT2))
+	mv.add_child(UITheme.wrap(menus[(Game.day() - 1) % menus.size()], 13, UITheme.TEXT2))
 	menu.add_child(mv)
 
 	var coffee := _card()
@@ -191,9 +448,10 @@ func _portal() -> void:
 	var cvv := UITheme.vbox(2)
 	cvv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cvv.add_child(UITheme.bold(Game.L("탕비실 커피 브레이크", "Coffee break"), 14))
-	cvv.add_child(UITheme.label(Game.L("15분 쉬고 컨디션 회복. (현재 컨디션 %d)", "Take 15 minutes and recover. (Condition %d)") % Game.condition(), 12, UITheme.MUTED))
+	cvv.add_child(UITheme.wrap(Game.L("15분 쉬고 컨디션 회복. (현재 컨디션 %d)", "Take 15 minutes and recover. (Condition %d)") % Game.condition(), 12, UITheme.TEXT2))
 	cv.add_child(cvv)
 	var btn := UITheme.button(Game.L("쉬러 가기", "Take a break"), "primary")
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var last := int(Game.state["flags"].get("coffee_at", -999))
 	var ready := Game.minutes() - last >= 90 or Game.day() != int(Game.state["flags"].get("coffee_day", 0))
 	btn.disabled = not ready
@@ -276,61 +534,206 @@ func _connectly() -> void:
 		card.add_child(v)
 
 
+func _photo(index: int, height: float) -> TextureRect:
+	var picture := TextureRect.new()
+	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	picture.custom_minimum_size.y = height
+	picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if _art != null:
+		var width := floorf(_art.get_width() / 2.0)
+		var tile_height := floorf(_art.get_height() / 2.0)
+		var origin := Vector2(index % 2 * width, floorf(index / 2.0) * tile_height)
+		var tile := AtlasTexture.new()
+		tile.atlas = _art
+		tile.region = Rect2(origin + Vector2(3, 3), Vector2(width - 6, tile_height - 6))
+		tile.filter_clip = true
+		picture.texture = tile
+	return picture
+
+
+func _news_link(title: String, target: String) -> Button:
+	var button := _browser_button(title, "", NEWS_ACCENT)
+	button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	button.add_theme_stylebox_override("normal", UITheme.box(Color("f8f5ed"), 4, Color("cfb8a6"), 7))
+	button.add_theme_stylebox_override("hover", UITheme.box(Color("fff9ec"), 4, NEWS_ACCENT, 7))
+	button.add_theme_stylebox_override("pressed", UITheme.box(Color("e8d9cd"), 4, NEWS_ACCENT, 7))
+	button.add_theme_color_override("font_hover_color", INK)
+	button.add_theme_color_override("font_pressed_color", INK)
+	button.pressed.connect(_go.bind(target))
+	return button
+
+
 func _news() -> void:
-	_header("DevDaily", Game.L("개발자 뉴스", "News for developers"), Color("f97316"))
-	var items := [
-		[Game.L("\"테스트 없는 금요일 배포\" 설문, 응답자 73%가 '절대 안 함'", "Survey: 73% would 'never' deploy untested code on a Friday"), Game.L("나머지 27%는 '이미 해 봤고 후회함'이라고 답했다.", "The other 27% said 'already did it, regret it'.")],
-		[Game.L("AI 코딩 에이전트, 생산성은 올렸지만 리뷰 시간도 늘었다", "AI coding agents boost output, but review time grows too"), Game.L("전문가들은 'AI가 쓴 코드도 사람이 쓴 코드처럼 리뷰하라'고 조언한다.", "Experts advise reviewing AI code like any human-written code.")],
-		[Game.L("Git 3.0 로드맵 공개… 기본 브랜치 이름은 그대로", "Git 3.0 roadmap published… default branch name unchanged"), Game.L("커뮤니티는 대체로 환영하는 분위기.", "The community mostly welcomes it.")],
-		[Game.L("주니어 개발자가 가장 많이 하는 실수 1위: main에 직접 push", "Top junior mistake: pushing straight to main"), Game.L("2위는 'PR 설명 비워 두기'.", "Number two: leaving the PR description empty.")],
-	]
-	for it in items:
-		var card := _card()
-		var v := UITheme.vbox(4)
-		v.add_child(UITheme.bold(it[0], 14))
-		v.add_child(UITheme.wrap(it[1], 13, UITheme.TEXT2))
-		card.add_child(v)
+	var masthead := UITheme.vbox(4)
+	masthead.add_child(UITheme.bold("DevDaily", 33, INK))
+	masthead.add_child(UITheme.wrap(Game.L("개발과 일에 관한 독립 매체", "An independent journal about software and work"), 13, INK_MUTED))
+	var rule := ColorRect.new()
+	rule.custom_minimum_size.y = 2
+	rule.color = NEWS_ACCENT
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	masthead.add_child(rule)
+	_body.add_child(masthead)
+	var slug := _route.get_slice("/", 1)
+	for article in Content.ARTICLES:
+		if slug == article["id"]:
+			_read_article(article)
+			return
+	for index in Content.ARTICLES.size():
+		var article: Dictionary = Content.ARTICLES[index]
+		var panel := UITheme.panel(Color("f8f5ed"), 6, 12, Color("d8cfc0"))
+		var column := UITheme.vbox(8)
+		column.add_child(UITheme.bold(Game.tx(article["desk"]), 11, NEWS_ACCENT))
+		var title := UITheme.wrap(Game.tx(article["title"]), 22 if index == 0 else 17, INK)
+		title.add_theme_font_override("font", UITheme.font(false, true))
+		column.add_child(title)
+		column.add_child(UITheme.wrap(Game.tx(article["summary"]), 14, INK_MUTED))
+		column.add_child(_news_link(Game.L("기사 읽기  →", "Read article  →"), "news/" + String(article["id"])))
+		if index == 0:
+			var lead := HFlowContainer.new()
+			lead.add_theme_constant_override("h_separation", 16)
+			lead.add_theme_constant_override("v_separation", 12)
+			_lead_photo = _photo(article["art"], 178)
+			_lead_photo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			_lead_photo.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			_lead_copy = column
+			_lead_title = title
+			column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			column.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			lead.add_child(_lead_photo)
+			lead.add_child(column)
+			panel.add_child(lead)
+		else:
+			panel.add_child(column)
+		_body.add_child(panel)
+	_update_page_layout()
+
+
+func _read_article(article: Dictionary) -> void:
+	_body.add_child(_news_link(Game.L("← 기사 목록", "← All articles"), "news"))
+	_body.add_child(UITheme.bold(Game.tx(article["desk"]), 11, NEWS_ACCENT))
+	var headline := UITheme.wrap(Game.tx(article["title"]), 28, INK)
+	headline.add_theme_font_override("font", UITheme.font(false, true))
+	_body.add_child(headline)
+	_body.add_child(UITheme.wrap(Game.tx(article["summary"]), 15, INK_MUTED))
+	_body.add_child(UITheme.wrap("%s  ·  %s" % [article["by"], Game.L("읽는 데 %d분", "%d min read") % article["minutes"]], 12, INK_MUTED))
+	_body.add_child(_photo(article["art"], 220))
+	for paragraph in article["body"]:
+		_body.add_child(UITheme.wrap(Game.tx(paragraph), 16, INK))
 
 
 func _videos() -> void:
-	_header("Streamly", Game.L("지금 뜨는 영상", "Trending now"), Color("ef4444"))
-	if _video >= 0:
-		var player := PanelContainer.new()
-		player.add_theme_stylebox_override("panel", UITheme.box(Color("000000"), 10, Color(0, 0, 0, 0), 0))
-		player.custom_minimum_size.y = 230
-		var art := Control.new()
-		art.custom_minimum_size.y = 230
-		var vid: int = _video
-		art.draw.connect(func() -> void:
-			var w := art.size.x
-			var h := art.size.y
-			var hue := float(vid) / VIDEOS.size()
-			art.draw_rect(Rect2(0, 0, w, h), Color.from_hsv(hue, 0.5, 0.25))
-			for i in 6:
-				var x := fmod(_video_progress * w * 3.0 + i * w / 6.0, w)
-				art.draw_circle(Vector2(x, h * 0.5 + sin(_video_progress * 20.0 + i) * 40.0), 18 + i * 3, Color.from_hsv(fmod(hue + i * 0.1, 1.0), 0.6, 0.8, 0.5))
-			art.draw_rect(Rect2(16, h - 16, w - 32, 4), Color(1, 1, 1, 0.2))
-			art.draw_rect(Rect2(16, h - 16, (w - 32) * _video_progress, 4), Color("ef4444")))
-		_video_bar = art
-		player.add_child(art)
-		_body.add_child(player)
-		_body.add_child(UITheme.bold(Game.tx(VIDEOS[_video]), 16))
-		_body.add_child(UITheme.label(Game.L("조회수 %d만회", "%dK views") % (37 + _video * 11), 12, UITheme.MUTED))
-	for i in VIDEOS.size():
-		var b := Button.new()
-		b.text = "▶  " + Game.tx(VIDEOS[i])
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.focus_mode = Control.FOCUS_NONE
-		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		b.add_theme_stylebox_override("normal", UITheme.box(UITheme.BG2, 8, Color(0, 0, 0, 0), 10))
-		b.add_theme_stylebox_override("hover", UITheme.box(UITheme.BG3, 8, Color(0, 0, 0, 0), 10))
-		var idx := i
-		b.pressed.connect(func() -> void:
-			_video = idx
-			_video_progress = 0.0
-			Game.emit_event("video", {"video": idx})
-			_render())
-		_body.add_child(b)
+	var violet := Color("c7a9fa")
+	if not _clip.is_empty():
+		_watch_clip(violet)
+		return
+	_body.add_child(UITheme.bold("Streamly", 28, violet))
+	_body.add_child(UITheme.wrap(Game.L("작업과 일상을 담은 짧은 포토 클립", "Short photo clips about work and everyday life"), 13, UITheme.TEXT2))
+	var shelf := _new_tile_grid()
+	for clip in Content.VIDEOS:
+		var tile := UITheme.panel(Color("251f34"), 9, 10, Color("413153"))
+		tile.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var preview := UITheme.vbox(7)
+		preview.add_child(_photo(clip["art"], 110))
+		var title := UITheme.wrap(Game.tx(clip), 14, UITheme.TEXT)
+		title.add_theme_font_override("font", UITheme.font(false, true))
+		title.custom_minimum_size.y = 38
+		title.max_lines_visible = 2
+		title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		preview.add_child(title)
+		preview.add_child(UITheme.wrap("%s  ·  %s" % [clip["channel"], _timestamp(clip["duration"])], 12, UITheme.TEXT2))
+		var play_button := _browser_button(Game.L("▶  재생", "▶  Play"), Game.tx(clip), violet)
+		play_button.custom_minimum_size.y = 34
+		play_button.pressed.connect(_go.bind("video/" + String(clip["id"])))
+		preview.add_child(play_button)
+		tile.add_child(preview)
+		shelf.add_child(tile)
+	_update_tile_columns()
+
+
+func _new_tile_grid() -> GridContainer:
+	_tile_grid = GridContainer.new()
+	_tile_grid.add_theme_constant_override("h_separation", 12)
+	_tile_grid.add_theme_constant_override("v_separation", 12)
+	_body.add_child(_tile_grid)
+	return _tile_grid
+
+
+func _watch_clip(violet: Color) -> void:
+	var back := _browser_button(Game.L("← 둘러보기", "← Browse"), "", violet)
+	back.pressed.connect(_go.bind("video"))
+	var navigation := UITheme.hbox(10)
+	navigation.add_child(back)
+	var channel := UITheme.label("Streamly / " + String(_clip["channel"]), 13, violet)
+	channel.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	navigation.add_child(channel)
+	_body.add_child(navigation)
+	_body.add_child(UITheme.wrap(Game.tx(_clip), 22, UITheme.TEXT))
+	_body.add_child(UITheme.wrap("%s  ·  %s" % [Game.L("%s 조회", "%s views") % _clip["views"], Game.L("포토 클립", "Photo clip")], 12, UITheme.TEXT2))
+	var player := UITheme.panel(Color("1d182b"), 8, 10, Color("413153"))
+	var stack := UITheme.vbox(8)
+	stack.add_child(_photo(_clip["art"], 186))
+	_clip_caption = UITheme.wrap("", 13, UITheme.TEXT)
+	_clip_caption.custom_minimum_size.y = 30
+	stack.add_child(_clip_caption)
+	var controls := UITheme.hbox(8)
+	_clip_toggle = _browser_button("", "", violet)
+	_clip_toggle.custom_minimum_size.x = 68
+	_clip_toggle.pressed.connect(_toggle_clip)
+	controls.add_child(_clip_toggle)
+	_clip_seek = HSlider.new()
+	_clip_seek.max_value = float(_clip["duration"])
+	_clip_seek.step = 0.1
+	_clip_seek.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_clip_seek.value_changed.connect(_seek_clip)
+	controls.add_child(_clip_seek)
+	_clip_clock = UITheme.label("", 12, UITheme.TEXT2)
+	controls.add_child(_clip_clock)
+	stack.add_child(controls)
+	player.add_child(stack)
+	_body.add_child(player)
+	_update_clip()
+
+
+func _timestamp(seconds: float) -> String:
+	var whole := int(seconds)
+	return "%d:%02d" % [floori(whole / 60.0), whole % 60]
+
+
+func _toggle_clip() -> void:
+	if _clip_elapsed >= float(_clip["duration"]):
+		_clip_elapsed = 0.0
+	_clip_playing = not _clip_playing
+	set_process(_clip_playing)
+	_update_clip()
+
+
+func _seek_clip(seconds: float) -> void:
+	_clip_elapsed = seconds
+	if _clip_elapsed >= float(_clip["duration"]):
+		_clip_playing = false
+		set_process(false)
+	_update_clip()
+
+
+func _process(delta: float) -> void:
+	if not is_visible_in_tree() or not _clip_playing:
+		return
+	_clip_elapsed = minf(_clip_elapsed + delta, _clip["duration"])
+	if _clip_elapsed >= float(_clip["duration"]):
+		_clip_playing = false
+		set_process(false)
+	_update_clip()
+
+
+func _update_clip() -> void:
+	var length: float = _clip["duration"]
+	var captions: Array = _clip["captions"]
+	var index := mini(floori(_clip_elapsed / length * captions.size()), captions.size() - 1)
+	_clip_caption.text = Game.tx(captions[index])
+	_clip_seek.set_value_no_signal(_clip_elapsed)
+	_clip_clock.text = "%s / %s" % [_timestamp(_clip_elapsed), _timestamp(length)]
+	_clip_toggle.text = Game.L("일시정지", "Pause") if _clip_playing else Game.L("재생", "Play")
 
 
 func _lounge() -> void:
@@ -357,31 +760,34 @@ func _lounge() -> void:
 
 
 func _shop() -> void:
-	_header("Shoply", Game.L("데스크 셋업 특가 · 잔액 %s", "Desk setup deals · Balance %s") % Game.won(Game.money()), Color("f472b6"))
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 10)
+	_header("Shoply", Game.L("데스크 셋업 · 잔액 %s", "Desk essentials · Balance %s") % Game.won(Game.money()), Color("7cc5ae"))
+	_body.add_child(_photo(3, 158))
+	var grid := _new_tile_grid()
 	for it in ITEMS:
 		var card := UITheme.panel(UITheme.BG2, 10, 12, Color(1, 1, 1, 0.05))
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var v := UITheme.vbox(6)
-		v.add_child(UITheme.bold(Game.tx(it["name"]), 14))
-		v.add_child(UITheme.wrap(Game.tx(it["desc"]), 12, UITheme.TEXT2))
+		var product_name := UITheme.wrap(Game.tx(it["name"]), 14, UITheme.TEXT)
+		product_name.add_theme_font_override("font", UITheme.font(false, true))
+		v.add_child(product_name)
+		var description := UITheme.wrap(Game.tx(it["desc"]), 12, UITheme.TEXT2)
+		description.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		v.add_child(description)
 		var owned: bool = Game.state["owned"].has(it["id"])
 		var b := UITheme.button(Game.L("구매함 ✓", "Owned ✓") if owned else Game.won(it["price"]), "default" if owned else "primary")
+		b.custom_minimum_size.y = 36
 		b.disabled = owned or Game.money() < int(it["price"])
 		var iid: String = it["id"]
 		var price: int = it["price"]
 		b.pressed.connect(func() -> void:
-			if Game.spend(price):
+			if not Game.state["owned"].has(iid) and Game.spend(price):
 				Game.state["owned"][iid] = true
 				Game.inc_stat("purchases")
 				Game.emit_event("purchase", {"item": iid})
 				Game.notify("browser", "Shoply", Game.L("주문 완료! 책상에 배송됐어요. (F2로 방을 둘러보세요)", "Order complete! It's on your desk now. (Press F2 to look around)"))
-				_render())
+				_queue_refresh())
 		v.add_child(b)
 		card.add_child(v)
 		grid.add_child(card)
-	_body.add_child(grid)
+	_update_tile_columns()
 	_body.add_child(UITheme.label(Game.L("급여는 퇴근할 때 입금됩니다.", "Salary is paid when you clock out."), 12, UITheme.MUTED))

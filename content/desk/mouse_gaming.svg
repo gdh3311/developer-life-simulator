@@ -1,7 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="300" height="184" viewBox="0 0 150 92">
-<rect x="4" y="4" width="142" height="84" rx="6" fill="#0f1013"/>
-<rect x="4" y="4" width="142" height="84" rx="6" fill="none" stroke="#39ff8f" stroke-width="2" opacity="0.8"/>
-<path d="M57 50 Q57 26 75 26 Q93 26 93 50 L93 62 Q93 76 75 76 Q57 76 57 62 Z" fill="#1a1c22"/>
-<line x1="75" y1="28" x2="75" y2="44" stroke="#2e323c" stroke-width="2"/>
-<rect x="73" y="52" width="4" height="16" rx="2" fill="#39ff8f"/>
+<defs><linearGradient id="pad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#27272a"/><stop offset="1" stop-color="#0c0c0f"/></linearGradient><radialGradient id="shell" cx="0.38" cy="0.25" r="0.9"><stop offset="0" stop-color="#818285"/><stop offset="0.5" stop-color="#1a1c22"/><stop offset="1" stop-color="#0e0f12"/></radialGradient><radialGradient id="led" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#39ff8f" stop-opacity="0.9"/><stop offset="1" stop-color="#39ff8f" stop-opacity="0"/></radialGradient></defs>
+<rect x="4" y="6" width="142" height="84" rx="8" fill="#000" opacity="0.35"/>
+<rect x="4" y="4" width="142" height="84" rx="8" fill="url(#pad)"/>
+<rect x="8" y="8" width="134" height="76" rx="6" fill="none" stroke="#3a3b3d" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>
+<rect x="4" y="4" width="142" height="84" rx="8" fill="none" stroke="#39ff8f" stroke-width="2.2" opacity="0.85"/>
+<ellipse cx="77" cy="74" rx="20" ry="5" fill="#000" opacity="0.35"/>
+<path d="M56 48 Q56 22 75 22 Q94 22 94 48 L94 60 Q94 77 75 77 Q56 77 56 60 Z" fill="url(#shell)"/>
+<path d="M75 23 L75 44" stroke="#2e323c" stroke-width="1.6"/>
+<rect x="72.5" y="29" width="5" height="9" rx="2.5" fill="#242830"/>
+<path d="M62 34 Q64 26 71 25" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.45"/>
+<ellipse cx="75" cy="60" rx="10" ry="12" fill="url(#led)"/>
+<rect x="73.4" y="52" width="3.2" height="15" rx="1.6" fill="#39ff8f"/>
 </svg>

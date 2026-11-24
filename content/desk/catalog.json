@@ -61,7 +61,7 @@
       "file": "res://content/desk/kb_basic.svg",
       "size": [
         700,
-        86
+        90
       ],
       "unlock": {}
     },
@@ -75,7 +75,7 @@
       "file": "res://content/desk/kb_white.svg",
       "size": [
         700,
-        86
+        90
       ],
       "unlock": {}
     },
@@ -89,7 +89,7 @@
       "file": "res://content/desk/kb_rgb.svg",
       "size": [
         700,
-        86
+        90
       ],
       "unlock": {
         "owned": "keyboard_rgb"
@@ -105,7 +105,7 @@
       "file": "res://content/desk/kb_retro.svg",
       "size": [
         700,
-        86
+        90
       ],
       "unlock": {
         "rank": 2

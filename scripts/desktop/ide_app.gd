@@ -4,6 +4,7 @@ extends VBoxContainer
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const DEFAULT_FILE := "README.md"
 
+var desktop: Control
 var _tree: Tree
 var _code: CodeEdit
 var _tab: Label
@@ -12,6 +13,8 @@ var _current := ""
 var _buffers := {}  # path -> unsaved text of files not currently open
 var _saved_text := ""  # current file as last loaded/saved
 var _loading := false
+var _studio_save: Button
+var _studio_preview: Button
 
 
 func _ready() -> void:
@@ -33,7 +36,19 @@ func _ready() -> void:
 	var tab_bar := PanelContainer.new()
 	tab_bar.add_theme_stylebox_override("panel", UITheme.box(UITheme.BG2, 0, Color(0, 0, 0, 0), 7))
 	_tab = UITheme.label("", 13, Color("c9cfd9"))
-	tab_bar.add_child(_tab)
+	_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var tab_row := UITheme.hbox(6)
+	tab_row.add_child(_tab)
+	_studio_save = UITheme.button(Game.L("저장", "Save"))
+	_studio_save.pressed.connect(save)
+	tab_row.add_child(_studio_save)
+	_studio_preview = UITheme.button(Game.L("TaskBoard로 돌아가기", "Back to TaskBoard"))
+	_studio_preview.pressed.connect(func() -> void:
+		if desktop != null and not _is_dirty():
+			desktop.open_resource("tasks", "products"))
+	tab_row.add_child(_studio_preview)
+	tab_bar.add_child(tab_row)
 	right.add_child(tab_bar)
 
 	_code = CodeEdit.new()
@@ -67,14 +82,30 @@ func _ready() -> void:
 	open_file(DEFAULT_FILE)
 
 
+## Studio drafts (outside the Git checkout): Packet Run and the Moonlight page.
+func _studio_for(path: String) -> Node:
+	if path == ArcadeStudio.SOURCE:
+		return ArcadeStudio
+	if path == PageStudio.SOURCE:
+		return PageStudio
+	return null
+
+
 func open_file(path: String) -> void:
+	var studio_node := _studio_for(path)
+	if studio_node != null and not studio_node.has_source():
+		return
 	if _current != "" and _is_dirty():
 		_buffers[_current] = _code.text
 	_current = path
-	_saved_text = Workspace.read_file(path)
+	_saved_text = studio_node.read_source() if studio_node != null else Workspace.read_file(path)
 	_set_text(_buffers.get(path, _saved_text))
 	_code.clear_undo_history()
 	_update_labels()
+	if studio_node != null:
+		_reload_tree()
+		_code.grab_focus()
+		return
 	var resolved := Workspace.resolve(path)
 	if resolved != "" and FileAccess.file_exists(resolved):
 		Game.emit_event("code_viewed", {"path": path})
@@ -83,12 +114,18 @@ func open_file(path: String) -> void:
 func save() -> void:
 	if _current == "":
 		return
-	if Workspace.write_file(_current, _code.text):
+	var studio_node := _studio_for(_current)
+	var studio := studio_node != null
+	var saved: bool = studio_node.write_source(_code.text) if studio else Workspace.write_file(_current, _code.text)
+	if saved:
 		_saved_text = _code.text
 		_buffers.erase(_current)
 		_update_labels()
-		Game.emit_event("file_saved", {"path": _current})
-		Workspace.refresh()
+		if not studio:
+			Game.emit_event("file_saved", {"path": _current})
+			Workspace.refresh()
+	elif studio:
+		_status.text = Game.L("작업 파일을 저장하지 못했습니다.", "Could not save the draft file.")
 
 
 func _is_dirty() -> bool:
@@ -192,10 +229,16 @@ func _find(from_start: bool, backwards: bool) -> void:
 
 func _update_labels() -> void:
 	var dirty := _is_dirty()
+	var studio := _studio_for(_current) != null
+	_studio_save.visible = studio
+	_studio_save.disabled = not dirty
+	_studio_preview.visible = studio and desktop != null
+	_studio_preview.disabled = dirty
+	_studio_preview.tooltip_text = Game.L("저장한 코드로 제품 업무의 자동 테스트를 실행하세요.", "Run the product ticket's automated tests on the saved source.")
 	_tab.text = "  %s%s" % [_current.get_file(), "  ●" if dirty else ""]
 	var conflict := "<<<<<<<" in _code.text or ">>>>>>>" in _code.text
 	_status.text = "  ⎇ %s   ·   %s   ·   %s   ·   %s%s" % [
-		Workspace.branch, _current, Game.L("수정됨", "modified") if dirty else Game.L("저장됨", "saved"), Game.L("Ctrl+S 저장", "Ctrl+S to save"),
+		"Studio" if studio else Workspace.branch, _current, Game.L("수정됨", "modified") if dirty else Game.L("저장됨", "saved"), Game.L("Ctrl+S 저장", "Ctrl+S to save"),
 		Game.L("   ·   ⚠ 충돌 표시(<<<<<<< >>>>>>>)가 남아 있습니다", "   ·   ⚠ conflict markers (<<<<<<< >>>>>>>) remain") if conflict else ""]
 	_status.get_parent().add_theme_stylebox_override("panel", UITheme.box(Color("b45309") if conflict else Color("1d4ed8"), 0, Color(0, 0, 0, 0), 3))
 
@@ -203,7 +246,7 @@ func _update_labels() -> void:
 ## Branch switches etc. change files on disk: reload the open file unless it has unsaved edits.
 func _on_repo_changed() -> void:
 	_reload_tree()
-	if _current != "":
+	if _current != "" and _studio_for(_current) == null:
 		var disk := Workspace.read_file(_current)
 		if disk != _saved_text and not _is_dirty():
 			_set_text(disk)
@@ -227,6 +270,17 @@ func _reload_tree() -> void:
 		item.set_metadata(0, path)
 		if path == _current:
 			item.select(0)
+	var drafts := [ArcadeStudio, PageStudio].filter(func(s: Node) -> bool: return s.has_source())
+	if not drafts.is_empty():
+		var studio := _tree.create_item(root)
+		studio.set_text(0, "NEXORA Studio")
+		studio.set_selectable(0, false)
+		for s in drafts:
+			var source := _tree.create_item(studio)
+			source.set_text(0, String(s.SOURCE).get_file())
+			source.set_metadata(0, s.SOURCE)
+			if _current == s.SOURCE:
+				source.select(0)
 
 
 func _ensure_folder(folders: Dictionary, dir: String) -> TreeItem:

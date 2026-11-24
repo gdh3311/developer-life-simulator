@@ -4,6 +4,7 @@ extends VBoxContainer
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const Icon := preload("res://scripts/ui/icon.gd")
 const CasePanel := preload("res://scripts/apps/case_panel.gd")
+const ProductWork := preload("res://scripts/apps/product_work.gd")
 
 var desktop: Control
 var _board: HBoxContainer
@@ -34,9 +35,24 @@ func _ready() -> void:
 	var scroll := UITheme.scroll(UITheme.margin(notes, 16))
 	scroll.name = Game.L("조사 노트", "Investigation")
 	_tabs.add_child(scroll)
+	var product := ProductWork.new()
+	product.desktop = desktop
+	var products := UITheme.vbox(28)
+	products.add_child(product)
+	var page := preload("res://scripts/apps/page_work.gd").new()
+	page.desktop = desktop
+	products.add_child(page)
+	var product_scroll := UITheme.scroll(UITheme.margin(products, 16))
+	product_scroll.name = Game.L("제품 개발", "Product work")
+	_tabs.add_child(product_scroll)
 	Game.issues_changed.connect(_render)
 	Story.objectives_changed.connect(_render)
 	_render()
+
+
+func open_product_tab(target: String) -> void:
+	if target == "products":
+		_tabs.current_tab = 2
 
 
 func _render() -> void:
@@ -62,7 +78,8 @@ func _render() -> void:
 	var mission_id: String = m.id if m != null else ""
 	if mission_id != _shown_mission:
 		_shown_mission = mission_id
-		_tabs.current_tab = 1 if Cases.has_case(mission_id) else 0
+		if _tabs.current_tab != 2:
+			_tabs.current_tab = 1 if Cases.has_case(mission_id) else 0
 	if m == null:
 		_current.add_child(UITheme.bold(Game.L("진행 중인 업무 없음", "No active task"), 15))
 		_current.add_child(UITheme.wrap(Game.L("오늘 업무를 모두 마쳤다면 상단의 '퇴근하기'를 누르세요.", "If you're done for the day, press 'Clock out' at the top.") if Game.state["day_done"] else Game.L("잠시 후 새 업무가 도착합니다.", "A new task will arrive shortly."), 13, UITheme.TEXT2))
@@ -96,5 +113,9 @@ func _card(i: Dictionary) -> Control:
 	v.add_child(UITheme.wrap(Game.tx(i["title"]), 13, UITheme.TEXT))
 	var mine: bool = i["owner"] in ["나", "me"]
 	v.add_child(UITheme.label(Game.L("담당: ", "Owner: ") + (Game.L("나", "me") if mine else String(i["owner"])), 11, UITheme.ACCENT.lightened(0.3) if mine else UITheme.MUTED))
+	if i["id"] in [ArcadeStudio.ISSUE, PageStudio.ISSUE]:
+		var open := UITheme.button(Game.L("업무 열기", "Open ticket"))
+		open.pressed.connect(open_product_tab.bind("products"))
+		v.add_child(open)
 	card.add_child(v)
 	return card

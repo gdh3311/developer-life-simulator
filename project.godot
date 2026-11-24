@@ -20,6 +20,8 @@ Cases="*res://scripts/autoload/cases.gd"
 CodeHub="*res://scripts/services/codehub.gd"
 Story="*res://scripts/story/story.gd"
 RequestLab="*res://scripts/services/request_lab.gd"
+ArcadeStudio="*res://scripts/services/arcade_studio.gd"
+PageStudio="*res://scripts/services/page_studio.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
 
 [display]

@@ -7,7 +7,9 @@ signal minimized
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const Icon := preload("res://scripts/ui/icon.gd")
-const BAR_H := 36.0
+const BAR_H := 44.0
+const FRAME_INSET := 4.0
+const FOOT_H := 13.0
 const MIN_SIZE := Vector2(360, 220)
 const TOP_LIMIT := 32.0
 const DOCK_SPACE := 96.0
@@ -21,97 +23,145 @@ var _restore := Rect2()
 var _maximized := false
 var _closing := false
 var _bar: Panel
+var _body: Control
+var _grip: Control
+var _title: Label
+var _actions: HBoxContainer
+var _maximize_button: Button
+var _maximize_glyph: Control
+var _frame_style: StyleBoxFlat
+var _title_style: StyleBoxFlat
+var _accent: Color
+var _geometry_tween: Tween
 
 
 func setup(id: String, title: String, accent: Color, icon_name: String, content: Control, win_size: Vector2) -> void:
 	app_id = id
+	_accent = accent
 	size = win_size
+	mouse_filter = Control.MOUSE_FILTER_STOP
 
-	var bg := Panel.new()
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var sb := UITheme.box(UITheme.BG1, 12, Color(1, 1, 1, 0.08), 0, 1, 0)
-	sb.shadow_size = 28
-	sb.shadow_color = Color(0, 0, 0, 0.5)
-	sb.shadow_offset = Vector2(0, 10)
-	bg.add_theme_stylebox_override("panel", sb)
-	add_child(bg)
+	var frame := Panel.new()
+	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_frame_style = UITheme.box(Color("1c232c"), 10, Color("424e60"), 0)
+	_frame_style.shadow_size = 20
+	_frame_style.shadow_color = Color(0.02, 0.03, 0.05, 0.60)
+	_frame_style.shadow_offset = Vector2(0, 8)
+	frame.add_theme_stylebox_override("panel", _frame_style)
+	add_child(frame)
 
 	_bar = Panel.new()
-	_bar.anchor_right = 1.0
+	_bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_bar.offset_left = 1.0
+	_bar.offset_right = -1.0
+	_bar.offset_top = 1.0
 	_bar.offset_bottom = BAR_H
-	var bar_style := UITheme.box(UITheme.BG2, 12)
-	bar_style.corner_radius_bottom_left = 0
-	bar_style.corner_radius_bottom_right = 0
-	bar_style.border_color = Color(1, 1, 1, 0.05)
-	bar_style.border_width_bottom = 1
-	_bar.add_theme_stylebox_override("panel", bar_style)
+	_bar.mouse_default_cursor_shape = Control.CURSOR_MOVE
+	_title_style = UITheme.box(Color("252e3a"), 9, Color("364252"))
+	_title_style.corner_radius_bottom_left = 0
+	_title_style.corner_radius_bottom_right = 0
+	_title_style.set_border_width_all(0)
+	_title_style.border_width_bottom = 1
+	_bar.add_theme_stylebox_override("panel", _title_style)
 	_bar.gui_input.connect(_on_bar_input)
 	add_child(_bar)
 
-	var row := UITheme.hbox(10)
-	row.set_anchors_preset(Control.PRESET_FULL_RECT)
-	row.offset_left = 14.0
+	var row := UITheme.hbox(9)
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 10.0
 	row.offset_right = -8.0
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bar.add_child(row)
-	var ic := Icon.make(icon_name, accent, 16)
-	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(ic)
-	var title_label := UITheme.bold(title, 13, UITheme.TEXT)
-	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title_label.size_flags_vertical = Control.SIZE_FILL
-	row.add_child(title_label)
-	var min_btn := Button.new()
-	min_btn.flat = true
-	min_btn.focus_mode = Control.FOCUS_NONE
-	min_btn.custom_minimum_size = Vector2(28, 24)
-	min_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	min_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	min_btn.tooltip_text = "Ctrl+M"
-	min_btn.add_theme_stylebox_override("hover", UITheme.box(Color(1, 1, 1, 0.08), 6))
-	var mi := Icon.make("minus", UITheme.TEXT2, 12)
-	mi.position = Vector2(8, 6)
-	min_btn.add_child(mi)
-	min_btn.pressed.connect(func() -> void: minimized.emit())
-	row.add_child(min_btn)
-	var close_btn := Button.new()
-	close_btn.tooltip_text = "Ctrl+W"
-	close_btn.flat = true
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.custom_minimum_size = Vector2(28, 24)
-	close_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	close_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	close_btn.add_theme_stylebox_override("hover", UITheme.box(UITheme.ERR.darkened(0.2), 6))
-	var x := Icon.make("x", UITheme.TEXT2, 12)
-	x.set_anchors_preset(Control.PRESET_CENTER)
-	x.position = Vector2(8, 6)
-	close_btn.add_child(x)
-	close_btn.pressed.connect(close)
-	row.add_child(close_btn)
 
-	var body := MarginContainer.new()
-	body.set_anchors_preset(Control.PRESET_FULL_RECT)
-	body.offset_top = BAR_H
-	body.offset_left = 1
-	body.offset_right = -1
-	body.offset_bottom = -1
-	body.clip_contents = true
-	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(content)
-	add_child(body)
+	var mark := UITheme.panel(Color(_accent, 0.15), 6, 0, Color(_accent, 0.34))
+	mark.custom_minimum_size = Vector2(27, 27)
+	mark.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var centered_mark := CenterContainer.new()
+	centered_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	centered_mark.add_child(Icon.make(icon_name, _accent.lightened(0.18), 17))
+	mark.add_child(centered_mark)
+	row.add_child(mark)
 
-	var grip := Control.new()
-	grip.anchor_left = 1.0
-	grip.anchor_top = 1.0
-	grip.anchor_right = 1.0
-	grip.anchor_bottom = 1.0
-	grip.offset_left = -16.0
-	grip.offset_top = -16.0
-	grip.mouse_default_cursor_shape = Control.CURSOR_FDIAGSIZE
-	grip.gui_input.connect(_on_grip_input)
-	add_child(grip)
+	_title = UITheme.bold(title, 14, UITheme.TEXT)
+	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(_title)
+	_actions = UITheme.hbox(4)
+	_actions.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_actions.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(_actions)
+
+	var minimize := _title_button("minus", Game.L("최소화 (Ctrl+M)", "Minimize (Ctrl+M)"))
+	minimize.pressed.connect(func() -> void: minimized.emit())
+	_actions.add_child(minimize)
+	_maximize_button = _title_button("maximize", Game.L("최대화", "Maximize"))
+	_maximize_glyph = _maximize_button.get_child(0).get_child(0)
+	_maximize_button.pressed.connect(toggle_maximize)
+	_actions.add_child(_maximize_button)
+	var dismiss := _title_button("x", Game.L("닫기 (Ctrl+W)", "Close (Ctrl+W)"), true)
+	dismiss.pressed.connect(close)
+	_actions.add_child(dismiss)
+
+	# Plain Control keeps the viewport inside the frame even if an app has a large minimum size.
+	_body = Control.new()
+	_body.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_body.offset_top = BAR_H
+	_body.offset_left = FRAME_INSET
+	_body.offset_right = -FRAME_INSET
+	_body.offset_bottom = -FOOT_H
+	_body.clip_contents = true
+	_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_body)
+	_body.add_child(content)
+	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	_grip = Control.new()
+	_grip.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_grip.offset_left = -20.0
+	_grip.offset_top = -19.0
+	_grip.offset_right = -2.0
+	_grip.offset_bottom = -2.0
+	_grip.mouse_default_cursor_shape = Control.CURSOR_FDIAGSIZE
+	var groove := Icon.make("resize_grip", Color("748396"), 13)
+	_grip.add_child(groove)
+	groove.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_grip.gui_input.connect(_on_grip_input)
+	add_child(_grip)
+	set_active(false)
+
+
+func _ready() -> void:
+	get_parent_control().resized.connect(_fit_workspace)
+	_fit_workspace()
+
+
+func _title_button(icon_name: String, tooltip: String, danger := false) -> Button:
+	var button := Button.new()
+	button.custom_minimum_size = Vector2(30, 28)
+	button.tooltip_text = tooltip
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var hover := Color("652f3b") if danger else Color("394656")
+	var pressed := Color("873d4c") if danger else Color("47596c")
+	button.add_theme_stylebox_override("normal", UITheme.box(Color("202834"), 5, Color("384454")))
+	button.add_theme_stylebox_override("hover", UITheme.box(hover, 5))
+	button.add_theme_stylebox_override("pressed", UITheme.box(pressed, 5))
+	button.add_theme_stylebox_override("focus", UITheme.box(Color.TRANSPARENT, 5, _accent))
+	var center := CenterContainer.new()
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.add_child(Icon.make(icon_name, Color("d0dbe8"), 15))
+	return button
+
+
+func set_active(active: bool) -> void:
+	_frame_style.border_color = Color("667689") if active else Color("374353")
+	_title_style.bg_color = Color("293442").lerp(_accent, 0.07) if active else Color("212933")
+	_title.add_theme_color_override("font_color", UITheme.TEXT if active else UITheme.TEXT2)
 
 
 func pop_in() -> void:
@@ -127,6 +177,7 @@ func close() -> void:
 	if _closing:
 		return
 	_closing = true
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	closed.emit()
 	pivot_offset = size / 2.0
 	var t := create_tween()
@@ -135,16 +186,46 @@ func close() -> void:
 	t.tween_callback(queue_free)
 
 
+func _workspace() -> Rect2:
+	var area := get_parent_control().size
+	var origin := Vector2(8, TOP_LIMIT + 6)
+	return Rect2(origin, Vector2(maxf(1, area.x - 16), maxf(1, area.y - origin.y - DOCK_SPACE)))
+
+
+func _fit_rect(requested: Rect2) -> Rect2:
+	var usable := _workspace()
+	var fitted_size := requested.size.clamp(MIN_SIZE.min(usable.size), usable.size)
+	var fitted_position := requested.position.clamp(usable.position, usable.end - fitted_size)
+	return Rect2(fitted_position, fitted_size)
+
+
+func _fit_workspace() -> void:
+	if _geometry_tween:
+		_geometry_tween.kill()
+	var fitted := _workspace() if _maximized else _fit_rect(Rect2(position, size))
+	position = fitted.position
+	size = fitted.size
+
+
 func toggle_maximize() -> void:
-	var target := _restore
-	if not _maximized:
+	if _closing:
+		return
+	var moving := _geometry_tween != null and _geometry_tween.is_running()
+	if _geometry_tween:
+		_geometry_tween.kill()
+	if not _maximized and not moving:
 		_restore = Rect2(position, size)
-		var area := get_parent_control().size
-		target = Rect2(Vector2(6, TOP_LIMIT + 4), Vector2(area.x - 12, area.y - TOP_LIMIT - DOCK_SPACE))
+	var target := _fit_rect(_restore) if _maximized else _workspace()
 	_maximized = not _maximized
-	var t := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	t.tween_property(self, "position", target.position, 0.2)
-	t.parallel().tween_property(self, "size", target.size, 0.2)
+	_drag = false
+	_resize = false
+	_maximize_glyph.icon = "restore" if _maximized else "maximize"
+	_maximize_glyph.queue_redraw()
+	_maximize_button.tooltip_text = Game.L("원래 크기로 복원", "Restore window") if _maximized else Game.L("최대화", "Maximize")
+	_grip.visible = not _maximized
+	_geometry_tween = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_geometry_tween.tween_property(self, "position", target.position, 0.18)
+	_geometry_tween.parallel().tween_property(self, "size", target.size, 0.18)
 
 
 func _on_bar_input(event: InputEvent) -> void:
@@ -156,14 +237,12 @@ func _on_bar_input(event: InputEvent) -> void:
 			toggle_maximize()
 			return
 		_drag = mb.pressed and not _maximized
+		if _drag and _geometry_tween:
+			_geometry_tween.kill()
 		_grab = parent.get_local_mouse_position() - position
 		return
-	var mm := event as InputEventMouseMotion
-	if mm != null and _drag:
-		var p := parent.get_local_mouse_position() - _grab
-		p.x = clampf(p.x, -size.x + 80.0, parent.size.x - 80.0)
-		p.y = clampf(p.y, TOP_LIMIT, parent.size.y - BAR_H)
-		position = p
+	if event is InputEventMouseMotion and _drag:
+		position = _fit_rect(Rect2(parent.get_local_mouse_position() - _grab, size)).position
 
 
 func _on_grip_input(event: InputEvent) -> void:
@@ -171,10 +250,12 @@ func _on_grip_input(event: InputEvent) -> void:
 	var mb := event as InputEventMouseButton
 	if mb != null and mb.button_index == MOUSE_BUTTON_LEFT:
 		_resize = mb.pressed and not _maximized
+		if _resize and _geometry_tween:
+			_geometry_tween.kill()
 		_grab = parent.get_local_mouse_position()
 		_start_size = size
 		return
-	var mm := event as InputEventMouseMotion
-	if mm != null and _resize:
-		var s := _start_size + parent.get_local_mouse_position() - _grab
-		size = Vector2(maxf(s.x, MIN_SIZE.x), maxf(s.y, MIN_SIZE.y))
+	if event is InputEventMouseMotion and _resize:
+		var desired := _start_size + parent.get_local_mouse_position() - _grab
+		var available := (_workspace().end - position).max(Vector2.ONE)
+		size = desired.clamp(MIN_SIZE.min(available), available)

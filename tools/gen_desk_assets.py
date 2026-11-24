@@ -29,126 +29,201 @@ def hexrgb(h, s, v):
     return "#%02x%02x%02x" % (int(r * 255), int(g * 255), int(b * 255))
 
 
-# --- keyboards (700 x 86) -------------------------------------------------------------
+# --- shared shading ------------------------------------------------------------------------
+
+def lin(id_, stops, x2=0, y2=1):
+    body = "".join(f'<stop offset="{o}" stop-color="{c}"{f" stop-opacity={chr(34)}{a}{chr(34)}" if a is not None else ""}/>' for o, c, a in stops)
+    return f'<linearGradient id="{id_}" x1="0" y1="0" x2="{x2}" y2="{y2}">{body}</linearGradient>'
+
+
+def rad(id_, stops, cx=0.4, cy=0.35, r=0.8):
+    body = "".join(f'<stop offset="{o}" stop-color="{c}"{f" stop-opacity={chr(34)}{a}{chr(34)}" if a is not None else ""}/>' for o, c, a in stops)
+    return f'<radialGradient id="{id_}" cx="{cx}" cy="{cy}" r="{r}">{body}</radialGradient>'
+
+
+def shade(hex_color, k):
+    """k > 0 lightens, k < 0 darkens."""
+    h = hex_color.lstrip("#")
+    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    if k >= 0:
+        r, g, b = (int(c + (255 - c) * k) for c in (r, g, b))
+    else:
+        r, g, b = (int(c * (1 + k)) for c in (r, g, b))
+    return "#%02x%02x%02x" % (r, g, b)
+
+
+# --- keyboards (700 x 90) ---------------------------------------------------------------
 
 def keyboard(body, edge, key, accent=None, rainbow=False, glow=None):
-    w, h = 700, 86
-    parts = []
+    """Body with a lit top edge and a front lip; every key is a cap (side) plus a lighter top face."""
+    w, h = 700, 90
+    defs = [lin("body", [(0, shade(body, 0.12), None), (0.7, body, None), (1, shade(body, -0.35), None)]),
+            lin("lip", [(0, shade(body, -0.25), None), (1, shade(body, -0.55), None)])]
+    parts = [f'<ellipse cx="350" cy="86" rx="345" ry="5" fill="#000" opacity="0.45"/>']
     if glow:
-        parts.append(f'<ellipse cx="350" cy="80" rx="360" ry="10" fill="{glow}" opacity="0.35"/>')
-    parts.append(f'<path d="M50 6 L650 6 L696 80 L4 80 Z" fill="{body}"/>')
-    parts.append(f'<path d="M50 6 L650 6 L652 9 L48 9 Z" fill="{edge}"/>')
+        defs.append(rad("glow", [(0, glow, 0.55), (1, glow, 0)], cx=0.5, cy=0.5, r=0.5))
+        parts.append('<ellipse cx="350" cy="84" rx="372" ry="14" fill="url(#glow)"/>')
+    parts.append('<path d="M48 4 L652 4 L698 78 L2 78 Z" fill="url(#body)"/>')
+    parts.append('<path d="M2 78 L698 78 L696 85 L4 85 Z" fill="url(#lip)"/>')
+    parts.append(f'<path d="M48 4 L652 4 L653.5 6.5 L46.5 6.5 Z" fill="{edge}" opacity="0.9"/>')
     for row in range(4):
         t = (row + 0.5) / 5.0
-        y = 12 + row * 14
-        half = 300 + 40 * t - 14
+        y = 11 + row * 14
+        half = 300 + 40 * t - 16
         keys = 15
         kw = half * 2 / keys
         for k in range(keys):
-            x = 350 - half + k * kw + 1.5
+            x = 350 - half + k * kw + 1.6
             col = key
             if rainbow:
-                col = hexrgb(k / keys + row * 0.07, 0.7, 0.92)
-            elif accent and ((row == 0 and k == 0) or (row == 3 and k in (0, keys - 1))):
+                col = hexrgb(k / keys + row * 0.07, 0.75, 0.95)
+            elif accent and ((row == 0 and k == 0) or (row == 3 and k in (0, keys - 1)) or (row == 2 and k == keys - 1)):
                 col = accent
-            parts.append(f'<rect x="{x:.1f}" y="{y}" width="{kw - 3:.1f}" height="10.5" rx="1.6" fill="{col}"/>')
-    sx = 350 - 120
-    space = hexrgb(0.55, 0.7, 0.92) if rainbow else key
-    parts.append(f'<rect x="{sx}" y="68" width="240" height="9" rx="2" fill="{space}"/>')
-    return svg(w, h, "\n".join(parts))
+            parts.append(f'<rect x="{x:.1f}" y="{y}" width="{kw - 3.2:.1f}" height="11.5" rx="2" fill="{shade(col, -0.38)}"/>')
+            parts.append(f'<rect x="{x + 1.2:.1f}" y="{y + 0.6}" width="{kw - 5.6:.1f}" height="8.2" rx="1.6" fill="{shade(col, 0.1)}"/>')
+            if not rainbow:
+                parts.append(f'<rect x="{x + 2.4:.1f}" y="{y + 1.6}" width="{(kw - 5.6) * 0.35:.1f}" height="1.4" rx="0.6" fill="{shade(col, 0.45)}" opacity="0.7"/>')
+    space = hexrgb(0.55, 0.75, 0.95) if rainbow else key
+    parts.append(f'<rect x="230" y="67" width="240" height="11" rx="2.5" fill="{shade(space, -0.38)}"/>')
+    parts.append(f'<rect x="231.5" y="67.6" width="237" height="7.8" rx="2" fill="{shade(space, 0.1)}"/>')
+    return svg(w, h, "<defs>" + "".join(defs) + "</defs>\n" + "\n".join(parts))
 
 
 # --- mice (150 x 92) ----------------------------------------------------------------------
 
 def mouse(pad, body, line, stripe=None, rim=None):
-    parts = [f'<rect x="4" y="4" width="142" height="84" rx="6" fill="{pad}"/>']
+    defs = [lin("pad", [(0, shade(pad, 0.1), None), (1, shade(pad, -0.2), None)]),
+            rad("shell", [(0, shade(body, 0.45), None), (0.5, body, None), (1, shade(body, -0.45), None)], cx=0.38, cy=0.25, r=0.9)]
+    parts = [
+        '<rect x="4" y="6" width="142" height="84" rx="8" fill="#000" opacity="0.35"/>',
+        '<rect x="4" y="4" width="142" height="84" rx="8" fill="url(#pad)"/>',
+        f'<rect x="8" y="8" width="134" height="76" rx="6" fill="none" stroke="{shade(pad, 0.18)}" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>',
+    ]
     if rim:
-        parts.append(f'<rect x="4" y="4" width="142" height="84" rx="6" fill="none" stroke="{rim}" stroke-width="2" opacity="0.8"/>')
-    parts.append(f'<path d="M57 50 Q57 26 75 26 Q93 26 93 50 L93 62 Q93 76 75 76 Q57 76 57 62 Z" fill="{body}"/>')
-    parts.append(f'<line x1="75" y1="28" x2="75" y2="44" stroke="{line}" stroke-width="2"/>')
+        parts.append(f'<rect x="4" y="4" width="142" height="84" rx="8" fill="none" stroke="{rim}" stroke-width="2.2" opacity="0.85"/>')
+    parts += [
+        '<ellipse cx="77" cy="74" rx="20" ry="5" fill="#000" opacity="0.35"/>',
+        '<path d="M56 48 Q56 22 75 22 Q94 22 94 48 L94 60 Q94 77 75 77 Q56 77 56 60 Z" fill="url(#shell)"/>',
+        f'<path d="M75 23 L75 44" stroke="{line}" stroke-width="1.6"/>',
+        f'<rect x="72.5" y="29" width="5" height="9" rx="2.5" fill="{shade(line, -0.2)}"/>',
+        '<path d="M62 34 Q64 26 71 25" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.45"/>',
+    ]
     if stripe:
-        parts.append(f'<rect x="73" y="52" width="4" height="16" rx="2" fill="{stripe}"/>')
-    return svg(150, 92, "\n".join(parts))
+        defs.append(rad("led", [(0, stripe, 0.9), (1, stripe, 0)], cx=0.5, cy=0.5, r=0.5))
+        parts.append('<ellipse cx="75" cy="60" rx="10" ry="12" fill="url(#led)"/>')
+        parts.append(f'<rect x="73.4" y="52" width="3.2" height="15" rx="1.6" fill="{stripe}"/>')
+    return svg(150, 92, "<defs>" + "".join(defs) + "</defs>\n" + "\n".join(parts))
 
 
 # --- mugs (96 x 80, bottom-center anchored) ------------------------------------------------
 
-def mug(body, rim, mark):
+def mug(body, rim, mark, drink="#4a2c18"):
+    defs = [lin("cyl", [(0, shade(body, -0.28), None), (0.3, shade(body, 0.14), None), (0.62, body, None), (1, shade(body, -0.4), None)], x2=1, y2=0),
+            lin("inside", [(0, shade(rim, -0.45), None), (1, shade(rim, -0.1), None)]),
+            rad("drink", [(0, shade(drink, 0.35), None), (1, drink, None)], cx=0.4, cy=0.4, r=0.7)]
     parts = [
-        f'<path d="M78 26 a16 16 0 0 1 0 32" fill="none" stroke="{body}" stroke-width="7"/>',
-        f'<rect x="18" y="8" width="60" height="72" rx="4" fill="{body}"/>',
-        f'<rect x="18" y="8" width="60" height="8" rx="3" fill="{rim}"/>',
+        '<ellipse cx="48" cy="78" rx="34" ry="3" fill="#000" opacity="0.35"/>',
+        f'<path d="M76 26 C94 24 95 58 76 58" fill="none" stroke="{shade(body, -0.25)}" stroke-width="7" stroke-linecap="round"/>',
+        f'<path d="M77 29 C90 28 91 54 77 55" fill="none" stroke="{shade(body, 0.2)}" stroke-width="2" stroke-linecap="round" opacity="0.7"/>',
+        '<path d="M18 12 L78 12 L76 74 C76 78 66 80 48 80 C30 80 20 78 20 74 Z" fill="url(#cyl)"/>',
+        '<path d="M25 18 L26.5 72" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.4"/>',
+        f'<ellipse cx="48" cy="12" rx="30" ry="6" fill="{rim}"/>',
+        '<ellipse cx="48" cy="12.6" rx="26.5" ry="4.4" fill="url(#inside)"/>',
+        '<ellipse cx="48" cy="14" rx="24" ry="3.2" fill="url(#drink)"/>',
         mark,
     ]
-    return svg(96, 80, "\n".join(parts))
+    return svg(96, 80, "<defs>" + "".join(defs) + "</defs>\n" + "\n".join(parts))
 
 
-BRACES = '<path d="M38 34 q-6 0 -6 6 v4 q0 3 -3 3 q3 0 3 3 v4 q0 6 6 6 M58 34 q6 0 6 6 v4 q0 3 3 3 q-3 0 -3 3 v4 q0 6 -6 6" fill="none" stroke="#4f8cff" stroke-width="3" stroke-linecap="round"/>'
-CHEVRON = '<path d="M40 38 L32 48 L40 58 M56 38 L64 48 L56 58" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>'
-GOLDLINE = '<rect x="18" y="60" width="60" height="3" fill="#c9a86a"/>'
-MOON = '<path d="M54 34 a14 14 0 1 0 0 28 a11 11 0 1 1 0 -28 Z" fill="#f4c95d"/><circle cx="62" cy="40" r="2" fill="#f4c95d"/>'
+BRACES = '<path d="M41 32 q-6 0 -6 6 v4 q0 3 -3 3 q3 0 3 3 v4 q0 6 6 6 M55 32 q6 0 6 6 v4 q0 3 3 3 q-3 0 -3 3 v4 q0 6 -6 6" fill="none" stroke="#4f8cff" stroke-width="3" stroke-linecap="round"/>'
+CHEVRON = '<path d="M42 36 L34 46 L42 56 M54 36 L62 46 L54 56" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>'
+GOLDLINE = '<path d="M20 56 L77 56" stroke="#c9a86a" stroke-width="3"/><path d="M20 61 L77 61" stroke="#c9a86a" stroke-width="1" opacity="0.6"/>'
+MOON = '<path d="M50 32 A14 14 0 1 0 50 60 A18 18 0 0 1 50 32 Z" fill="#f4c95d"/><circle cx="60" cy="38" r="2" fill="#f4c95d"/><circle cx="58" cy="54" r="1.4" fill="#f4c95d"/>'
 
 
 # --- plants (220 x 210, bottom-center anchored) --------------------------------------------
 
-def pot(color, lip):
-    return (f'<path d="M66 140 L154 140 L144 210 L76 210 Z" fill="{color}"/>'
-            f'<rect x="62" y="132" width="96" height="12" rx="2" fill="{lip}"/>')
+def pot(color, lip, soil="#3b2a20"):
+    defs = (lin("pot", [(0, shade(color, -0.3), None), (0.35, shade(color, 0.15), None), (0.7, color, None), (1, shade(color, -0.4), None)], x2=1, y2=0)
+            + lin("lip", [(0, shade(lip, 0.15), None), (1, shade(lip, -0.2), None)]))
+    body = (f'<ellipse cx="110" cy="208" rx="46" ry="3" fill="#000" opacity="0.35"/>'
+            f'<path d="M66 142 L154 142 L144 206 C144 209 130 210 110 210 C90 210 76 209 76 206 Z" fill="url(#pot)"/>'
+            f'<path d="M80 148 L86 202" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.25"/>'
+            f'<rect x="60" y="132" width="100" height="14" rx="3" fill="url(#lip)"/>'
+            f'<ellipse cx="110" cy="134" rx="46" ry="4" fill="{soil}"/>')
+    return defs, body
+
+
+def plant_svg(defs, leaves, pot_color, lip, soil="#3b2a20"):
+    pdefs, pbody = pot(pot_color, lip, soil)
+    return svg(220, 210, "<defs>" + defs + pdefs + "</defs>\n" + pbody + "\n" + leaves)
 
 
 def fern():
-    leaves = []
     import math
-    for i in range(7):
-        a = math.radians(-150 + i * 20)
-        length = 90 + (i % 3) * 18
-        tipx, tipy = 110 + math.cos(a) * length, 150 + math.sin(a) * length
-        midx, midy = (110 + tipx) / 2, (150 + tipy) / 2
-        nx, ny = -(tipy - 150), (tipx - 110)
-        n = math.hypot(nx, ny) or 1
-        nx, ny = nx / n * 14, ny / n * 14
-        shade = ["#2f6b45", "#367a4f", "#3d8858"][i % 3]
-        leaves.append(f'<path d="M110 150 L{midx + nx:.1f} {midy + ny:.1f} L{tipx:.1f} {tipy:.1f} L{midx - nx:.1f} {midy - ny:.1f} Z" fill="{shade}"/>')
-    return svg(220, 210, "\n".join(leaves) + pot("#c2734f", "#d48562"))
+    defs = lin("leaf", [(0, "#5fae6e", None), (1, "#1f5a35", None)], x2=0, y2=1)
+    leaves = []
+    for i in range(9):
+        a = math.radians(-160 + i * 17.5)
+        length = 92 + (i % 3) * 16
+        bx, by = 110, 134
+        tipx, tipy = bx + math.cos(a) * length, by + math.sin(a) * length
+        cx, cy = bx + math.cos(a) * length * 0.5, by + math.sin(a) * length * 0.5 - 10
+        nx, ny = -math.sin(a) * 15, math.cos(a) * 15
+        leaves.append(f'<path d="M{bx} {by} Q{cx + nx:.1f} {cy + ny:.1f} {tipx:.1f} {tipy:.1f} Q{cx - nx:.1f} {cy - ny:.1f} {bx} {by} Z" fill="url(#leaf)"/>')
+        leaves.append(f'<path d="M{bx} {by} Q{cx:.1f} {cy:.1f} {tipx:.1f} {tipy:.1f}" fill="none" stroke="#a8d8a0" stroke-width="1.2" opacity="0.6"/>')
+    return plant_svg(defs, "".join(leaves), "#c2734f", "#d48562")
 
 
 def snake():
+    defs = lin("leaf", [(0, "#3f7a4c", None), (0.5, "#2e5e3a", None), (1, "#1c3d25", None)], x2=1, y2=0)
     leaves = []
-    for i, (x, hgt, lean) in enumerate([(84, 120, -10), (100, 150, -4), (116, 160, 3), (132, 130, 9), (148, 100, 14)]):
-        top = 140 - hgt
-        leaves.append(f'<path d="M{x - 9} 140 Q{x - 12 + lean} {top + 40} {x + lean} {top} Q{x + 12 + lean} {top + 40} {x + 9} 140 Z" fill="#2e5e3a" stroke="#c8c255" stroke-width="2"/>')
-        leaves.append(f'<path d="M{x + lean * 0.6:.1f} {top + 30} L{x} 130" stroke="#3f7a4c" stroke-width="2"/>')
-    return svg(220, 210, "\n".join(leaves) + pot("#e9e4da", "#d9d2c5"))
+    for x, hgt, lean in [(82, 116, -12), (98, 150, -5), (114, 166, 2), (130, 136, 8), (146, 104, 15)]:
+        top = 136 - hgt
+        leaves.append(f'<path d="M{x - 10} 136 Q{x - 13 + lean} {top + 44} {x + lean} {top} Q{x + 13 + lean} {top + 44} {x + 10} 136 Z" fill="url(#leaf)" stroke="#d8cf5a" stroke-width="2.4"/>')
+        for band in range(3):
+            yy = top + 30 + band * 26
+            leaves.append(f'<path d="M{x - 6 + lean * 0.5:.1f} {yy} q6 -4 12 0" fill="none" stroke="#9fc28a" stroke-width="1.4" opacity="0.5"/>')
+    return plant_svg(defs, "".join(leaves), "#ecebe6", "#dcdad2")
 
 
 def cactus():
+    defs = lin("cac", [(0, "#2f6b33", None), (0.45, "#5fa35c", None), (1, "#2a5e2e", None)], x2=1, y2=0)
     body = [
-        '<rect x="96" y="40" width="30" height="104" rx="15" fill="#4c8b4a"/>',
-        '<path d="M96 96 h-16 q-8 0 -8 -8 v-24 q0 -6 6 -6 q6 0 6 6 v18 h12" fill="#4c8b4a"/>',
-        '<path d="M126 80 h14 q8 0 8 -8 v-18 q0 -6 -6 -6 q-6 0 -6 6 v14 h-10" fill="#4c8b4a"/>',
-        '<line x1="111" y1="48" x2="111" y2="138" stroke="#3b7339" stroke-width="2"/>',
-        '<circle cx="111" cy="38" r="6" fill="#f472b6"/>',
+        '<path d="M96 62 h-14 q-10 0 -10 -10 v-22 q0 -7 7 -7 q7 0 7 7 v16 h10" fill="url(#cac)"/>',
+        '<path d="M126 86 h14 q10 0 10 -10 v-20 q0 -7 -7 -7 q-7 0 -7 7 v14 h-10" fill="url(#cac)"/>',
+        '<rect x="94" y="34" width="34" height="104" rx="17" fill="url(#cac)"/>',
+        '<path d="M103 42 L103 134 M111 36 L111 136 M119 42 L119 134" stroke="#28572b" stroke-width="1.6" opacity="0.8"/>',
     ]
-    return svg(220, 210, "\n".join(body) + pot("#b8643f", "#cc7a55"))
+    for y in range(48, 132, 14):
+        for x in (99, 107, 115, 123):
+            body.append(f'<path d="M{x} {y} l-2.5 -2.5 M{x} {y} l2.5 -2.5" stroke="#f1f0d8" stroke-width="0.9" opacity="0.85"/>')
+    body += ['<circle cx="111" cy="32" r="7" fill="#f472b6"/>', '<circle cx="111" cy="32" r="3" fill="#ffd1e6"/>']
+    return plant_svg(defs, "".join(body), "#b8643f", "#cc7a55")
 
 
 def succulent():
     import math
+    defs = (lin("p0", [(0, "#b9e3cc", None), (1, "#5d9c7e", None)])
+            + lin("p1", [(0, "#cdeedb", None), (1, "#78b597", None)])
+            + lin("p2", [(0, "#e2f6ea", None), (1, "#93c9ad", None)]))
     petals = []
-    for ring, (count, r, col) in enumerate([(10, 46, "#7fb59a"), (8, 32, "#94c8ad"), (6, 18, "#acd9c1")]):
+    for ring, (count, r, rx, ry) in enumerate([(10, 46, 16, 9), (8, 31, 13, 7.5), (6, 17, 10, 6)]):
         for i in range(count):
             a = 2 * math.pi * (i + ring * 0.5) / count
-            x, y = 110 + math.cos(a) * r, 118 + math.sin(a) * r * 0.45
-            petals.append(f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{14 - ring * 3}" ry="{8 - ring * 1.5}" fill="{col}" transform="rotate({math.degrees(a):.0f} {x:.1f} {y:.1f})"/>')
-    return svg(220, 210, "\n".join(petals) + pot("#f2f2f0", "#e2e2de"))
+            x, y = 110 + math.cos(a) * r, 120 + math.sin(a) * r * 0.42
+            petals.append(f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{rx}" ry="{ry}" fill="url(#p{ring})" stroke="#4f8a6c" stroke-width="0.8" transform="rotate({math.degrees(a):.0f} {x:.1f} {y:.1f})"/>')
+            tx, ty = 110 + math.cos(a) * (r + rx * 0.8), 120 + math.sin(a) * (r + rx * 0.8) * 0.42
+            petals.append(f'<circle cx="{tx:.1f}" cy="{ty:.1f}" r="1.6" fill="#d77a8f" opacity="0.8"/>')
+    return plant_svg(defs, "".join(petals), "#f4f4f2", "#e4e4e0", soil="#4a3a2e")
 
 
 ITEMS = [
     # keyboards
-    ("kb_basic", "keyboard", {"ko": "기본 키보드", "en": "Standard keyboard"}, keyboard("#1b1e25", "#343a46", "#2a2e38"), {}, [700, 86]),
-    ("kb_white", "keyboard", {"ko": "화이트 키보드", "en": "White keyboard"}, keyboard("#d6d9df", "#eef0f3", "#f5f6f8", accent="#9fb4d8"), {}, [700, 86]),
-    ("kb_rgb", "keyboard", {"ko": "기계식 RGB 키보드", "en": "Mechanical RGB keyboard"}, keyboard("#121318", "#2a2d36", "#2a2e38", rainbow=True, glow="#7c5cff"), {"owned": "keyboard_rgb"}, [700, 86]),
-    ("kb_retro", "keyboard", {"ko": "레트로 키보드", "en": "Retro keyboard"}, keyboard("#c9bd9c", "#ddd3b7", "#ebe3cb", accent="#b5523b"), {"rank": 2}, [700, 86]),
+    ("kb_basic", "keyboard", {"ko": "기본 키보드", "en": "Standard keyboard"}, keyboard("#1b1e25", "#343a46", "#2a2e38"), {}, [700, 90]),
+    ("kb_white", "keyboard", {"ko": "화이트 키보드", "en": "White keyboard"}, keyboard("#d6d9df", "#eef0f3", "#f5f6f8", accent="#9fb4d8"), {}, [700, 90]),
+    ("kb_rgb", "keyboard", {"ko": "기계식 RGB 키보드", "en": "Mechanical RGB keyboard"}, keyboard("#121318", "#2a2d36", "#2a2e38", rainbow=True, glow="#7c5cff"), {"owned": "keyboard_rgb"}, [700, 90]),
+    ("kb_retro", "keyboard", {"ko": "레트로 키보드", "en": "Retro keyboard"}, keyboard("#c9bd9c", "#ddd3b7", "#ebe3cb", accent="#b5523b"), {"rank": 2}, [700, 90]),
     # mice
     ("mouse_basic", "mouse", {"ko": "기본 마우스", "en": "Standard mouse"}, mouse("#15171d", "#1f2229", "#2e323c"), {}, [150, 92]),
     ("mouse_white", "mouse", {"ko": "화이트 마우스", "en": "White mouse"}, mouse("#2b3140", "#eceef2", "#c4c8d0"), {}, [150, 92]),

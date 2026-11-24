@@ -181,9 +181,9 @@ func _run() -> void:
 	dashboard.queue_free()
 	Story.active = null
 	await get_tree().process_frame
-	# Let the existing procedural music worker finish before tearing down its autoload.
-	while Sfx._music.stream == null:
-		await get_tree().process_frame
+	# Allow the audio mixer to release any result cue from the final assertions.
+	Sfx.stop_all()
+	await get_tree().create_timer(0.1, true, false, true).timeout
 	print("GAMEPLAY_QA: %d checks, %d failures" % [_checks, _failed])
 	get_tree().quit(0 if _failed == 0 else 1)
 

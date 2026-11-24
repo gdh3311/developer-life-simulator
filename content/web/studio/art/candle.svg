@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="320" viewBox="0 0 200 160">
+  <defs>
+    <radialGradient id="glow" cx="0.5" cy="0.3" r="0.6">
+      <stop offset="0" stop-color="#ffcf6b" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffcf6b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9fb3c8" stop-opacity="0.55"/>
+      <stop offset="0.3" stop-color="#e8f1fa" stop-opacity="0.75"/>
+      <stop offset="0.7" stop-color="#c6d4e2" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#7f93a8" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="wax" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff8e6"/>
+      <stop offset="1" stop-color="#ead7ad"/>
+    </linearGradient>
+    <radialGradient id="flame" cx="0.5" cy="0.7" r="0.6">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.4" stop-color="#ffe38a"/>
+      <stop offset="1" stop-color="#ff8a2a"/>
+    </radialGradient>
+    <linearGradient id="label" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2b3566"/>
+      <stop offset="1" stop-color="#3d4a86"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="100" cy="60" rx="80" ry="58" fill="url(#glow)"/>
+  <ellipse cx="100" cy="140" rx="50" ry="8" fill="#000" opacity="0.3"/>
+  <!-- wax inside -->
+  <path d="M60 64 L140 64 L140 132 C140 138 124 141 100 141 C76 141 60 138 60 132 Z" fill="url(#wax)"/>
+  <ellipse cx="100" cy="64" rx="40" ry="8" fill="#fffcf2"/>
+  <ellipse cx="100" cy="64" rx="12" ry="3" fill="#f2e2bb"/>
+  <!-- wick and flame -->
+  <path d="M100 64 L100 54" stroke="#2a2420" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M100 22 C110 36 112 46 100 56 C88 46 90 36 100 22 Z" fill="url(#flame)"/>
+  <path d="M100 38 C104 44 104 50 100 54 C96 50 96 44 100 38 Z" fill="#ffffff" opacity="0.8"/>
+  <!-- glass jar -->
+  <path d="M56 52 L144 52 L144 132 C144 140 126 144 100 144 C74 144 56 140 56 132 Z" fill="url(#glass)"/>
+  <ellipse cx="100" cy="52" rx="44" ry="9" fill="none" stroke="#e8f1fa" stroke-width="2.5" opacity="0.8"/>
+  <path d="M64 60 L66 132" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity="0.55"/>
+  <!-- label band -->
+  <path d="M56 96 L144 96 L144 118 L56 118 Z" fill="url(#label)" opacity="0.92"/>
+  <path d="M94 100 a7 7 0 1 0 0 14 a5.5 5.5 0 1 1 0 -14 Z" fill="#f4c95d"/>
+  <rect x="106" y="104" width="24" height="2.5" rx="1" fill="#c9cfee"/>
+  <rect x="106" y="109" width="16" height="2.5" rx="1" fill="#8f99cc"/>
+</svg>
