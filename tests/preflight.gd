@@ -6,6 +6,7 @@ const Recovery := preload("res://tests/recovery_test.gd")
 const Chapter2 := preload("res://tests/chapter2_test.gd")
 const Desk := preload("res://tests/desk_test.gd")
 const Chapter3 := preload("res://tests/chapter3_test.gd")
+const Events := preload("res://tests/events_test.gd")
 const MainScene := preload("res://scenes/main.tscn")
 
 

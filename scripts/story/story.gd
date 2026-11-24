@@ -37,12 +37,14 @@ const MISSIONS := [
 ]
 const SideEvents := preload("res://scripts/story/side_events.gd")
 const Arcs := preload("res://scripts/story/arcs.gd")
+const Events := preload("res://scripts/story/events.gd")
 const Chapters := preload("res://scripts/story/chapters.gd")
 
 var _missions: Array = []
 var active: RefCounted = null
 var side: RefCounted
 var arcs: RefCounted          # storyline engine (see docs/STORYLINES.md)
+var events: RefCounted        # event card engine
 
 
 func _ready() -> void:
@@ -50,7 +52,8 @@ func _ready() -> void:
 	Game.event.connect(_on_event)
 	Game.time_changed.connect(func(_d: int, _m: int) -> void:
 		side.check()
-		arcs.check())
+		arcs.check()
+		events.check())
 	Game.state_reset.connect(func() -> void:
 		active = null
 		_build())
@@ -64,6 +67,7 @@ func _build() -> void:
 		_missions.append(m)
 	side = SideEvents.new()
 	arcs = Arcs.new()
+	events = Events.new()
 
 
 func mission(id: String) -> RefCounted:
@@ -129,6 +133,7 @@ func start_day(_d: int) -> void:
 	_start_next()
 	side.check()
 	arcs.check()
+	events.check()
 
 
 func _start_next() -> void:
@@ -143,6 +148,7 @@ func _start_next() -> void:
 	objectives_changed.emit()
 	side.flush_day()
 	arcs.flush_day()
+	events.flush_day()
 	_signal_chapter_end()
 	Game.finish_day()
 
@@ -189,6 +195,7 @@ func _on_event(kind: String, data: Dictionary) -> void:
 			_main_commit_warning()
 	side.on_event(kind, data)
 	arcs.on_event(kind, data)
+	events.on_event(kind, data)
 	if active == null or status(active.id) != "active":
 		return
 	var m = active

@@ -30,6 +30,7 @@ const NPCS := {
 	"ai": {"name": "AICode", "role": {"ko": "AI 코딩 에이전트", "en": "AI coding agent"}, "color": "c86bfa"},
 	"system": {"name": "NEXORA", "role": {"ko": "시스템", "en": "System"}, "color": "9aa4b5"},
 	"yuri": {"name": "Yuri Han", "role": {"ko": "고객 성공 매니저", "en": "Customer Success Manager"}, "color": "2dd4bf"},
+	"family": {"name": {"ko": "엄마", "en": "Mom"}, "role": {"ko": "가족", "en": "Family"}, "color": "fda4af"},
 	"taeseok": {"name": "Taeseok Kang", "role": {"ko": "보안·감사 엔지니어", "en": "Security & Audit Engineer"}, "color": "94a3b8"},
 	"hana": {"name": "Hana Yoon", "role": {"ko": "전 결제팀 개발자", "en": "Former Payments Engineer"}, "color": "f0abfc"},
 	"recruiter": {"name": "Jamie Seo", "role": {"ko": "테크 리크루터 · Brightloop", "en": "Tech Recruiter · Brightloop"}, "color": "38bdf8"},
@@ -81,7 +82,7 @@ func _default_state() -> Dictionary:
 		"chat": [], "next_msg": 1, "unread": {},
 		"issues": [],
 		"stats": {}, "stats_today": {},
-		"story": {}, "side": {}, "arcs": {},
+		"story": {}, "side": {}, "arcs": {}, "events": {},
 		"investigations": {},
 		"codehub": {"prs": [], "next_id": 1},
 		"monitor": {"status": {"api": "ok", "auth": "ok", "payments": "ok"}, "mode": "normal"},
@@ -110,6 +111,9 @@ func set_language(l: String) -> void:
 
 ## Accessibility: the "boss walks by while you're slacking" event can be turned off.
 var walkby_enabled := true
+## Event cards (scripts/story/events.gd). Off inside the isolated QA projects so scripted checks
+## stay deterministic; the events suite turns it back on.
+var events_enabled := not String(ProjectSettings.get_setting("application/config/name")).begins_with("codien-gameplay-qa-")
 
 
 func set_walkby(on: bool) -> void:
@@ -363,7 +367,7 @@ func rel_label(key: String) -> String:
 func npc_name(id: String) -> String:
 	if id == "me":
 		return pname()
-	return NPCS[id]["name"] if NPCS.has(id) else pname()
+	return tx(NPCS[id]["name"]) if NPCS.has(id) else pname()
 
 
 func npc_role(id: String) -> String:

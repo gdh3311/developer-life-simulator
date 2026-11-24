@@ -32,6 +32,8 @@ var _view := "room"            # room | desk | close
 var _close_up := false         # F2 preference while working
 var _side: Control             # side monitor rig (null below tier 1)
 var _tier := -1
+var _visitor: Control          # a teammate standing beside the desk (event cards)
+var _visitor_npc := ""
 var _hint: Label
 var _fade: ColorRect
 var _shadow: Control
@@ -60,7 +62,11 @@ func _ready() -> void:
 	Game.time_changed.connect(func(_d: int, _m: int) -> void: _update_workstation(true))
 	Game.event.connect(func(kind: String, _d: Dictionary) -> void:
 		if kind == "promoted":
-			_update_workstation(false))
+			_update_workstation(false)
+		elif kind in ["event_card", "event_resolved"]:
+			_update_visitor())
+	_visitor = _make_visitor()
+	_rig.add_child(_visitor)
 	_add_vignette()
 	_shadow = _make_shadow()
 	add_child(_shadow)
@@ -351,6 +357,47 @@ func _apply_view(mode: String, instant := false) -> void:
 	var t := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	t.tween_property(_rig, "scale", Vector2.ONE * target_scale, 0.5)
 	t.parallel().tween_property(_rig, "position", target_pos, 0.5)
+
+
+## Someone walks up and stands to the right of the monitor while a desk-visit card is open.
+func _make_visitor() -> Control:
+	var c := Control.new()
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.size = Vector2(360, 820)
+	c.position = Vector2(VIEW.x + 40, 300)
+	c.modulate.a = 0.0
+	c.draw.connect(func() -> void:
+		var base := Game.npc_color(_visitor_npc) if _visitor_npc != "" else Color("5b8cff")
+		var body := base.darkened(0.72)
+		var rim := base.darkened(0.25)
+		c.draw_colored_polygon(PackedVector2Array([Vector2(60, 330), Vector2(300, 330), Vector2(350, 820), Vector2(10, 820)]), body)
+		c.draw_circle(Vector2(180, 330), 120, body)
+		c.draw_circle(Vector2(180, 170), 92, body)
+		c.draw_arc(Vector2(180, 170), 92, -PI * 0.9, -PI * 0.1, 32, rim, 4.0, true)
+		c.draw_arc(Vector2(180, 330), 120, -PI * 0.95, -PI * 0.55, 24, rim, 4.0, true))
+	return c
+
+
+func visitor_npc() -> String:
+	return _visitor_npc
+
+
+func _update_visitor() -> void:
+	var c: Dictionary = Story.events.pending()
+	var npc := String(c.get("from", "")) if c.get("format", "") == "desk_visit" else ""
+	if npc == _visitor_npc:
+		return
+	_visitor_npc = npc
+	_visitor.queue_redraw()
+	var t := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if npc != "":
+		Sfx.footsteps(3, 0.2)
+		_visitor.position = Vector2(VIEW.x + 40, 300)
+		t.tween_property(_visitor, "position:x", 1500.0, 0.7)
+		t.parallel().tween_property(_visitor, "modulate:a", 0.97, 0.4)
+	else:
+		t.tween_property(_visitor, "position:x", VIEW.x + 40, 0.5)
+		t.parallel().tween_property(_visitor, "modulate:a", 0.0, 0.5)
 
 
 func view_mode() -> String:

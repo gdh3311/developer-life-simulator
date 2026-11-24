@@ -28,6 +28,7 @@ var apps: Array[Dictionary] = [
 
 var _windows: Control
 var _toasts: VBoxContainer
+var event_ui: Control         # pending event card (call / desk visit / popup)
 var _pills: VBoxContainer
 var _clock: Label
 var _mission_chip: Label
@@ -66,6 +67,8 @@ func _ready() -> void:
 	_build_dock()
 	_build_guide()
 	_build_toasts()
+	event_ui = preload("res://scripts/desktop/event_card_ui.gd").new()
+	add_child(event_ui)
 	_alert = ColorRect.new()
 	_alert.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_alert.color = Color(1, 0.2, 0.2, 0)
@@ -342,7 +345,7 @@ func notify(app_id: String, title: String, body: String) -> void:
 
 func _npc_from_title(title: String) -> String:
 	for id in Game.NPCS:
-		if Game.NPCS[id]["name"] == title:
+		if Game.npc_name(id) == title:
 			return id
 	return ""
 
