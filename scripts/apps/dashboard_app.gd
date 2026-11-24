@@ -17,6 +17,9 @@ func _ready() -> void:
 	get_child(0).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	Game.relation_changed.connect(func(_n: String, _k: String, _d: int) -> void: _render())
 	Story.objectives_changed.connect(_render)
+	Game.event.connect(func(kind: String, _d: Dictionary) -> void:
+		if kind in ["achievement", "skill_up"] and is_visible_in_tree():
+			_render())
 	Game.wallet_changed.connect(_render)
 	Cases.changed.connect(_render)
 	_render()
@@ -45,6 +48,7 @@ func _render() -> void:
 	pr.add_child(prog)
 	prof.add_child(pr)
 	_root.add_child(prof)
+	_root.add_child(preload("res://scripts/apps/career_panel.gd").dashboard())
 
 	# Storylines
 	if Game.chapter() >= 3:

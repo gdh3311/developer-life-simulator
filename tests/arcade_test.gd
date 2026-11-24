@@ -2,6 +2,7 @@ extends Node
 ## Production flow from shortcut to playable release, on a separate save and Git workspace.
 
 const Desktop := preload("res://scripts/desktop/desktop.gd")
+const Art := preload("res://scripts/ui/illustrations.gd")
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const Rules := preload("res://scripts/services/arcade_rules.gd")
 const SOLUTION := "DDDRDRUUURRRD"
@@ -61,6 +62,8 @@ func _run() -> void:
 	var board: Control = app._board
 	check(browser._url.text == "https://arcade.test" and app._mode == "sample", "F3 opens the live sample directly")
 	check(not ArcadeStudio.has_source(), "sample does not create work files")
+	check(board._sprites.size() == Art.ARCADE_ORDER.size() and board._sprites.values().all(func(sprite: Texture2D) -> bool: return sprite is AtlasTexture), "every board object has a generated sprite")
+	check(board._sprites["exit_locked"] != board._sprites["exit_open"], "locked and open exits use distinct art")
 	await capture("packet_run_sample")
 	board._gui_input(_key(KEY_LEFT))
 	check(board.moves == 0 and board.status == "wall", "blocked moves cost nothing")

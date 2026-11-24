@@ -3,6 +3,7 @@ extends HSplitContainer
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 
+var desktop: Control
 var _channel := "general"
 var _list: VBoxContainer
 var _header: VBoxContainer
@@ -61,6 +62,13 @@ func _channels() -> Array:
 	return result
 
 
+func open_channel(id: String) -> void:
+	if _channels().any(func(channel: Array) -> bool: return channel[0] == id):
+		_channel = id
+		Game.mark_read(id)
+		_render()
+
+
 func _render() -> void:
 	UITheme.clear(_list)
 	_list.add_child(UITheme.label(Game.L("  채널", "  Channels"), 11, UITheme.MUTED))
@@ -76,10 +84,7 @@ func _render() -> void:
 		var unread := int(Game.state["unread"].get(id, 0))
 		b.text = "%s%s" % [ch[1], ("   (%d)" % unread) if unread > 0 and id != _channel else ""]
 		b.add_theme_color_override("font_color", UITheme.TEXT if unread > 0 or id == _channel else UITheme.TEXT2)
-		b.pressed.connect(func() -> void:
-			_channel = id
-			Game.mark_read(id)
-			_render())
+		b.pressed.connect(open_channel.bind(id))
 		_list.add_child(b)
 		if id == "general":
 			_list.add_child(UITheme.label(Game.L("  다이렉트 메시지", "  Direct messages"), 11, UITheme.MUTED))
@@ -152,6 +157,12 @@ func _message(m: Dictionary) -> Control:
 	if mine:
 		bubble.custom_minimum_size.x = mini(Game.tx(m["text"]).length() * 9 + 30, 420)
 	col.add_child(bubble)
+	var link = m.get("link", {})
+	if desktop != null and link is Dictionary and link.get("app") in ["browser", "pork"]:
+		var jump := UITheme.button(Game.tx(link.get("label", "")) + "  ↗")
+		jump.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		jump.pressed.connect(desktop.open_resource.bind(link["app"], String(link.get("target", ""))))
+		col.add_child(jump)
 	var choices: Array = m["choices"]
 	if not choices.is_empty() and m["answered"] == "":
 		var opts := UITheme.vbox(6)

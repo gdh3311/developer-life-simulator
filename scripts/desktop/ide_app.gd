@@ -38,8 +38,18 @@ func _ready() -> void:
 	_tab = UITheme.label("", 13, Color("c9cfd9"))
 	_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_tab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	var tab_row := UITheme.hbox(6)
+	_tab.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	var tab_row := HFlowContainer.new()
+	tab_row.add_theme_constant_override("h_separation", 6)
+	tab_row.add_theme_constant_override("v_separation", 4)
 	tab_row.add_child(_tab)
+	var copy := UITheme.button(Game.L("복사", "Copy"))
+	copy.tooltip_text = Game.L("선택한 코드 또는 현재 파일 전체 복사", "Copy selected code or the whole file")
+	copy.pressed.connect(_copy_code)
+	tab_row.add_child(copy)
+	var paste := UITheme.button(Game.L("붙여넣기", "Paste"))
+	paste.pressed.connect(_paste_code)
+	tab_row.add_child(paste)
 	_studio_save = UITheme.button(Game.L("저장", "Save"))
 	_studio_save.pressed.connect(save)
 	tab_row.add_child(_studio_save)
@@ -130,6 +140,20 @@ func save() -> void:
 
 func _is_dirty() -> bool:
 	return _code.text != _saved_text
+
+
+func has_unsaved_changes(path: String) -> bool:
+	return _is_dirty() if path == _current else _buffers.has(path)
+
+
+func _copy_code() -> void:
+	var text := _code.get_selected_text() if _code.has_selection() else _code.text
+	DisplayServer.clipboard_set(text)
+
+
+func _paste_code() -> void:
+	_code.paste()
+	_code.grab_focus()
 
 
 func _set_text(text: String) -> void:

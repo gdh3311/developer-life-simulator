@@ -22,7 +22,12 @@ func _init() -> void:
 		t("예: key = JSON.stringify([request.shopId, requestKey]), fingerprint = JSON.stringify(request.items). store.get/set은 완료된 주문을 기억합니다.", "For example: key = JSON.stringify([request.shopId, requestKey]), fingerprint = JSON.stringify(request.items). store.get/set remembers completed orders."),
 		t("AICode의 순차 구현 초안을 써도 돼요. 아직 동시성은 해결하지 않았다는 범위를 확인하고 테스트와 Lab으로 검증하세요.", "You may use AICode's sequential draft. Note that concurrency remains unsolved, then verify with tests and Lab."),
 	]
-	ai_task = {"label": t("주문 순차 재시도 계약", "Sequential order retry contract"), "files": {"src/orders/request.ts": "c02/request_sequential.ts"}, "summary": t("순차 재시도·내용 충돌·빈 키 처리를 구현했습니다. 동시 호출은 검증하지 않았습니다.", "Implemented sequential retries, content conflicts, and empty keys. Concurrent calls are not validated.")}
+	ai_task = {
+		"label": t("주문 순차 재시도 계약", "Sequential order retry contract"),
+		"files": {"src/orders/request.ts": "c02/request_sequential.ts"},
+		"bases": {"src/orders/request.ts": "c02/request.ts"},
+		"summary": t("순차 재시도·내용 충돌·빈 키 처리를 구현했습니다. 검증 범위는 순차 요청입니다.", "Implemented sequential retries, content conflicts, and empty keys. Validation scope: sequential calls."),
+	}
 
 
 func begin() -> void:

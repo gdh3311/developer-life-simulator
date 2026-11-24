@@ -2,6 +2,7 @@ extends Node
 ## Replay the real chapter through in-game Terminal/IDE and real Git/Node/CodeHub.
 
 const Solutions := preload("res://tests/chapter_solutions.gd")
+const Pork := preload("res://scripts/apps/pork_app.gd")
 var _terminal: Control
 var _ide: Control
 var _ai: Control
@@ -94,6 +95,76 @@ func submit(branch: String, title: String) -> Dictionary:
 	return opened.get("pr", {})
 
 
+func first_pr_with_pork() -> Dictionary:
+	var pork := Pork.new()
+	add_child(pork)
+	await wait_until(func() -> bool: return pork._history.item_count > 0 and not pork._reading, "Pork displays real commits")
+	var initial_tokens := Game.ai_tokens_remaining()
+	check(not _ai._on_delegate(true) and Game.ai_tokens_remaining() == initial_tokens, "auto-apply cannot spend tokens or write on main")
+	pork._branch_name.text = "docs/fix-typo"
+	await pork._new_branch()
+	check(Workspace.branch == "docs/fix-typo" and Story.active.is_done("branch"), "Pork creates the real branch and advances the mission")
+	var before := Workspace.read_file("README.md")
+	check("docs/fix-typo" in await _ai._on_repository(), "AICode reads the actual working branch")
+	check(_ai._on_delegate() and Workspace.read_file("README.md") == before and Game.stat("ai_used") == 0, "AICode previews the first task without changing files or stats")
+	check(Game.ai_tokens_remaining() == initial_tokens - 60 - 320, "the repository request and draft consume their displayed token prices")
+	await edit("README.md", before + "\nQA note.\n")
+	check(not _ai._apply_draft() and "Commerse" in Workspace.read_file("README.md"), "AICode rejects a stale draft after an edit")
+	_ai._dismiss_draft()
+	check(_ai._on_delegate(true) and "QA note." in Workspace.read_file("README.md") and "Commerse" not in Workspace.read_file("README.md"),
+		"one automatic request applies the intended edit and preserves existing notes")
+	check(Game.ai_tokens_remaining() == initial_tokens - 60 - 320 - 320, "auto-apply is charged once and a blocked application is free")
+	check(Story.active.is_done("edit") and Game.stat("ai_used") == 1, "the approved AI edit is counted once and updates the real objective")
+	await wait_until(func() -> bool: return pork._changes.item_count == 1 and not pork._reading, "Pork sees the file saved in DevIDE")
+	pork._changes.select(0)
+	await pork._show_selection(0)
+	check("+NEXORA Commerce Cloud" in pork._diff.get_parsed_text(), "Pork shows the actual added line")
+	check(Story.active.is_done("diff"), "viewing the diff in Pork advances the review step")
+	await pork._stage_file(false)
+	await wait_until(func() -> bool: return not pork._dirty and not pork._reading, "Pork refreshes the staged state")
+	await pork._stage_file(true)
+	await wait_until(func() -> bool: return not pork._dirty and not pork._reading, "Pork refreshes the unstaged state")
+	check(String((await Workspace._working_git(["diff", "--name-only"]))["out"]).contains("README.md"), "unstaging leaves the edit in the working tree")
+	await pork._stage_file(false)
+	await wait_until(func() -> bool: return not pork._dirty and not pork._reading, "Pork refreshes the staged file again")
+	pork._message.text = "docs: correct the product name"
+	await pork._commit_changes()
+	await wait_until(func() -> bool: return not pork._dirty and not pork._reading, "Pork refreshes after commit")
+	check(pork._changes.item_count == 0 and Story.active.is_done("commit"), "committing in Pork cleans the real checkout and advances the mission")
+	var review: Dictionary = await _ai._on_review()
+	check("README.md" in String(review.get("draft", "")) and "docs: correct the product name" in String(review.get("draft", "")), "AICode drafts a PR description from the real commit")
+	check((await _ai._on_tests()).get("ok", false) and Game.ai_tokens_remaining() == 20, "actual delegated tests consume the last affordable request")
+	Game._save()
+	check(Game.load_game() and Game.ai_tokens_remaining() == 20, "same-day loading retains the remaining tokens")
+	check((await _ai._on_repository()) == "" and (await _ai._on_review()).is_empty(), "the exhausted request budget blocks more agent work")
+	check(await pork._execute(["push"]) and Story.active.is_done("push"), "Pork pushes to the same remote used by CodeHub")
+	await wait_until(func() -> bool: return not pork._dirty and not pork._reading, "Pork refreshes after push")
+	pork.queue_free()
+	var opened := await CodeHub.open_pr("docs/fix-typo", "docs: correct the product name", "Fixed the Commerce Cloud name in README.")
+	check(opened.get("ok", false), "CodeHub opens the PR from the branch pushed in Pork")
+	return opened.get("pr", {})
+
+
+func first_pr_in_terminal() -> Dictionary:
+	await command("git switch -c docs/fix-typo")
+	var first_pr: Dictionary = {}
+	if _profile == "recover":
+		await command('git commit --allow-empty -m "docs: incomplete first attempt"')
+		await command("git push")
+		var incomplete := await CodeHub.open_pr("docs/fix-typo", "docs: incomplete first attempt", "Checking the tutorial review guard.")
+		first_pr = incomplete.get("pr", {})
+		await wait_until(func() -> bool: return first_pr.get("review", {}).get("state", "") == "changes", "first PR cannot pass without the actual README correction")
+		check(active("d1_02") and not Story.active.is_done("edit"), "an unrelated commit does not complete the edit objective")
+	await edit("README.md", Workspace.read_file("README.md").replace("Commerse", "Commerce"))
+	await command("git diff")
+	if first_pr.is_empty():
+		return await submit("docs/fix-typo", "docs: correct the company name")
+	await command("git add .")
+	await command('git commit -m "docs: correct the company name"')
+	await command("git push")
+	return first_pr
+
+
 func merged(pr: Dictionary) -> bool:
 	return await wait_until(func() -> bool: return pr.get("state", "") == "merged", "senior merged " + String(pr.get("branch", "missing")))
 
@@ -150,6 +221,7 @@ func _run() -> void:
 		await finish()
 		return
 	await wait_until(func() -> bool: return Story.active.is_done("hello"), "answered welcome")
+	check(has_message("Commerce Cloud"), "Alex introduces the company product before the first task")
 	Game.emit_event("wiki_page", {"page": "workflow"})
 	await command("help")
 	await command("ls")
@@ -161,26 +233,9 @@ func _run() -> void:
 	if not await wait_mission("d1_02"):
 		await finish()
 		return
-	await command("git switch -c docs/fix-typo")
-	var first_pr: Dictionary = {}
-	if _profile == "recover":
-		await command('git commit --allow-empty -m "docs: incomplete first attempt"')
-		await command("git push")
-		var incomplete := await CodeHub.open_pr("docs/fix-typo", "docs: incomplete first attempt", "Checking the tutorial review guard.")
-		first_pr = incomplete.get("pr", {})
-		await wait_until(func() -> bool: return first_pr.get("review", {}).get("state", "") == "changes", "first PR cannot pass without the actual README correction")
-		check(active("d1_02") and not Story.active.is_done("edit"), "an unrelated commit does not complete the edit objective")
-	await edit("README.md", Workspace.read_file("README.md").replace("Commerse", "Commerce"))
-	await command("git diff")
-	var pr: Dictionary
-	if first_pr.is_empty():
-		pr = await submit("docs/fix-typo", "docs: correct the company name")
-	else:
-		await command("git add .")
-		await command('git commit -m "docs: correct the company name"')
-		await command("git push")
-		pr = first_pr
-	if not await merged(pr) or not await wait_mission("d1_03"):
+	await wait_until(func() -> bool: return has_message("Pork Git"), "Daniel introduces the graphical Git client")
+	var onboarding_pr := await first_pr_with_pork() if _profile == "prevent" else await first_pr_in_terminal()
+	if not await merged(onboarding_pr) or not await wait_mission("d1_03"):
 		await finish()
 		return
 	await sync_main()
@@ -190,9 +245,11 @@ func _run() -> void:
 	if not await wait_mission("d2_04"):
 		await finish()
 		return
+	if _profile == "prevent":
+		check(Game.ai_tokens_remaining() == Game.AI_DAILY_TOKENS, "the next workday refills the AI budget")
 	await wait_until(func() -> bool: return has_message("#001"), "Mina published reproduction tests")
 	await sync_main()
-	var failing := await Workspace.run_tests()
+	var failing: Dictionary = await _ai._on_tests() if _profile == "prevent" else await Workspace.run_tests()
 	check(not failing["ok"] and failing["failed"] > 0, "reproduced first name bug with Node")
 	Game.emit_event("wiki_page", {"page": "names"})
 	check(Cases.choose("d2_04", "cache"), "recorded an initial wrong hypothesis")
@@ -202,10 +259,22 @@ func _run() -> void:
 			check(Story.next_hint() != "", "received a usable hint")
 	await command("git switch -c fix/profile-name")
 	await edit("src/users/displayName.ts", Solutions.NAME)
-	if _profile != "recover":
+	if _profile == "prevent":
+		for i in _ai._files.item_count:
+			if _ai._files.get_item_metadata(i) == "package.json":
+				_ai._files.select(i)
+				break
+		var package_before := Workspace.read_file("package.json")
+		_ai._clip_code.text = package_before + "\n"
+		check(_ai._on_pasted_code() and Workspace.read_file("package.json") == package_before, "pasted code previews the selected file before changing it")
+		_ai._dismiss_draft()
+		check(_ai._on_pasted_code(true) and Workspace.read_file("package.json") == package_before + "\n", "auto-applying pasted code writes exactly the supplied contents")
+		check(_ai._undo_application() and Workspace.read_file("package.json") == package_before, "undo restores the original saved file")
+		check(_ai._on_delegate(true) and "test(" in Workspace.read_file("tests/displayName.regression.test.ts"), "AICode automatically adds the requested regression tests to the real repo")
+	elif _profile != "recover":
 		await edit("tests/player_name.test.ts", Solutions.NAME_TEST)
 	check((await Workspace.run_tests())["ok"], "fixed name contract locally")
-	pr = await submit("fix/profile-name", "fix: handle missing name parts")
+	var pr := await submit("fix/profile-name", "fix: handle missing name parts")
 	if not await merged(pr) or not await wait_mission("d2_05"):
 		await finish()
 		return
@@ -304,7 +373,10 @@ func finish_shipping(pr: Dictionary) -> void:
 	await sync_main()
 	await command("git switch -c hotfix/login-timeout")
 	if _profile == "recover":
-		await _ai._on_delegate()
+		var login_before := Workspace.read_file("src/auth/login.ts")
+		check(_ai._on_delegate() and Workspace.read_file("src/auth/login.ts") == login_before, "login draft is visible before either file changes")
+		check(_ai._apply_draft() and "Promise.race" in Workspace.read_file("src/auth/login.ts")
+			and "test(" in Workspace.read_file("tests/login.test.ts"), "declared login implementation and test are both applied")
 		check(Game.stat("ai_used") == 1, "AI delegation is counted once")
 		pr = await submit("hotfix/login-timeout", "fix: try AI timeout draft")
 		await wait_until(func() -> bool: return pr["ci"]["state"] == "fail", "hidden CI rejects the flawed AI patch")

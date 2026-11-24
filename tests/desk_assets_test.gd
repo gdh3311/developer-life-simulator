@@ -63,7 +63,7 @@ func _run() -> void:
 	_main = MainScene.instantiate()
 	get_tree().root.add_child.call_deferred(_main)
 	var deadline := Time.get_ticks_msec() + 15000
-	while (_main == null or not _main.is_inside_tree() or _main.view_mode() == "room") and Time.get_ticks_msec() < deadline:
+	while (not _main.is_inside_tree() or not _main._screen_powered) and Time.get_ticks_msec() < deadline:
 		await get_tree().process_frame
 	await pause(0.9)
 	_main._desktop._boot.visible = false
@@ -137,6 +137,11 @@ func _run() -> void:
 
 	for f in ["qa_mug.svg", "qa_mug.json", "sneaky.json", "wrong_slot.json"]:
 		DirAccess.remove_absolute(DeskItems.CUSTOM_DIR.path_join(f))
+	# Release cached textures (static) before exit so nothing outlives the engine's leak check.
+	DeskItems.reload()
+	_main.queue_free()
+	# Let the scene's tweens and timers finish before quitting.
+	await pause(0.8)
 	while Sfx._music.stream == null:
 		await get_tree().process_frame
 	Sfx.stop_all()

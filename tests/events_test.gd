@@ -67,7 +67,7 @@ func _run() -> void:
 	_main = MainScene.instantiate()
 	get_tree().root.add_child.call_deferred(_main)
 	var deadline := Time.get_ticks_msec() + 15000
-	while (_main == null or not _main.is_inside_tree() or _main.view_mode() == "room") and Time.get_ticks_msec() < deadline:
+	while (not _main.is_inside_tree() or not _main._screen_powered) and Time.get_ticks_msec() < deadline:
 		await get_tree().process_frame
 	await pause(0.8)
 	_main._desktop._boot.visible = false

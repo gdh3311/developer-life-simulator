@@ -62,6 +62,8 @@ var _seen_commits := {}
 var _node_ok := -1
 var _bot_busy := false
 var _ci_busy := false
+var _player_git_busy := false
+var _player_tests_running := 0
 var active_jobs := 0
 var restore_changed := false
 
@@ -315,13 +317,49 @@ func check_git_args(args: Array) -> String:
 
 
 ## Runs a real git command in the player's working copy, then checks for game events.
-func git(args: Array) -> Dictionary:
+func git(args: Array, literal_paths := false) -> Dictionary:
+	if _player_git_busy:
+		return {"code": -1, "out": "", "err": Game.L("다른 Git 작업이 끝나면 다시 시도하세요.", "Try again when the other Git operation finishes."), "timed_out": false}
+	_player_git_busy = true
 	var before := _snap.duplicate(true)
-	var result := await _git_in(repo, args, 20.0)
+	var result := await _working_git(args, literal_paths)
+	await refresh(String(args[0]) if result["code"] == 0 and not args.is_empty() else "", before)
+	_player_git_busy = false
+	return result
+
+
+## Used by Pork and AICode to inspect the working copy without reporting a player command.
+func _working_git(args: Array, literal_paths := false) -> Dictionary:
+	var options := ["--literal-pathspecs"] if literal_paths else []
+	var result := await _git_in(repo, options + args, 20.0)
 	result["out"] = virtualize(result["out"])
 	result["err"] = virtualize(result["err"])
-	await refresh(String(args[0]) if result["code"] == 0 and not args.is_empty() else "", before)
 	return result
+
+
+## Apply checked, game-authored changes with Git's all-or-nothing patch validation.
+func apply_agent_patch(patch: String, reverse := false) -> String:
+	if _player_git_busy or _player_tests_running > 0:
+		return Game.L("현재 Git 작업이나 테스트가 끝난 뒤 다시 시도하세요.", "Try again after the current Git command or test run finishes.")
+	var patch_path := root.path_join("aicode-%d.patch" % Time.get_ticks_usec())
+	var file := FileAccess.open(patch_path, FileAccess.WRITE)
+	if file == null:
+		return Game.L("초안 파일을 준비할 수 없습니다.", "The draft file could not be prepared.")
+	file.store_string(patch)
+	var write_error := file.get_error()
+	file.close()
+	var output: Array = []
+	var args := ["-C", repo, "apply", "--whitespace=nowarn"]
+	if reverse:
+		args.append("--reverse")
+	args.append_array(["--", patch_path])
+	var code := OS.execute("git", args, output, true) if write_error == OK else -1
+	DirAccess.remove_absolute(patch_path)
+	if code == 0:
+		repo_changed.emit()
+		return ""
+	var error := virtualize(String(output[0]).strip_edges()) if not output.is_empty() else ""
+	return error if error != "" else Game.L("Git에서 변경 내용을 적용하지 못했습니다.", "Git could not apply the draft.")
 
 
 func has_node_runtime() -> bool:
@@ -346,8 +384,12 @@ func run_tests(dir := "", emit := true) -> Dictionary:
 				files.append(tests_dir.path_join(f))
 	if files.is_empty():
 		return {"ok": false, "passed": 0, "failed": 0, "tests": [], "output": "", "error": Game.L("테스트 파일이 없습니다.", "No test files.")}
+	if dir == repo:
+		_player_tests_running += 1
 	var r := await run("node", ["--experimental-strip-types", "--no-warnings", "--test",
 		"--test-reporter=tap", "--test-timeout=8000"] + files, 25.0)
+	if dir == repo:
+		_player_tests_running -= 1
 	var parsed := _parse_tap(r["out"])
 	parsed["timed_out"] = r["timed_out"]
 	parsed["output"] = virtualize(r["out"] + r["err"])

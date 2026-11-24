@@ -218,9 +218,11 @@ func after_restart() -> void:
 	check(Game.SaveStore._read_one(Game.SAVE_PATH, Game._default_state())["ok"], "an unsuccessful experiment does not break saving")
 	var solution := Workspace.content("c02/request_sequential.ts")
 	if _profile == "recover":
+		# AICode drafts apply only to the file version they were built on: drop the broken edit first.
+		await command("git restore src/orders/request.ts")
 		var ai := preload("res://scripts/apps/ai_app.gd").new()
 		add_child(ai)
-		await ai._on_delegate()
+		check(ai._on_delegate(true), "AICode applies its draft on the working branch")
 		check(Game.stat("ai_used") == 1 and Workspace.read_file("src/orders/request.ts") == solution, "AI path writes the scoped sequential draft")
 		ai.queue_free()
 	else:
@@ -386,7 +388,7 @@ func finale() -> void:
 	if _profile == "recover":
 		var ai := preload("res://scripts/apps/ai_app.gd").new()
 		add_child(ai)
-		await ai._on_delegate()
+		check(ai._on_delegate(true), "AICode applies its draft on the working branch")
 		ai.queue_free()
 		await command("npm test")
 		check(Story.active.is_done("concfix"), "AI draft passes the public tests")

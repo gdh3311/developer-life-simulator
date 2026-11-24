@@ -28,6 +28,7 @@ func _init() -> void:
 	ai_task = {
 		"label": t("동시 요청 선점 처리", "Concurrent claim handling"),
 		"files": {"src/orders/request.ts": "c02/request_concurrent_ai.ts"},
+		"bases": {"src/orders/request.ts": "c02/request_sequential.ts"},
 		"summary": t("claim/complete/release로 동시 요청과 생성 실패 복구를 처리했습니다. 생성 중(pending)일 때의 내용 비교는 검증하지 않았습니다.",
 			"Handled concurrent calls and creation failures with claim/complete/release. Content comparison while a claim is pending was not validated."),
 	}

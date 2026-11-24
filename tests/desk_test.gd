@@ -1,6 +1,5 @@
 extends Node
-## Desk view and workstation tiers: renders the real main scene (room + monitor + side monitor)
-## at each tier and view mode. Isolated QA project only.
+## Exercises the real seated view, monitor controls, and workstation tiers in an isolated project.
 
 const MainScene := preload("res://scenes/main.tscn")
 var _checks := 0
@@ -43,18 +42,33 @@ func _run() -> void:
 	get_tree().root.add_child.call_deferred(_main)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	# Power-on intro: lean in, screen turns on, desk view.
+	check(_main.view_mode() == "desk" and not _main._screen_powered, "first frame is at the desk before power-on")
 	var deadline := Time.get_ticks_msec() + 15000
-	while _main.view_mode() == "room" and Time.get_ticks_msec() < deadline:
+	while not _main._screen_powered and Time.get_ticks_msec() < deadline:
 		await get_tree().process_frame
 	await pause(0.9)
 	_main._desktop._boot.visible = false
-	check(_main.view_mode() == "desk", "default working view is the desk, not a full-screen monitor")
+	check(_main._screen_powered and _main.view_mode() == "desk", "power-on retains the seated view")
 	check(_main._side == null, "an intern has one monitor")
 	var shown: float = _main.SCREEN.x * _main._rig.scale.x
-	check(shown >= 1350.0 and shown < 1920.0, "monitor stays dominant while the desk shows around it")
-	check(_main._rig.position.y + _main._rig.scale.y * 0.0 <= 0.0, "desk view keeps the screen near the top")
+	check(shown >= 1250.0 and shown <= 1400.0, "the main monitor leaves room for the desk and surroundings")
+	check(_main._room._desk_surface != null, "the wood surface is available in the real desk scene")
 	await capture("desk_intern")
+
+	check((await Workspace.prepare())["ok"], "the test desk mounts its isolated company repository")
+	var ide_button: Control = _main._desktop._dock_buttons["ide"]
+	var screen_origin: Vector2 = _main._room.monitor_rect.position + Vector2.ONE * _main.BEZEL
+	var desk_transform: Transform2D = _main._rig.get_global_transform_with_canvas()
+	click_at(desk_transform * (screen_origin + ide_button.get_global_rect().get_center()))
+	await pause(0.35)
+	check(_main._desktop.top_window_app() == "ide" and _main.view_mode() == "desk", "clicking the physical monitor opens DevIDE in the seated view")
+	var editor = _main._desktop._find_method(_main._desktop, "open_file")
+	if editor != null:
+		editor.open_file("src/orders/orders.ts")
+		check("export function" in editor._code.text, "the monitor editor shows the actual TypeScript source")
+		await capture("desk_ide")
+	else:
+		check(false, "the monitor opens a source editor")
 
 	Game.state["rank"] = 1
 	Game.emit_event("promoted", {})
@@ -70,16 +84,20 @@ func _run() -> void:
 	check(_main._room.tier == 2, "tier two adds the desk mat and nameplate")
 	await capture("desk_tier2_evening")
 
-	_main._close_up = true
-	_main._apply_view("close")
-	await pause(0.8)
-	check(_main.view_mode() == "close" and is_equal_approx(_main._rig.scale.x, _main.FOCUS_SCALE), "F2 close-up fills the view with the screen")
+	_main._desktop._toasts.hide()
+	press_key(KEY_F2)
+	await pause(0.45)
+	check(_main.view_mode() == "close" and is_equal_approx(_main._rig.scale.x, _main.FOCUS_SCALE), "F2 moves closer to the monitor")
+	var close_transform: Transform2D = _main._rig.get_global_transform_with_canvas()
+	var frame: Rect2 = _main._room.monitor_rect
+	var desk_edge := close_transform * Vector2(0.0, 900.0)
+	var visible_area := Rect2(Vector2.ZERO, _main.VIEW)
+	check(visible_area.has_point(close_transform * frame.position) and visible_area.has_point(close_transform * frame.end)
+		and desk_edge.y < _main.VIEW.y - 60.0, "the monitor frame and a strip of the desk stay visible when zoomed")
 	await capture("desk_closeup")
-	_main._close_up = false
-	_main._set_focus(false)
-	await pause(0.8)
-	check(_main.view_mode() == "room", "leaning back shows the whole room")
-	await capture("desk_room")
+	click_at(_main._focus_button.get_global_rect().get_center())
+	await pause(0.45)
+	check(_main.view_mode() == "desk", "the physical bezel button returns to the seated view")
 
 	# A loaded save replaces the state and emits time_changed.
 	Game.reset_state()
@@ -90,8 +108,6 @@ func _run() -> void:
 	Game.time_changed.emit(Game.day(), Game.minutes())
 	await pause(0.3)
 	check(_main._side != null, "loading a promoted save restores the side monitor without a promotion event")
-	_main._set_focus(true)
-	await pause(0.4)
 	press_key(KEY_F3)
 	await pause(0.35)
 	check(_main._desktop.top_window_app() == "browser", "F3 reaches Relay through the actual monitor viewport")
@@ -103,6 +119,12 @@ func _run() -> void:
 		await capture("desk_packet_run")
 	else:
 		check(false, "the monitor opens a playable arcade page")
+	press_key(KEY_F2)
+	await pause(0.4)
+	await _main.night_transition()
+	check(_main.view_mode() == "desk" and not _main._screen_powered and is_equal_approx(_main._screen_off.color.a, 1.0), "clock-out powers off the monitor from the seated view")
+	await _main.morning_transition()
+	check(_main.view_mode() == "desk" and _main._screen_powered, "the next morning starts at the same desk")
 	while Sfx._music.stream == null:
 		await get_tree().process_frame
 	Sfx.stop_all()
@@ -119,3 +141,15 @@ func press_key(code: Key) -> void:
 	var released := event.duplicate() as InputEventKey
 	released.pressed = false
 	Input.parse_input_event(released)
+
+
+func click_at(viewport_position: Vector2) -> void:
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.position = viewport_position
+	click.global_position = viewport_position
+	click.pressed = true
+	get_viewport().push_input(click, true)
+	var release := click.duplicate() as InputEventMouseButton
+	release.pressed = false
+	get_viewport().push_input(release, true)

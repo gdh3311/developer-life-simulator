@@ -5,7 +5,9 @@ extends VBoxContainer
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const Icon := preload("res://scripts/ui/icon.gd")
+const Art := preload("res://scripts/ui/illustrations.gd")
 const Content := preload("res://scripts/apps/browser_content.gd")
+const Portal := preload("res://scripts/apps/nexora_portal.gd")
 const Arcade := preload("res://scripts/apps/arcade_app.gd")
 const ART := "res://content/web/editorial.png"
 const PAPER := Color("eeeae1")
@@ -53,7 +55,7 @@ var _nav: PanelContainer
 var _nav_title: Label
 var _panes: BoxContainer
 var _address_style: StyleBoxFlat
-var _address_mark: Control
+var _address_mark: TextureRect
 var _tile_grid: GridContainer
 var _lead_photo: TextureRect
 var _lead_copy: VBoxContainer
@@ -90,13 +92,15 @@ func _ready() -> void:
 	_forward = _toolbar_arrow("right", Game.L("앞으로", "Forward"))
 	_forward.pressed.connect(_move_history.bind(1))
 	toolbar.add_child(_forward)
+	var home := _toolbar_arrow("home", Game.L("NEXORA 홈", "NEXORA home"))
+	home.pressed.connect(_go.bind("portal"))
+	toolbar.add_child(home)
 	var address := PanelContainer.new()
 	address.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_address_style = UITheme.box(Color("111a20"), 7, SHELL_LINE, 0)
 	address.add_theme_stylebox_override("panel", _address_style)
 	var address_row := UITheme.hbox(8)
-	_address_mark = Icon.make("globe", RELAY, 14)
-	_address_mark.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_address_mark = Art.icon_view(Art.website(_site), 18)
 	address_row.add_child(_address_mark)
 	_url = LineEdit.new()
 	_url.custom_minimum_size = Vector2(132, 36)
@@ -199,9 +203,34 @@ func _tick() -> void:
 		Game.inc_stat("slack_seconds")
 
 
-func open_page(site: String) -> void:
-	if SITES.any(func(entry: Dictionary) -> bool: return entry["id"] == site):
-		_go(site)
+func _unhandled_key_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key == null or not key.pressed or not key.is_command_or_control_pressed() or key.keycode != KEY_L:
+		return
+	if is_visible_in_tree() and (desktop == null or desktop.top_window_app() == "browser"):
+		_url.grab_focus()
+		_url.select_all()
+		get_viewport().set_input_as_handled()
+
+
+func open_page(route: String) -> void:
+	if _has_route(route):
+		_go(route)
+
+
+func _has_route(route: String) -> bool:
+	var site := route.get_slice("/", 0)
+	if not route.contains("/"):
+		return SITES.any(func(entry: Dictionary) -> bool: return entry["id"] == site)
+	var slug := route.substr(site.length() + 1)
+	match site:
+		"portal":
+			return Portal.SECTIONS.has(slug) and slug != ""
+		"news":
+			return Content.ARTICLES.any(func(entry: Dictionary) -> bool: return entry["id"] == slug)
+		"video":
+			return Content.VIDEOS.any(func(entry: Dictionary) -> bool: return entry["id"] == slug)
+	return false
 
 
 func _go(route: String) -> void:
@@ -252,24 +281,18 @@ func _submit_address(text: String) -> void:
 	var address := text.strip_edges().to_lower().trim_prefix("https://").trim_prefix("http://").trim_suffix("/")
 	for site in SITES:
 		var host: String = site["url"]
-		if address == host:
-			_go(site["id"])
-			return
-		if address.begins_with(host + "/"):
-			var records: Array = Content.ARTICLES if site["id"] == "news" else (Content.VIDEOS if site["id"] == "video" else [])
-			var slug := address.trim_prefix(host + "/")
-			for item in records:
-				if item["id"] == slug:
-					_go(String(site["id"]) + "/" + slug)
-					return
+		if address == host or address.begins_with(host + "/"):
+			var route := String(site["id"]) + address.substr(host.length())
+			if _has_route(route):
+				_go(route)
+				return
 	_address_error.text = Game.L("주소를 찾을 수 없어요. 아래 즐겨찾기에서 사이트를 선택하세요.", "Page not found. Choose a site from your bookmarks below.")
 	_address_error.show()
 
 
 func _update_toolbar() -> void:
 	_url.text = _address()
-	_address_mark.color = Color(current_site()["color"])
-	_address_mark.queue_redraw()
+	_address_mark.texture = Art.website(_site)
 	_address_error.hide()
 	_back.disabled = _history_index <= 0
 	_forward.disabled = _history_index >= _history.size() - 1
@@ -357,13 +380,13 @@ func _render() -> void:
 		b.add_theme_stylebox_override("hover", _site_button_style(Color(tint, 0.10), Color(tint, 0.23)))
 		b.add_theme_stylebox_override("pressed", _site_button_style(Color(tint, 0.19), Color(tint, 0.42)))
 		b.add_theme_color_override("font_color", tint.lightened(0.14) if sel else Color("c0cbd5"))
-		var dot := Icon.make("dot", tint, 13)
-		b.add_child(dot)
-		dot.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
-		dot.offset_left = 6
-		dot.offset_right = 19
-		dot.offset_top = -6.5
-		dot.offset_bottom = 6.5
+		var mark := Art.icon_view(Art.website(s["id"]), 18)
+		b.add_child(mark)
+		mark.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
+		mark.offset_left = 6
+		mark.offset_right = 24
+		mark.offset_top = -9
+		mark.offset_bottom = 9
 		var unread := int(Game.state["unread"].get("connectly", 0))
 		if s["id"] == "connectly" and unread > 0:
 			b.text += "  (%d)" % unread
@@ -379,7 +402,11 @@ func _render() -> void:
 	UITheme.clear(_body)
 	match _site:
 		"portal":
-			_portal()
+			var intranet := Portal.new()
+			intranet.section = _route.get_slice("/", 1)
+			intranet.navigate = _go
+			intranet.desktop = desktop
+			_body.add_child(intranet)
 		"connectly":
 			_connectly()
 		"news":
@@ -398,16 +425,26 @@ func _render() -> void:
 
 func _site_button_style(fill: Color, edge: Color) -> StyleBoxFlat:
 	var style := UITheme.box(fill, 6, edge, 4)
-	style.content_margin_left = 23
+	style.content_margin_left = 30
 	style.content_margin_right = 6
 	return style
 
 
 func _header(title: String, sub: String, color: Color) -> void:
-	var h := UITheme.vbox(2)
-	h.add_child(UITheme.bold(title, 22, color.lightened(0.2)))
+	var h := UITheme.vbox(5)
+	h.add_child(_site_title(title, 22, color.lightened(0.2)))
 	h.add_child(UITheme.wrap(sub, 13, UITheme.TEXT2))
 	_body.add_child(h)
+
+
+func _site_title(title: String, points: int, color: Color) -> HBoxContainer:
+	var title_row := UITheme.hbox(9)
+	title_row.add_child(Art.icon_view(Art.website(_site), points + 2))
+	var heading := UITheme.wrap(title, points, color)
+	heading.add_theme_font_override("font", UITheme.font(false, true))
+	heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title_row.add_child(heading)
+	return title_row
 
 
 func _card() -> PanelContainer:
@@ -417,56 +454,6 @@ func _card() -> PanelContainer:
 
 
 # --- Sites --------------------------------------------------------------------------
-
-func _portal() -> void:
-	_header("NEXORA Portal", Game.L("사내 포털 · DAY %d", "Intranet · DAY %d") % Game.day(), Color("5b8cff"))
-	var play := _browser_button(Game.L("Packet Run 체험하기  →", "Play Packet Run  →"), "arcade.test", Color("f1cd84"))
-	play.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	play.pressed.connect(_go.bind("arcade"))
-	_body.add_child(play)
-	var news := _card()
-	var nv := UITheme.vbox(6)
-	nv.add_child(UITheme.bold(Game.L("공지사항", "Announcements"), 14))
-	for line in [
-		Game.L("• 이번 주 금요일은 팀 회식입니다. (참석 여부는 Alex에게)", "• Team dinner this Friday. (RSVP to Alex)"),
-		Game.L("• 보안 교육 미이수자는 이번 주까지 완료해 주세요.", "• Finish your security training by the end of the week."),
-		Game.L("• 신규 입사자 %s 님을 환영합니다!", "• Welcome our new hire, %s!") % Game.pname(),
-	]:
-		nv.add_child(UITheme.wrap(line, 13, UITheme.TEXT2))
-	news.add_child(nv)
-
-	var menu := _card()
-	var mv := UITheme.vbox(6)
-	mv.add_child(UITheme.bold(Game.L("오늘의 구내식당", "Cafeteria today"), 14))
-	var menus := [Game.L("제육볶음 · 된장국 · 계란말이", "Spicy pork · miso soup · rolled omelette"), Game.L("돈까스 · 우동 · 샐러드", "Pork cutlet · udon · salad"),
-		Game.L("비빔밥 · 미역국 · 김치전", "Bibimbap · seaweed soup · kimchi pancake"), Game.L("치킨마요 · 어묵국 · 과일", "Chicken mayo bowl · fishcake soup · fruit")]
-	mv.add_child(UITheme.wrap(menus[(Game.day() - 1) % menus.size()], 13, UITheme.TEXT2))
-	menu.add_child(mv)
-
-	var coffee := _card()
-	var cv := UITheme.hbox(12)
-	var cvv := UITheme.vbox(2)
-	cvv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cvv.add_child(UITheme.bold(Game.L("탕비실 커피 브레이크", "Coffee break"), 14))
-	cvv.add_child(UITheme.wrap(Game.L("15분 쉬고 컨디션 회복. (현재 컨디션 %d)", "Take 15 minutes and recover. (Condition %d)") % Game.condition(), 12, UITheme.TEXT2))
-	cv.add_child(cvv)
-	var btn := UITheme.button(Game.L("쉬러 가기", "Take a break"), "primary")
-	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var last := int(Game.state["flags"].get("coffee_at", -999))
-	var ready := Game.minutes() - last >= 90 or Game.day() != int(Game.state["flags"].get("coffee_day", 0))
-	btn.disabled = not ready
-	if not ready:
-		btn.text = Game.L("방금 쉬었어요", "Just had one")
-	btn.pressed.connect(func() -> void:
-		Game.state["flags"]["coffee_at"] = Game.minutes()
-		Game.state["flags"]["coffee_day"] = Game.day()
-		Game.advance(15)
-		Game.change_condition(30 if Game.state["owned"].has("coffee_machine") else 15)
-		Game.notify("browser", Game.L("커피 브레이크", "Coffee break"), Game.L("컨디션이 회복됐어요.", "Feeling refreshed."))
-		_render())
-	cv.add_child(btn)
-	coffee.add_child(cv)
-
 
 func _connectly() -> void:
 	var c := Color("38bdf8")
@@ -566,7 +553,7 @@ func _news_link(title: String, target: String) -> Button:
 
 func _news() -> void:
 	var masthead := UITheme.vbox(4)
-	masthead.add_child(UITheme.bold("DevDaily", 33, INK))
+	masthead.add_child(_site_title("DevDaily", 31, INK))
 	masthead.add_child(UITheme.wrap(Game.L("개발과 일에 관한 독립 매체", "An independent journal about software and work"), 13, INK_MUTED))
 	var rule := ColorRect.new()
 	rule.custom_minimum_size.y = 2
@@ -627,7 +614,7 @@ func _videos() -> void:
 	if not _clip.is_empty():
 		_watch_clip(violet)
 		return
-	_body.add_child(UITheme.bold("Streamly", 28, violet))
+	_body.add_child(_site_title("Streamly", 28, violet))
 	_body.add_child(UITheme.wrap(Game.L("작업과 일상을 담은 짧은 포토 클립", "Short photo clips about work and everyday life"), 13, UITheme.TEXT2))
 	var shelf := _new_tile_grid()
 	for clip in Content.VIDEOS:

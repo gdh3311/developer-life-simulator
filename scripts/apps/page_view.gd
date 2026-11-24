@@ -3,6 +3,7 @@ extends VBoxContainer
 ## Everything shown (prices, time-left wording, whether a button works) comes from the player's code.
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
+const Art := preload("res://scripts/ui/illustrations.gd")
 const Studio := preload("res://scripts/services/page_studio.gd")
 const THEMES := {
 	"night": {"bg": Color("141a33"), "bg2": Color("232b52"), "text": Color("f2f0ff"), "muted": Color("b8b5d6"), "accent": Color("f4c95d"), "card": Color("1c2344")},
@@ -17,6 +18,7 @@ var stock: Array = []
 var _countdown: Label
 var _cart_label: Label
 var _grid: GridContainer
+var _hero_row: BoxContainer
 var _buttons: Array = []
 var _cart_list: VBoxContainer
 var _slider: HSlider
@@ -25,6 +27,7 @@ var _slider: HSlider
 func _ready() -> void:
 	add_theme_constant_override("separation", 0)
 	PageStudio.changed.connect(_load)
+	resized.connect(_fit_width)
 	_load()
 
 
@@ -35,8 +38,7 @@ func _load() -> void:
 	build = release
 	cart.clear()
 	stock.clear()
-	for child in get_children():
-		child.queue_free()
+	UITheme.clear(self)
 	if build.is_empty():
 		var empty := UITheme.vbox(8)
 		empty.add_child(UITheme.bold("404", 40, UITheme.MUTED))
@@ -62,24 +64,38 @@ func _build_page() -> void:
 	bg.add_child(UITheme.margin(v, 18))
 	# Header
 	var top := UITheme.hbox(8)
-	var brand := UITheme.bold("☾ " + String(page["title"]), 18, th["text"])
+	top.add_child(Art.icon_view(Art.website("moonlight"), 29))
+	var brand := UITheme.wrap(String(page["title"]), 18, th["text"])
+	brand.add_theme_font_override("font", UITheme.font(false, true))
+	brand.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	top.add_child(brand)
-	top.add_child(UITheme.spacer())
 	_cart_label = UITheme.label("", 13, th["muted"])
 	top.add_child(_cart_label)
 	v.add_child(top)
 	# Hero
 	var hero := PanelContainer.new()
-	hero.add_theme_stylebox_override("panel", UITheme.box(th["bg2"], 14, Color(0, 0, 0, 0), 20))
+	hero.add_theme_stylebox_override("panel", UITheme.box(th["bg2"], 12, Color.TRANSPARENT, 16))
+	_hero_row = BoxContainer.new()
+	_hero_row.add_theme_constant_override("separation", 14)
+	hero.add_child(_hero_row)
 	var hv := UITheme.vbox(8)
-	hero.add_child(hv)
-	hv.add_child(UITheme.bold(String(page["headline"]), 24, th["text"]))
+	hv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hv.size_flags_stretch_ratio = 1.3
+	_hero_row.add_child(hv)
+	var headline := UITheme.wrap(String(page["headline"]), 24, th["text"])
+	headline.add_theme_font_override("font", UITheme.font(false, true))
+	hv.add_child(headline)
 	if String(page.get("sub", "")) != "":
 		hv.add_child(UITheme.wrap(String(page["sub"]), 13, th["muted"]))
 	_countdown = UITheme.bold("", 20, th["accent"])
 	hv.add_child(_countdown)
 	var d: Dictionary = page["deadline"]
-	hv.add_child(UITheme.label(Game.L("마감 %s (판매자 시간)", "Closes %s (seller time)") % String(d["local"]).replace("T", " "), 12, th["muted"]))
+	hv.add_child(UITheme.wrap(Game.L("마감 %s (판매자 시간)", "Closes %s (seller time)") % String(d["local"]).replace("T", " "), 12, th["muted"]))
+	var hero_photo := _photo("hero", 156)
+	hero_photo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hero_photo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hero_row.add_child(hero_photo)
 	v.add_child(hero)
 	# Developer preview control (not part of the customer page).
 	var dev := UITheme.hbox(8)
@@ -90,13 +106,13 @@ func _build_page() -> void:
 	slider.max_value = 300
 	slider.step = 1
 	slider.value = minutes_left
-	slider.custom_minimum_size.x = 220
+	slider.custom_minimum_size.x = 92
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slider.value_changed.connect(func(x: float) -> void: set_minutes(int(x)))
 	dev.add_child(slider)
 	v.add_child(dev)
 	# Products
 	_grid = GridContainer.new()
-	_grid.columns = 3
 	_grid.add_theme_constant_override("h_separation", 12)
 	_grid.add_theme_constant_override("v_separation", 12)
 	v.add_child(_grid)
@@ -106,24 +122,40 @@ func _build_page() -> void:
 		_grid.add_child(_card(i, products[i], th))
 	_cart_list = UITheme.vbox(4)
 	v.add_child(_cart_list)
+	_fit_width()
 	_refresh()
+
+
+func _fit_width() -> void:
+	if not is_instance_valid(_grid) or not is_instance_valid(_hero_row):
+		return
+	var available := size.x - 36.0
+	_hero_row.vertical = available < 530.0
+	_grid.columns = 3 if available >= 600.0 else (2 if available >= 374.0 else 1)
+
+
+func _photo(image_id: String, height: float) -> TextureRect:
+	var photo := TextureRect.new()
+	photo.texture = Art.product(image_id)
+	photo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	photo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	photo.custom_minimum_size.y = height
+	photo.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	return photo
 
 
 func _card(i: int, p: Dictionary, th: Dictionary) -> Control:
 	var card := PanelContainer.new()
 	card.add_theme_stylebox_override("panel", UITheme.box(th["card"], 12, Color(0, 0, 0, 0.08), 12))
-	card.custom_minimum_size = Vector2(200, 0)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var cv := UITheme.vbox(6)
 	card.add_child(cv)
-	var art := TextureRect.new()
-	art.texture = load("res://content/web/studio/art/%s.svg" % String(p["image"])) as Texture2D
-	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	art.custom_minimum_size = Vector2(0, 120)
+	var art := _photo(String(p["image"]), 136)
 	art.tooltip_text = String(p["alt"]) if String(p["alt"]) != "" else Game.L("(대체 텍스트 없음)", "(no alt text)")
 	cv.add_child(art)
-	cv.add_child(UITheme.bold(String(p["name"]), 15, th["text"]))
+	var product_name := UITheme.wrap(String(p["name"]), 15, th["text"])
+	product_name.add_theme_font_override("font", UITheme.font(false, true))
+	cv.add_child(product_name)
 	cv.add_child(UITheme.label(Studio.price_text(build, int(p["price"])), 14, th["accent"]))
 	var stock_label := UITheme.label("", 11, th["muted"])
 	stock_label.name = "Stock"

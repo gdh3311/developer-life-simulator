@@ -14,11 +14,13 @@ signal day_finished(day: int)
 signal state_reset
 signal wallet_changed
 signal condition_changed
+signal ai_tokens_changed
 
 const DAY_NAMES := ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 const DAY_START := 9 * 60
 const SAVE_PATH := "user://sandbox/save.json"
 const SETTINGS_PATH := "user://settings.json"
+const AI_DAILY_TOKENS := 1000
 const SaveStore := preload("res://scripts/services/save_store.gd")
 const Chapters := preload("res://scripts/story/chapters.gd")
 
@@ -55,7 +57,7 @@ func _ready() -> void:
 		emit_event("git_" + kind, {"branch": detail}))
 	Workspace.tests_finished.connect(func(r: Dictionary) -> void:
 		inc_stat("test_runs")
-		advance(5)
+		advance(3 if _perk("testing", 3) else 5)
 		emit_event("tests", {"ok": r.get("ok", false), "passed": r.get("passed", 0), "failed": r.get("failed", 0)}))
 
 
@@ -82,7 +84,7 @@ func _default_state() -> Dictionary:
 		"chat": [], "next_msg": 1, "unread": {},
 		"issues": [],
 		"stats": {}, "stats_today": {},
-		"story": {}, "side": {}, "arcs": {}, "events": {}, "desk": {},
+		"story": {}, "side": {}, "arcs": {}, "events": {}, "desk": {}, "career": {},
 		"investigations": {},
 		"codehub": {"prs": [], "next_id": 1},
 		"monitor": {"status": {"api": "ok", "auth": "ok", "payments": "ok"}, "mode": "normal"},
@@ -161,6 +163,7 @@ func load_game() -> bool:
 	if not loaded["ok"]:
 		return false
 	state = loaded["data"]
+	ai_tokens_changed.emit()
 	time_changed.emit(day(), minutes())
 	return true
 
@@ -213,7 +216,7 @@ func advance(mins: int) -> void:
 	if condition() < 25:
 		mins = roundi(mins * 1.5)
 	state["minutes"] = minutes() + mins
-	change_condition(-mins / 8.0 * (0.7 if state["owned"].has("headphones") else 1.0))
+	change_condition(-mins / 8.0 * (0.7 if state["owned"].has("headphones") else 1.0) * (0.8 if _perk("ops", 2) else 1.0))
 	time_changed.emit(day(), minutes())
 	save_soon()
 
@@ -260,6 +263,7 @@ func next_day() -> void:
 	state["day_done"] = false
 	state["rel_today"] = {}
 	state["stats_today"] = {}
+	ai_tokens_changed.emit()
 	state["condition"] = 85
 	condition_changed.emit()
 	time_changed.emit(day(), minutes())
@@ -271,7 +275,8 @@ func claim_salary() -> bool:
 	if not state["day_done"] or state["salary_days"].has(key):
 		return false
 	state["salary_days"][key] = true
-	earn(SALARY[clampi(state["rank"], 0, SALARY.size() - 1)])
+	var pay: int = SALARY[clampi(state["rank"], 0, SALARY.size() - 1)]
+	earn(roundi(pay * 1.1) if _perk("craft", 3) else pay)
 	return true
 
 
@@ -348,7 +353,7 @@ func relate(npc: String, changes: Dictionary) -> void:
 		var cur := rel(npc, key)
 		var eff: int
 		if delta > 0:
-			eff = maxi(1, roundi(delta * 0.6 * (1.0 - cur / 140.0)))
+			eff = maxi(1, roundi(delta * 0.6 * (1.0 - cur / 140.0))) + (1 if _perk("collab", 2) else 0)
 		else:
 			eff = floori(delta * 1.6)
 		state["rel"][npc][key] = clampi(cur + eff, 0, 100)
@@ -388,6 +393,8 @@ func say(from: String, text, opts := {}) -> Dictionary:
 		"id": state["next_msg"], "from": from, "text": text, "time": time_text(),
 		"channel": channel, "choices": opts.get("choices", []), "key": opts.get("key", ""), "answered": "",
 	}
+	if opts.has("link"):
+		msg["link"] = opts["link"]
 	state["next_msg"] = int(state["next_msg"]) + 1
 	state["chat"].append(msg)
 	state["unread"][channel] = int(state["unread"].get(channel, 0)) + 1
@@ -463,6 +470,31 @@ func inc_stat(key: String, by := 1) -> void:
 
 func stat(key: String) -> int:
 	return int(state["stats"].get(key, 0))
+
+
+func ai_daily_tokens() -> int:
+	return roundi(AI_DAILY_TOKENS * 1.25) if _perk("debug", 3) else AI_DAILY_TOKENS
+
+
+func ai_tokens_remaining() -> int:
+	var spent = state["stats_today"].get("ai_tokens", 0)
+	var used := clampi(int(spent), 0, ai_daily_tokens()) if typeof(spent) in [TYPE_INT, TYPE_FLOAT] else 0
+	return ai_daily_tokens() - used
+
+
+## Career perks (scripts/story/career.gd).
+func _perk(skill: String, lv: int) -> bool:
+	var story := get_node_or_null("/root/Story")
+	return story != null and story.get("career") != null and story.career.has_perk(skill, lv)
+
+
+func spend_ai_tokens(cost: int) -> bool:
+	if cost <= 0 or cost > ai_tokens_remaining():
+		return false
+	inc_stat("ai_tokens", cost)
+	save_soon()
+	ai_tokens_changed.emit()
+	return true
 
 
 func notify(app_id: String, title: String, body: String) -> void:

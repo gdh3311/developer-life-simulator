@@ -26,6 +26,14 @@ func _init() -> void:
 		t("예: const parts = [user.firstName, user.lastName].map((p) => (p ?? '').trim()).filter((p) => p.length > 0);\nreturn parts.length > 0 ? parts.join(' ') : 'Unknown User';",
 			"e.g. const parts = [user.firstName, user.lastName].map((p) => (p ?? '').trim()).filter((p) => p.length > 0);\nreturn parts.length > 0 ? parts.join(' ') : 'Unknown User';"),
 	]
+	ai_task = {
+		"label": t("프로필 이름 회귀 테스트 작성", "Draft a display-name regression test"),
+		"files": {"tests/displayName.regression.test.ts": "m02/profile_whitespace.test.ts"},
+		"bases": {"tests/displayName.regression.test.ts": ""},
+		"summary": t("탭과 줄바꿈으로 이뤄진 이름, 누락된 성을 확인하는 테스트를 추가했습니다.",
+			"Added tests for names with tabs and newlines and a missing last name."),
+		"minutes": 10,
+	}
 
 
 func begin() -> void:

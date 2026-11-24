@@ -23,6 +23,7 @@ func _init() -> void:
 	ai_task = {
 		"label": t("판매자 시간대 마감 처리", "Seller time-zone deadline handling"),
 		"files": {"src/preorder/deadline.ts": "c03/deadline_ai.ts"},
+		"bases": {"src/preorder/deadline.ts": "c03/deadline.ts"},
 		"summary": t("판매자 오프셋을 반영해 UTC로 바꿨습니다. 마감 정각의 경계는 검증하지 않았습니다.", "Converted to UTC using the seller offset. The exact-deadline boundary was not validated."),
 	}
 

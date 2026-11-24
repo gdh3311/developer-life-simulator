@@ -14,6 +14,7 @@ const SCRIPTS := {
 	"browser": preload("res://scripts/apps/browser_app.gd"),
 	"dashboard": preload("res://scripts/apps/dashboard_app.gd"),
 	"docs": preload("res://scripts/apps/docs_app.gd"),
+	"pork": preload("res://scripts/apps/pork_app.gd"),
 }
 
 

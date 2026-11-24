@@ -1,9 +1,10 @@
 extends Control
-## The office around the monitor, drawn as vector art (crisp at any zoom).
+## The desk and office around the monitor.
 ## The window's sky follows the in-game clock.
 
 const VIEW := Vector2(1920, 1080)
 const DeskItems := preload("res://scripts/room/desk_items.gd")
+const DESK_SURFACE := "res://content/desk/walnut-surface.png"
 
 var monitor_rect := Rect2()   # outer frame of the monitor (set by main)
 var screen_glow := 0.0        # 0..1, monitor light on the desk/wall
@@ -12,11 +13,14 @@ var tier := 0                 # workstation tier (0 intern, 1 side monitor, 2 de
 var side_rect := Rect2()      # outer frame of the side monitor (tier 1+)
 var _buildings: Array = []    # [x, w, h, lit windows seed]
 var _rng := RandomNumberGenerator.new()
+var _desk_surface: Texture2D
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	size = VIEW
+	if ResourceLoader.exists(DESK_SURFACE, "Texture2D"):
+		_desk_surface = load(DESK_SURFACE)
 	_rng.seed = 7
 	var x := 0.0
 	while x < 520:
@@ -77,7 +81,12 @@ func _draw() -> void:
 
 	# Desk
 	var desk_y := 900.0
-	_vgradient(Rect2(-400, desk_y, VIEW.x + 800, 600), Color("3d2c20"), Color("1a130e"))
+	var desktop := Rect2(-400, desk_y, VIEW.x + 800, 600)
+	_vgradient(desktop, Color("3d2c20"), Color("1a130e"))
+	if _desk_surface != null:
+		var material := Color("9a7a67").lerp(Color("d3b9a4"), day)
+		draw_texture_rect(_desk_surface, desktop, false, Color(material, 0.88))
+		_vgradient(desktop, Color(0, 0, 0, 0.04), Color(0, 0, 0, 0.63))
 	draw_rect(Rect2(-400, desk_y, VIEW.x + 800, 4), Color("5a4331"))
 	draw_rect(Rect2(-400, desk_y + 4, VIEW.x + 800, 2), Color(0, 0, 0, 0.35))
 

@@ -10,26 +10,26 @@ func _init() -> void:
 	title = t("첫 PR: README 오타 수정", "First PR: fix a README typo")
 	issue = "#000"
 	objectives = [
-		{"id": "branch", "app": "terminal",
+		{"id": "branch", "app": "terminal", "alternative": "pork",
 			"text": t("작업 브랜치 만들기", "Create a working branch"),
-			"guide": t("main에서 바로 고치지 않아요. 작업용 브랜치를 만들어요:\n  git switch -c docs/fix-typo",
-				"We never change main directly. Create a branch for the work:\n  git switch -c docs/fix-typo")},
+			"guide": t("Pork Git에서 새 브랜치에 docs/fix-typo를 입력하거나 터미널에서 실행하세요.\n  git switch -c docs/fix-typo",
+				"Enter docs/fix-typo in Pork Git and click New branch, or run this in Terminal:\n  git switch -c docs/fix-typo")},
 		{"id": "edit", "app": "ide",
 			"text": t("DevIDE에서 README.md 오타(Commerse → Commerce) 고치고 저장", "Fix the typo in README.md (Commerse → Commerce) in DevIDE and save"),
 			"guide": t("코드 아이콘(DevIDE) → 왼쪽 파일 목록에서 README.md → 'Commerse'를 'Commerce'로 고치고 Ctrl+S 로 저장.",
 				"Code icon (DevIDE) → README.md in the file tree → change 'Commerse' to 'Commerce' and press Ctrl+S.")},
-		{"id": "diff", "app": "terminal",
-			"text": t("git diff 로 바뀐 내용 확인", "Review the change with git diff"),
-			"guide": t("커밋하기 전에 무엇이 바뀌었는지 꼭 확인해요:\n  git diff\n- 로 시작하는 줄은 지워진 것, + 는 추가된 것이에요.",
-				"Always check what changed before committing:\n  git diff\nLines starting with - were removed, + were added.")},
-		{"id": "commit", "app": "terminal",
+		{"id": "diff", "app": "terminal", "alternative": "pork",
+			"text": t("README에서 바뀐 줄 확인", "Review the changed lines in README"),
+			"guide": t("Pork Git의 변경 파일에서 README.md를 고르거나 터미널에서 확인하세요. -는 제거한 줄, +는 추가한 줄입니다.\n  git diff",
+				"Select README.md in Pork Git's Changes tab, or use Terminal. Lines with - were removed and lines with + were added.\n  git diff")},
+		{"id": "commit", "app": "terminal", "alternative": "pork",
 			"text": t("변경 사항 커밋하기", "Commit the change"),
-			"guide": t("커밋할 파일을 고르고(add), 메시지와 함께 저장(commit)해요:\n  git add README.md\n  git commit -m \"docs: fix typo in README\"",
-				"Stage the file (add), then record it with a message (commit):\n  git add README.md\n  git commit -m \"docs: fix typo in README\"")},
-		{"id": "push", "app": "terminal",
+			"guide": t("Pork Git에서 파일을 스테이징하고 메시지를 적어 커밋하세요. 터미널을 쓸 수도 있어요.\n  git add README.md\n  git commit -m \"docs: fix typo in README\"",
+				"Stage the file in Pork Git and commit it with a message, or use Terminal:\n  git add README.md\n  git commit -m \"docs: fix typo in README\"")},
+		{"id": "push", "app": "terminal", "alternative": "pork",
 			"text": t("브랜치를 원격 저장소로 push", "Push the branch to the remote"),
-			"guide": t("내 컴퓨터의 커밋을 회사 원격 저장소로 올려요:\n  git push",
-				"Upload your commits to the company remote:\n  git push")},
+			"guide": t("Pork Git에서 Push를 누르거나 터미널 명령으로 커밋을 회사 저장소에 올리세요.\n  git push",
+				"Upload your commit to the company remote with Push in Pork Git or with Terminal:\n  git push")},
 		{"id": "pr", "app": "codehub",
 			"text": t("CodeHub에서 Pull Request 만들기 (설명도 적기)", "Open a Pull Request in CodeHub (with a description)"),
 			"guide": t("PR 아이콘(CodeHub) → '새 Pull Request' → 브랜치 선택 → 제목과 설명을 적고 'PR 만들기'.",
@@ -43,6 +43,12 @@ func _init() -> void:
 		t("순서: git switch -c docs/fix-typo → DevIDE에서 README.md 수정·저장 → git diff → git add README.md → git commit -m \"docs: ...\" → git push → CodeHub에서 PR",
 			"Order: git switch -c docs/fix-typo → edit and save README.md in DevIDE → git diff → git add README.md → git commit -m \"docs: ...\" → git push → open a PR in CodeHub"),
 	]
+	ai_task = {
+		"label": t("README의 제품명 수정", "Correct the product name in README"),
+		"substitution": {"path": "README.md", "from": "NEXORA Commerse Cloud", "to": "NEXORA Commerce Cloud"},
+		"summary": t("README 제품명 한 곳을 고쳤습니다.", "Corrected one occurrence of the product name in README."),
+		"minutes": 5,
+	}
 
 
 func begin() -> void:
@@ -51,8 +57,11 @@ func begin() -> void:
 	await wait(1.5)
 	if not is_current():
 		return
-	say("daniel", t("안녕하세요, 백엔드 시니어 Daniel입니다. 첫 업무로 가볍게 가죠. README에 'Commerse'라는 오타가 있어요. 고쳐서 PR로 올려 주세요. 오른쪽 아래 가이드대로 하면 됩니다.",
-		"Hi, I'm Daniel, senior backend. Let's start light: the README has a typo, 'Commerse'. Fix it and send a PR. Follow the guide at the bottom left."))
+	say("daniel", t("백엔드 시니어 Daniel입니다. 커머스팀 새 입사자들이 저장소를 열면 README부터 읽어요. 거기 제품명이 'Commerse'로 적혀 있더라고요. 'Commerce'로 고쳐서 PR 올려 주세요. 오늘 제가 리뷰할게요.",
+		"I'm Daniel, the senior backend engineer. New people on the commerce team start with the README. It spells the product name 'Commerse'. Change it to 'Commerce', send me a PR, and I'll review it today."))
+	say("daniel", t("아까 터미널에서 기록을 봤죠? 바뀐 파일을 하나씩 확인할 때마다 명령어를 치면 번거롭지 않아요? 저는 그럴 땐 Pork Git을 켜요. README를 저장하고 왼쪽에서 파일을 고르면 바뀐 줄이 보여요. 여기서 브랜치 만들고 커밋, push까지 할 수 있어요.",
+		"You checked the history in Terminal earlier, right? Repeating commands gets tedious when you're looking through several files. I open Pork Git for that. Save the README, pick it on the left, and you'll see which lines changed. You can also create the branch, commit and push from there."),
+		{"link": {"app": "pork", "label": t("Pork Git 열기", "Open Pork Git")}})
 
 
 func review(p: Dictionary) -> void:

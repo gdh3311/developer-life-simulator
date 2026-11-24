@@ -21,9 +21,10 @@ var apps: Array[Dictionary] = [
 	{"id": "docs", "name": "Docs", "icon": "doc", "color": Color("fbbf24"), "size": Vector2(820, 560)},
 	{"id": "wiki", "name": "Wiki", "icon": "wiki", "color": Color("22c3c3"), "size": Vector2(800, 540)},
 	{"id": "monitor", "name": "Monitor", "icon": "monitor", "color": Color("ff6b6b"), "size": Vector2(860, 520)},
-	{"id": "ai", "name": "AICode", "icon": "ai", "color": Color("c084fc"), "size": Vector2(600, 500)},
+	{"id": "ai", "name": "AICode", "icon": "ai", "color": Color("c084fc"), "size": Vector2(850, 560)},
 	{"id": "browser", "name": "Relay Browser", "icon": "relay", "color": Color("87dcc7"), "size": Vector2(940, 572)},
 	{"id": "dashboard", "name": "Dashboard", "icon": "dashboard", "color": Color("94a3b8"), "size": Vector2(860, 540)},
+	{"id": "pork", "name": "Pork Git", "icon": "pork", "color": Color("f39677"), "size": Vector2(960, 565)},
 ]
 
 var _windows: Control
@@ -205,7 +206,7 @@ func close_all() -> void:
 func open_resource(app_id: String, target: String) -> void:
 	if top_window_app() != app_id:
 		open_app(app_id)
-	var method := {"wiki": "open_page", "ide": "open_file", "codehub": "open_mission_diff", "browser": "open_page", "tasks": "open_product_tab"}.get(app_id, "") as String
+	var method := {"wiki": "open_page", "ide": "open_file", "codehub": "open_mission_diff", "browser": "open_page", "tasks": "open_product_tab", "chat": "open_channel"}.get(app_id, "") as String
 	if method != "":
 		var content := _find_method(_open[app_id], method)
 		if content != null:
@@ -485,6 +486,11 @@ func _render_guide() -> void:
 		if "\n  " in Game.tx(o["guide"]):
 			g.add_theme_font_override("font", UITheme.font(true))
 		_guide_body.add_child(g)
+	if o.get("alternative") == "pork":
+		var git_client := UITheme.button(Game.L("Pork Git 열기", "Open Pork Git"))
+		git_client.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		git_client.pressed.connect(open_resource.bind("pork", ""))
+		_guide_body.add_child(git_client)
 	_guide.modulate.a = 0.0
 	create_tween().tween_property(_guide, "modulate:a", 1.0, 0.3)
 
@@ -655,12 +661,18 @@ func _show_day_summary() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_overlay.add_child(center)
 	var card := UITheme.panel(UITheme.BG1, 16, 26, Color(1, 1, 1, 0.08))
-	card.custom_minimum_size = Vector2(640, 0)
+	card.custom_minimum_size = Vector2(900, 0)
 	center.add_child(card)
 	var v := UITheme.vbox(12)
 	card.add_child(v)
 	v.add_child(UITheme.label(Game.date_text(), 12, UITheme.MUTED))
 	v.add_child(UITheme.bold(Game.L("업무 종료  ·  %s 퇴근", "Clocking out at %s") % Game.time_text(), 24))
+	var cols := UITheme.hbox(22)
+	v.add_child(cols)
+	cols.add_child(_grade_panel())
+	var right := UITheme.vbox(12)
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cols.add_child(right)
 
 	var today: Dictionary = Game.state["stats_today"]
 	var stats := UITheme.hbox(8)
@@ -678,15 +690,15 @@ func _show_day_summary() -> void:
 		bv.add_child(l)
 		box.add_child(bv)
 		stats.add_child(box)
-	v.add_child(stats)
+	right.add_child(stats)
 	var investigations_today := Cases.archive().filter(func(id: String) -> bool: return int(Cases.record(id)["day"]) == Game.day()).size()
 	if investigations_today > 0:
-		v.add_child(UITheme.wrap(Game.L("오늘 조사 %d개를 정리했어요. Dashboard에서 가설과 배운 점을 다시 볼 수 있습니다.", "Filed %d investigations today. Revisit your hypotheses and lessons in Dashboard.") % investigations_today, 13, UITheme.ACCENT.lightened(0.3)))
+		right.add_child(UITheme.wrap(Game.L("오늘 조사 %d개를 정리했어요. Dashboard에서 가설과 배운 점을 다시 볼 수 있습니다.", "Filed %d investigations today. Revisit your hypotheses and lessons in Dashboard.") % investigations_today, 13, UITheme.ACCENT.lightened(0.3)))
 
-	v.add_child(UITheme.label(Game.L("오늘의 팀 관계 변화", "Team relationships today"), 12, UITheme.MUTED))
+	right.add_child(UITheme.label(Game.L("오늘의 팀 관계 변화", "Team relationships today"), 12, UITheme.MUTED))
 	var rel_today: Dictionary = Game.state["rel_today"]
 	if rel_today.is_empty():
-		v.add_child(UITheme.label(Game.L("변화 없음", "No change"), 13, UITheme.TEXT2))
+		right.add_child(UITheme.label(Game.L("변화 없음", "No change"), 13, UITheme.TEXT2))
 	for npc in rel_today:
 		var row := UITheme.hbox(10)
 		row.add_child(UITheme.avatar(npc, 26))
@@ -700,9 +712,9 @@ func _show_day_summary() -> void:
 			if dv != 0:
 				chips.add_child(UITheme.chip("%s %s%d" % [Game.rel_label(key), "+" if dv > 0 else "", dv], UITheme.OK if dv > 0 else UITheme.ERR))
 		row.add_child(chips)
-		v.add_child(row)
+		right.add_child(row)
 	var salary: int = Game.SALARY[clampi(Game.state["rank"], 0, Game.SALARY.size() - 1)]
-	v.add_child(UITheme.label((Game.L("오늘 급여 지급 완료 · %s", "Today's pay already received · %s") if Game.state["salary_days"].has(str(Game.day())) else Game.L("오늘 급여 +%s", "Today's pay +%s")) % Game.won(salary), 13, UITheme.OK))
+	right.add_child(UITheme.label((Game.L("오늘 급여 지급 완료 · %s", "Today's pay already received · %s") if Game.state["salary_days"].has(str(Game.day())) else Game.L("오늘 급여 +%s", "Today's pay +%s")) % Game.won(salary), 13, UITheme.OK))
 
 	var btn := UITheme.button(Game.L("챕터 결과 보기", "Chapter result") if _chapter_done else (Game.L("현재 구간 정리", "Review this segment") if _content_done else Game.L("다음 날 출근하기  →", "Next day  →")), "primary")
 	btn.custom_minimum_size = Vector2(0, 40)
@@ -712,6 +724,67 @@ func _show_day_summary() -> void:
 	var t := create_tween().set_parallel(true)
 	t.tween_property(_overlay, "color:a", 0.85, 0.4)
 	t.tween_property(card, "modulate:a", 1.0, 0.4)
+
+
+const GRADE_COLORS := {"S": Color("f4c95d"), "A": Color("3ddc84"), "B": Color("5b8cff"), "C": Color("8a93a6")}
+
+
+## Left column of the day summary: grade, daily goals, XP gained per skill.
+func _grade_panel() -> Control:
+	var career = Story.career
+	var g: String = career.grade(Game.day())
+	if g == "":
+		g = career.grade_for_today()
+	var col: Color = GRADE_COLORS.get(g, UITheme.MUTED)
+	var box := UITheme.panel(UITheme.BG2, 14, 16, col.darkened(0.55))
+	box.custom_minimum_size.x = 300
+	var v := UITheme.vbox(10)
+	box.add_child(v)
+	v.add_child(UITheme.label(Game.L("오늘의 평가", "Today's grade"), 11, UITheme.MUTED))
+	var badge := Control.new()
+	badge.custom_minimum_size = Vector2(0, 112)
+	badge.draw.connect(func() -> void:
+		var c := Vector2(badge.size.x / 2.0, 56)
+		badge.draw_circle(c, 52, col.darkened(0.7))
+		badge.draw_arc(c, 52, 0, TAU, 64, col, 4.0, true)
+		badge.draw_arc(c, 44, -PI * 0.85, -PI * 0.15, 32, col.lightened(0.3), 2.0, true)
+		var font := UITheme.font(false, true)
+		var size := 64
+		var w := font.get_string_size(g, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		badge.draw_string(font, c + Vector2(-w / 2.0, 22), g, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col))
+	badge.pivot_offset = Vector2(150, 56)
+	badge.scale = Vector2.ONE * 0.4
+	create_tween().tween_property(badge, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).set_delay(0.25)
+	v.add_child(badge)
+	var verdict: String = {"S": Game.L("완벽한 하루. 팀이 오늘 당신 이야기를 했어요.", "A perfect day. The team talked about you today."),
+		"A": Game.L("좋은 하루였어요. 내일도 이 리듬으로.", "A good day. Keep this rhythm tomorrow."),
+		"B": Game.L("할 일은 했어요. 목표 하나를 더 챙겨 봐요.", "The work got done. Aim for one more goal."),
+		"C": Game.L("버틴 하루. 내일은 목표부터 확인해요.", "You got through it. Check the goals first tomorrow.")}.get(g, "")
+	var vl := UITheme.wrap(verdict, 12, UITheme.TEXT2)
+	vl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(vl)
+	v.add_child(UITheme.label(Game.L("오늘의 목표", "Daily goals"), 11, UITheme.MUTED))
+	for id in career.goals():
+		var status: String = career.goal_status(id)
+		var row := UITheme.hbox(8)
+		row.add_child(UITheme.label("✓" if status == "done" else "✕", 14, UITheme.OK if status == "done" else UITheme.ERR.darkened(0.2)))
+		var gl := UITheme.wrap(Game.tx(career.GOALS[id]["text"]), 12, UITheme.TEXT if status == "done" else UITheme.MUTED)
+		gl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(gl)
+		if status == "done":
+			row.add_child(UITheme.label("+" + Game.won(career.GOAL_REWARD), 11, UITheme.OK))
+		v.add_child(row)
+	var gained: Dictionary = career.st()["xp_today"]
+	if not gained.is_empty():
+		v.add_child(UITheme.label(Game.L("오늘 얻은 경험치", "XP today"), 11, UITheme.MUTED))
+		var chips := HFlowContainer.new()
+		chips.add_theme_constant_override("h_separation", 6)
+		chips.add_theme_constant_override("v_separation", 6)
+		for skill in career.SKILLS:
+			if int(gained.get(skill, 0)) > 0:
+				chips.add_child(UITheme.chip("%s +%d" % [Game.tx(career.SKILLS[skill]["name"]), int(gained[skill])], Color(career.SKILLS[skill]["color"])))
+		v.add_child(chips)
+	return box
 
 
 func _on_next_day() -> void:
@@ -1127,8 +1200,9 @@ func _dock_item(app: Dictionary) -> Control:
 	btn.add_theme_stylebox_override("normal", UITheme.box(c.darkened(0.62), 14, Color(c, 0.35), 0))
 	btn.add_theme_stylebox_override("hover", UITheme.box(c.darkened(0.45), 14, Color(c, 0.7), 0))
 	btn.add_theme_stylebox_override("pressed", UITheme.box(c.darkened(0.7), 14, Color(c, 0.5), 0))
-	var ic := Icon.make(app["icon"], c.lightened(0.35), 26)
-	ic.position = Vector2(12, 12)
+	var icon_size := 34.0 if app["icon"] == "relay" else 26.0
+	var ic := Icon.make(app["icon"], c.lightened(0.35), icon_size)
+	ic.position = Vector2.ONE * (50.0 - icon_size) * 0.5
 	btn.add_child(ic)
 	var badge := PanelContainer.new()
 	var bsb := UITheme.box(UITheme.ERR, 8, Color(0, 0, 0, 0), 0)

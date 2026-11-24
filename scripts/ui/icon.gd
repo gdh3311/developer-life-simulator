@@ -1,5 +1,7 @@
 extends Control
-## Vector icons drawn in code (crisp at any scale).
+## Scalable control glyphs and artwork for the Relay brand mark.
+
+const Art := preload("res://scripts/ui/illustrations.gd")
 
 var icon := ""
 var color := Color.WHITE
@@ -12,6 +14,8 @@ static func make(name: String, col: Color, px := 24.0) -> Control:
 	i.color = col
 	i.custom_minimum_size = Vector2(px, px)
 	i.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if name == "relay":
+		i.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	return i
 
 
@@ -62,6 +66,17 @@ func _draw() -> void:
 			_line([[0.28, 0.3], [0.28, 0.7]])
 			_line([[0.72, 0.7], [0.72, 0.38], [0.6, 0.26], [0.46, 0.26]])
 			_line([[0.54, 0.18], [0.46, 0.26], [0.54, 0.34]])
+		"pork":
+			_line([[0.5, 0.07], [0.93, 0.5], [0.5, 0.93], [0.07, 0.5], [0.5, 0.07]])
+			_line([[0.5, 0.29], [0.5, 0.7]])
+			_line([[0.5, 0.44], [0.65, 0.55], [0.65, 0.65]])
+			_circle(0.5, 0.28, 0.065)
+			_circle(0.5, 0.71, 0.065)
+			_circle(0.65, 0.65, 0.06)
+		"home":
+			_line([[0.12, 0.48], [0.5, 0.16], [0.88, 0.48]])
+			_line([[0.23, 0.42], [0.23, 0.82], [0.77, 0.82], [0.77, 0.42]])
+			_line([[0.43, 0.82], [0.43, 0.62], [0.57, 0.62], [0.57, 0.82]])
 		"chat":
 			_line([[0.14, 0.2], [0.86, 0.2], [0.86, 0.66], [0.46, 0.66], [0.26, 0.84], [0.28, 0.66], [0.14, 0.66], [0.14, 0.2]])
 			_circle(0.34, 0.43, 0.04)
@@ -141,10 +156,9 @@ func _draw() -> void:
 			_line([[0.30, 0.78], [0.78, 0.30]])
 			_line([[0.53, 0.78], [0.78, 0.53]])
 		"relay":
-			_line([[0.19, 0.67], [0.43, 0.24], [0.81, 0.24]])
-			_line([[0.81, 0.38], [0.57, 0.80], [0.19, 0.80]])
-			_circle(0.19, 0.66, 0.105)
-			_circle(0.81, 0.37, 0.105)
+			var art := Art.website("relay")
+			if art != null:
+				draw_texture_rect(art, Rect2(_p(0, 0), _p(1, 1) - _p(0, 0)), false)
 		"left":
 			_line([[0.74, 0.50], [0.29, 0.50], [0.48, 0.31]])
 			_line([[0.29, 0.50], [0.48, 0.69]])

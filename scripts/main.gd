@@ -1,10 +1,11 @@
 extends Control
-## Room view: the player sits at a desk looking at a monitor.
+## First-person desk view. The workstation is interactive inside the physical monitor.
 ## The in-game OS renders into a 2x supersampled SubViewport shown on the monitor.
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const Desktop := preload("res://scripts/desktop/desktop.gd")
 const Room := preload("res://scripts/room/room.gd")
+const DeskItems := preload("res://scripts/room/desk_items.gd")
 const SideScreen := preload("res://scripts/room/side_screen.gd")
 const ScreenShader := preload("res://shaders/screen.gdshader")
 
@@ -13,10 +14,10 @@ const SCREEN := Vector2(1280, 720)
 const SUPERSAMPLE := 2
 const BEZEL := 14.0
 const CHIN := 30.0
-const MONITOR_TOP := 120.0
-const FOCUS_SCALE := 1.45      # close-up: the screen fills the view
-const DESK_SCALE := 1.08       # default play view: monitor in front, desk and room around it
-const DESK_TOP := 40.0         # screen top edge in the desk view
+const MONITOR_TOP := 98.0
+const FOCUS_SCALE := 1.25
+const DESK_SCREEN_TOP := 40.0
+const CLOSE_SCREEN_TOP := 27.0
 ## Portrait side monitor (workstation tier 1+), right of the main monitor.
 const SIDE_SCREEN := Vector2(264, 470)
 const SIDE_BEZEL := 12.0
@@ -27,14 +28,14 @@ var _room: Control
 var _screen_off: ColorRect
 var _led: ColorRect
 var _desktop: Control
-var _focused := false
-var _view := "room"            # room | desk | close
-var _close_up := false         # F2 preference while working
+var _view := "desk"
+var _screen_powered := false
+var _camera_motion: Tween
+var _focus_button: Button
 var _side: Control             # side monitor rig (null below tier 1)
 var _tier := -1
 var _visitor: Control          # a teammate standing beside the desk (event cards)
 var _visitor_npc := ""
-var _hint: Label
 var _fade: ColorRect
 var _shadow: Control
 
@@ -75,17 +76,15 @@ func _ready() -> void:
 	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_fade)
+	_rig.pivot_offset = _screen_center()
+	_apply_view("desk", true)
 	_power_on()
 
 
 func _input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key != null and key.pressed and not key.echo and key.keycode == KEY_F2:
-		if not _focused:
-			_set_focus(true)
-		else:
-			_close_up = not _close_up
-			_apply_view("close" if _close_up else "desk")
+		_toggle_view()
 		get_viewport().set_input_as_handled()
 
 
@@ -125,7 +124,21 @@ func _build_monitor() -> void:
 	_led.color = Color("2a2d33")
 	_led.position = Vector2(frame_pos.x + frame_size.x - 46, frame_pos.y + frame_size.y - CHIN / 2.0 - 2)
 	_led.size = Vector2(12, 3)
+	_led.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_rig.add_child(_led)
+	_focus_button = Button.new()
+	_focus_button.text = "F2"
+	_focus_button.position = frame_pos + Vector2(frame_size.x - 102.0, frame_size.y - 27.0)
+	_focus_button.size = Vector2(39, 23)
+	_focus_button.focus_mode = Control.FOCUS_NONE
+	_focus_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_focus_button.add_theme_font_size_override("font_size", 11)
+	_focus_button.add_theme_color_override("font_color", Color("a0adbb"))
+	_focus_button.add_theme_stylebox_override("normal", UITheme.box(Color("1e232a"), 4, Color("303944"), 3))
+	_focus_button.add_theme_stylebox_override("hover", UITheme.box(Color("303a45"), 4, Color("56697b"), 3))
+	_focus_button.add_theme_stylebox_override("pressed", UITheme.box(Color("344c52"), 4, Color("7b9da4"), 3))
+	_focus_button.pressed.connect(_toggle_view)
+	_rig.add_child(_focus_button)
 
 	# Screen: SubViewport rendered at 2x, displayed at 1x for crisp text and shapes.
 	var screen_pos := frame_pos + Vector2(BEZEL, BEZEL)
@@ -145,7 +158,7 @@ func _build_monitor() -> void:
 	_desktop = Desktop.new()
 	_desktop.theme = theme
 	_desktop.size = SCREEN
-	_desktop.booted.connect(func() -> void: _set_focus(true))
+	_desktop.booted.connect(_update_focus_tooltip)
 	vp.add_child(_desktop)
 
 	var fx := ColorRect.new()
@@ -171,7 +184,15 @@ func _build_props() -> void:
 
 	# Coffee steam
 	var steam := CPUParticles2D.new()
-	steam.position = Vector2(420, 900 - 74)
+	var position_steam := func() -> void:
+		var mug := DeskItems.equipped("mug")
+		var bounds := DeskItems.rect_for(mug) if not mug.is_empty() else Rect2(372, 830, 96, 70)
+		steam.position = Vector2(bounds.position.x + bounds.size.x * 0.44, bounds.position.y + 8.0)
+	position_steam.call()
+	Game.state_reset.connect(position_steam)
+	Game.event.connect(func(kind: String, _data: Dictionary) -> void:
+		if kind == "desk_changed":
+			position_steam.call())
 	steam.amount = 14
 	steam.lifetime = 2.6
 	steam.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
@@ -189,10 +210,6 @@ func _build_props() -> void:
 	grad.set_color(grad.get_point_count() - 1, Color(1, 1, 1, 0.0))
 	steam.color_ramp = grad
 	_rig.add_child(steam)
-
-	_hint = UITheme.label("F2  ·  화면 가까이 보기 / 책상 보기", 13, Color("5c6370"))
-	_hint.position = Vector2(VIEW.x / 2.0 - 130, 1040)
-	_rig.add_child(_hint)
 
 
 func _sticky(pos: Vector2, text: String, color: Color, rot: float) -> void:
@@ -213,7 +230,7 @@ func _add_vignette() -> void:
 	var grad := Gradient.new()
 	grad.set_color(0, Color(0, 0, 0, 0))
 	grad.add_point(0.65, Color(0, 0, 0, 0.0))
-	grad.set_color(grad.get_point_count() - 1, Color(0, 0, 0, 0.55))
+	grad.set_color(grad.get_point_count() - 1, Color(0, 0, 0, 0.35))
 	var tex := GradientTexture2D.new()
 	tex.gradient = grad
 	tex.fill = GradientTexture2D.FILL_RADIAL
@@ -227,18 +244,15 @@ func _add_vignette() -> void:
 	add_child(v)
 
 
-## Intro: lean in towards the desk, the monitor powers on, the OS boots.
+## The player is already seated when the monitor wakes.
 func _power_on() -> void:
-	_rig.pivot_offset = _screen_center()
-	_rig.scale = Vector2.ONE * 0.86
 	var t := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	t.tween_interval(0.3)
-	t.tween_property(_rig, "scale", Vector2.ONE, 1.6)
+	t.tween_interval(0.45)
 	t.tween_callback(func() -> void:
 		_led.color = Color("3ddc84")
 		Sfx.play("power"))
-	t.tween_interval(0.3)
-	t.tween_property(_screen_off, "color:a", 0.0, 0.5)
+	t.tween_interval(0.18)
+	t.tween_property(_screen_off, "color:a", 0.0, 0.45)
 	t.parallel().tween_method(func(v: float) -> void:
 		_room.screen_glow = v
 		_room.queue_redraw(), 0.0, 1.0, 0.8)
@@ -247,7 +261,7 @@ func _power_on() -> void:
 
 func _on_screen_on() -> void:
 	_screen_off.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_set_focus(true)
+	_screen_powered = true
 	_desktop.boot()
 
 
@@ -285,9 +299,11 @@ func boss_pass() -> void:
 	t.tween_property(_shadow, "modulate:a", 0.0, 0.3)
 
 
-## Clock-out: lean back, the monitor turns off, the window fades to night.
+## Clock-out: return to the desk framing, then power off the monitor.
 func night_transition() -> void:
-	_set_focus(false)
+	_screen_powered = false
+	_screen_off.mouse_filter = Control.MOUSE_FILTER_STOP
+	_apply_view("desk")
 	await get_tree().create_timer(0.6).timeout
 	Sfx.play("power", 0.8)
 	Sfx.muffle(true)
@@ -305,8 +321,9 @@ func night_transition() -> void:
 	await t.finished
 
 
-## Next morning: sunrise in the window, the monitor powers on, lean in.
+## Next morning: sunrise and power-on from the familiar desk framing.
 func morning_transition() -> void:
+	_apply_view("desk", true)
 	_room.time_override = 6.0 * 60.0
 	_room.queue_redraw()
 	var t := create_tween()
@@ -325,38 +342,37 @@ func morning_transition() -> void:
 		_room.queue_redraw(), 0.0, 1.0, 0.6)
 	await t.finished
 	_screen_off.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_set_focus(true)
+	_screen_powered = true
 	await get_tree().create_timer(0.5).timeout
 
 
-## Sit at the desk (working view) or lean back to see the room.
-func _set_focus(on: bool) -> void:
-	_focused = on
-	_apply_view(("close" if _close_up else "desk") if on else "room")
+func _toggle_view() -> void:
+	if _screen_powered:
+		_apply_view("desk" if _view == "close" else "close")
 
 
-## room: the whole office (scale 1). desk: the monitor in front with the desk, window and
-## props around it. close: the screen fills the view.
+func _update_focus_tooltip() -> void:
+	_focus_button.tooltip_text = Game.L("책상 보기 (F2)", "Return to desk (F2)") if _view == "close" else Game.L("모니터 가까이 보기 (F2)", "Look closer (F2)")
+
+
+## Both views retain the screen bezel and the foreground of the desk.
 func _apply_view(mode: String, instant := false) -> void:
 	_view = mode
-	var target_scale := 1.0
-	var target_pos := Vector2.ZERO
-	match mode:
-		"close":
-			target_scale = FOCUS_SCALE
-			target_pos = Vector2(0, VIEW.y / 2.0 - _screen_center().y)
-		"desk":
-			target_scale = DESK_SCALE
-			var c := _screen_center()
-			# Pivot is the screen center; keep the screen top just below the view's top edge.
-			target_pos = Vector2(-60.0 if _side != null else 0.0, DESK_TOP - (c.y - SCREEN.y / 2.0 * DESK_SCALE))
+	_update_focus_tooltip()
+	var close := _view == "close"
+	var target_scale := FOCUS_SCALE if close else 1.0
+	var screen_top := CLOSE_SCREEN_TOP if close else DESK_SCREEN_TOP
+	var target_pos := Vector2(-76.0 if _side != null and not close else 0.0,
+		screen_top - (_screen_center().y - SCREEN.y / 2.0 * target_scale))
+	if _camera_motion != null:
+		_camera_motion.kill()
 	if instant:
 		_rig.scale = Vector2.ONE * target_scale
 		_rig.position = target_pos
 		return
-	var t := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	t.tween_property(_rig, "scale", Vector2.ONE * target_scale, 0.5)
-	t.parallel().tween_property(_rig, "position", target_pos, 0.5)
+	_camera_motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_camera_motion.tween_property(_rig, "scale", Vector2.ONE * target_scale, 0.35)
+	_camera_motion.parallel().tween_property(_rig, "position", target_pos, 0.35)
 
 
 ## Someone walks up and stands to the right of the monitor while a desk-visit card is open.
@@ -423,7 +439,7 @@ func _update_workstation(silent: bool) -> void:
 	elif tier < 1 and _side != null:
 		_side.queue_free()
 		_side = null
-	if _focused:
+	if _screen_powered:
 		_apply_view(_view)
 	if upgraded and not silent:
 		Game.notify("tasks", Game.L("워크스테이션 업그레이드", "Workstation upgrade"),

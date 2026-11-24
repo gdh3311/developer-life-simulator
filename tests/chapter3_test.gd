@@ -219,7 +219,7 @@ func day_eight() -> void:
 		await command("git switch -c feature/preorder-deadline")
 		var ai := preload("res://scripts/apps/ai_app.gd").new()
 		add_child(ai)
-		await ai._on_delegate()
+		check(ai._on_delegate(true), "AICode applies its draft on the working branch")
 		ai.queue_free()
 		await command("npm test")
 		check(Story.active.is_done("deadline"), "AI draft passes the public deadline tests")

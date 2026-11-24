@@ -51,9 +51,10 @@ func begin() -> void:
 		return
 	say("system", t("오늘부터 NEXORA 개발팀에 합류한 %s 님을 환영합니다!" % Game.pname(), "Please welcome %s, who joins the NEXORA dev team today!" % Game.pname()),
 		{"channel": "general", "silent": true})
-	choice("alex", t("%s 님, NEXORA에 오신 걸 환영해요! 저는 PM Alex예요. 오늘은 업무 환경을 익히는 날이에요. 궁금한 건 온보딩 버디 Sophie에게 물어보세요 :)" % Game.pname(),
-		"Welcome to NEXORA, %s! I'm Alex, the PM. Today is about getting set up. Sophie is your onboarding buddy, so ask her anything :)" % Game.pname()),
-		"d1_hello", [["warm", t("안녕하세요! 잘 부탁드립니다 :)", "Hi! Great to be here :)")], ["ready", t("네, 바로 시작하겠습니다.", "Thanks, I'll get started right away.")]])
+	choice("alex", t("%s 님, 환영해요. 커머스팀 PM Alex예요. NEXORA는 작은 온라인 상점이 주문을 받고 결제를 관리할 수 있는 Commerce Cloud를 만들어요. 우리 팀은 그 주문과 결제가 오가는 서버를 맡아요. 오늘은 팀을 둘러보고 첫 변경을 리뷰에 올려 볼 거예요. Sophie가 온보딩을 도와줄 거예요." % Game.pname(),
+		"Welcome, %s. I'm Alex, the commerce team's PM. NEXORA makes Commerce Cloud, which helps small online shops take orders and manage payments. We look after the servers that handle those orders and payments. Today you'll meet the team and send your first change for review. Sophie will help you get set up." % Game.pname()),
+		"d1_hello", [["warm", t("안녕하세요! 잘 부탁드립니다 :)", "Hi! Great to be here :)")], ["ready", t("네, 바로 시작하겠습니다.", "Thanks, I'll get started right away.")]],
+		{"link": {"app": "browser", "target": "portal/start", "label": t("첫 출근 안내 열기", "Open the first-day guide")}})
 
 
 func resume() -> void:
@@ -72,8 +73,8 @@ func on_event(kind: String, d: Dictionary) -> void:
 				await wait(1.0)
 				if not is_current():
 					return
-				say("sophie", t("안녕하세요! 온보딩 버디 Sophie예요. 먼저 Wiki의 '온보딩 가이드'부터 읽어 보세요. 우리 팀 일하는 방식이 다 있어요!",
-					"Hi! I'm Sophie, your onboarding buddy. Start with the 'Onboarding guide' in the Wiki. It explains how our team works!"))
+				say("sophie", t("온보딩 버디 Sophie예요. 저는 점주가 보는 주문 목록을 만들고 있어요. 점주에게 같은 주문이 두 줄로 뜨면 포장할 물건도 두 개로 보이거든요. Wiki의 '온보딩 가이드'에 우리가 이런 변경을 어떻게 검토하는지 정리해 뒀어요.",
+					"I'm Sophie, your onboarding buddy. I'm working on the order list that shop owners see. If an order shows up twice, it looks like they need to pack twice as much. The Wiki's Onboarding guide explains how we review changes like this."))
 		"wiki_page":
 			if d["page"] == "workflow" and is_done("hello"):
 				complete("wiki")

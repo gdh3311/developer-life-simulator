@@ -2,6 +2,7 @@ extends VBoxContainer
 ## The player-facing catalog for released games.
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
+const Art := preload("res://scripts/ui/illustrations.gd")
 const Rules := preload("res://scripts/services/arcade_rules.gd")
 const Board := preload("res://scripts/apps/arcade_board.gd")
 const MINT := Color("a5ebd8")
@@ -21,7 +22,10 @@ var _undo: Button
 
 func _ready() -> void:
 	add_theme_constant_override("separation", 11)
-	add_child(UITheme.bold("NEXORA Arcade", 26, MINT))
+	var header := UITheme.hbox(8)
+	header.add_child(Art.icon_view(Art.website("arcade"), 29))
+	header.add_child(UITheme.bold("NEXORA Arcade", 26, MINT))
+	add_child(header)
 	var previews := HFlowContainer.new()
 	previews.add_theme_constant_override("h_separation", 6)
 	previews.add_theme_constant_override("v_separation", 6)
@@ -102,10 +106,20 @@ func _build_guide() -> PanelContainer:
 	var column := UITheme.vbox(9)
 	panel.add_child(column)
 	column.add_child(UITheme.bold(Game.L("조작과 목표", "Controls and goal"), 17))
-	column.add_child(UITheme.wrap(Game.L("방향키 또는 인접한 칸을 클릭해 이동하세요.", "Use the arrow keys or click an adjacent tile."), 13, UITheme.TEXT2))
-	column.add_child(UITheme.wrap(Game.L("노란 패킷을 모두 모으면 출구가 열립니다.", "Collect all gold packets to unlock the exit."), 13, GOLD))
+	column.add_child(_guide_row("courier", Game.L("방향키 또는 인접한 칸을 클릭해 이동하세요.", "Use the arrow keys or click an adjacent tile.")))
+	column.add_child(_guide_row("packet", Game.L("노란 패킷을 모두 모으세요.", "Collect every gold packet.")))
+	column.add_child(_guide_row("exit_open", Game.L("출구에 민트색 불이 들어오면 통과할 수 있어요.", "The mint doorway shows the exit is open.")))
 	column.add_child(UITheme.wrap(Game.L("이동 횟수를 다 쓰면 되돌리거나 다시 시작할 수 있습니다.", "Undo a move or restart if you run out of moves."), 13, UITheme.TEXT2))
 	return panel
+
+
+func _guide_row(id: String, description: String) -> HBoxContainer:
+	var row := UITheme.hbox(7)
+	row.add_child(Art.icon_view(Art.arcade(id), 24))
+	var label := UITheme.wrap(description, 13, UITheme.TEXT2)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(label)
+	return row
 
 
 func _select_product(mode: String) -> void:

@@ -11,6 +11,7 @@ const Events := preload("res://tests/events_test.gd")
 const DeskAssets := preload("res://tests/desk_assets_test.gd")
 const Arcade := preload("res://tests/arcade_test.gd")
 const Studio := preload("res://tests/studio_test.gd")
+const Career := preload("res://tests/career_test.gd")
 const MainScene := preload("res://scenes/main.tscn")
 
 

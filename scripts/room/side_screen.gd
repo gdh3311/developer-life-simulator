@@ -96,6 +96,12 @@ func _render() -> void:
 		unread += int(Game.state["unread"][ch])
 	inbox.add_child(UITheme.bold(str(unread), 22, UITheme.WARN if unread > 0 else UITheme.TEXT2))
 
+	var goal_card := _card(Game.L("오늘의 목표", "GOALS"))
+	for id in Story.career.goals():
+		var status: String = Story.career.goal_status(id)
+		var c: Color = UITheme.OK if status == "done" else (UITheme.ERR if status == "failed" else UITheme.TEXT2)
+		goal_card.add_child(UITheme.wrap(("✓ " if status == "done" else ("✕ " if status == "failed" else "○ ")) + Game.tx(Story.career.GOALS[id]["text"]), 11, c))
+
 	var svc := _card(Game.L("서비스", "SERVICES"))
 	var statuses: Dictionary = Game.state["monitor"]["status"]
 	for name in statuses:

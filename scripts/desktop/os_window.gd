@@ -80,7 +80,7 @@ func setup(id: String, title: String, accent: Color, icon_name: String, content:
 	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var centered_mark := CenterContainer.new()
 	centered_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	centered_mark.add_child(Icon.make(icon_name, _accent.lightened(0.18), 17))
+	centered_mark.add_child(Icon.make(icon_name, _accent.lightened(0.18), 21 if icon_name == "relay" else 17))
 	mark.add_child(centered_mark)
 	row.add_child(mark)
 

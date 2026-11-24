@@ -10,11 +10,14 @@ var desktop: Control
 var _board: HBoxContainer
 var _current: VBoxContainer
 var _tabs: TabContainer
+var _goals: VBoxContainer
 var _shown_mission := ""
 
 
 func _ready() -> void:
 	add_theme_constant_override("separation", 0)
+	_goals = UITheme.vbox(0)
+	add_child(_goals)
 	_tabs = TabContainer.new()
 	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(_tabs)
@@ -47,7 +50,16 @@ func _ready() -> void:
 	_tabs.add_child(product_scroll)
 	Game.issues_changed.connect(_render)
 	Story.objectives_changed.connect(_render)
+	Game.event.connect(func(_k: String, _d: Dictionary) -> void: _render_goals())
+	_render_goals()
 	_render()
+
+
+func _render_goals() -> void:
+	if _goals == null:
+		return
+	UITheme.clear(_goals)
+	_goals.add_child(preload("res://scripts/apps/career_panel.gd").goals_strip())
 
 
 func open_product_tab(target: String) -> void:

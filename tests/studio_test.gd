@@ -1,6 +1,7 @@
 extends Node
 ## Studio product #2: Moonlight's pre-order page from TaskBoard ticket to a clickable release in Relay.
 
+const Art := preload("res://scripts/ui/illustrations.gd")
 const Desktop := preload("res://scripts/desktop/desktop.gd")
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const PageWork := preload("res://scripts/apps/page_work.gd")
@@ -99,13 +100,26 @@ func _run() -> void:
 	await pause(0.3)
 	view = find(desktop._open["browser"], PageView)
 	check(desktop.top_window_app() == "browser" and view != null and not view.build.is_empty(), "the released page opens in Relay")
+	check(view._hero_row.get_child(1).texture == Art.product("hero"), "released storefront displays its new hero photograph")
+	var product_photo: TextureRect = view._grid.get_child(0).get_child(0).get_child(0)
+	check(product_photo.texture == Art.product("tea") and product_photo.texture is AtlasTexture, "product key renders its photographed item")
 	check(view.countdown_text() == "2시간 5분 남음", "the countdown uses the player's wording")
 	check(view.button_enabled(0) and not view.button_enabled(1), "a sold-out product can't be pre-ordered")
 	check(view.reserve(0) and view.cart.size() == 1 and view.stock[0] == 29, "pre-ordering adds to the cart and uses stock")
 	for i in 4:
 		view.reserve(2)
 	check(view.stock[2] == 0 and not view.button_enabled(2) and not view.reserve(2), "the last cookie sells out the product")
+	desktop._toasts.hide()
 	await capture("moonlight_page_live")
+	var window: Control = desktop._open["browser"]
+	var wide_size := window.size
+	window.size.x = 430.0
+	await pause(0.2)
+	var first_button: Button = view._buttons[0][0]
+	check(view._hero_row.vertical and view._grid.columns < 3, "narrow storefront stacks the hero and reduces the grid columns")
+	check(first_button.get_global_rect().end.x <= window.get_global_rect().end.x, "narrow product photos and buttons stay inside the browser")
+	window.size = wide_size
+	await pause(0.2)
 	view.set_minutes(30)
 	check(view.countdown_text() == "30분 남음", "under an hour shows minutes")
 	view.set_minutes(0)

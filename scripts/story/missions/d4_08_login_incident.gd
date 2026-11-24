@@ -27,6 +27,7 @@ func _init() -> void:
 	ai_task = {
 		"label": t("로그인 타임아웃 처리 (#007)", "Login timeout (#007)"),
 		"files": {"src/auth/login.ts": "m07/ai_login.ts", "tests/login.test.ts": "m07/ai_login.test.ts"},
+		"bases": {"src/auth/login.ts": "base/src/auth/login.ts", "tests/login.test.ts": ""},
 		"summary": t("authenticate() 호출에 Promise.race로 타임아웃(기본 5초)을 추가하고 기본 동작 테스트를 작성했습니다.",
 			"Added a Promise.race timeout (default 5s) around authenticate() and wrote a basic test."),
 	}

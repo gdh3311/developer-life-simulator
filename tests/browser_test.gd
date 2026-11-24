@@ -2,6 +2,7 @@ extends Node
 ## Covers the Browser through its real workstation window and interactive controls.
 
 const Desktop := preload("res://scripts/desktop/desktop.gd")
+const Art := preload("res://scripts/ui/illustrations.gd")
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 
 var _checks := 0
@@ -87,6 +88,29 @@ func _run() -> void:
 		check(absf(rect.size.y - 36.0) <= 1.0 and absf(rect.position.y - toolbar.global_position.y) <= 1.0, "toolbar control shares the 36 px baseline")
 	check(browser._url.text == "https://nexora.test" and browser._back.disabled, "portal is the default bookmark")
 	check(browser._art != null and browser._art.get_width() > 1000, "original editorial image imports into the Browser")
+	check(Art.website("relay") is AtlasTexture, "the browser brand uses the new raster icon")
+	check(browser._tabs.get_child_count() == Art.WEB_ORDER.size() - 1, "a dedicated image is available for every site")
+	for index in browser._tabs.get_child_count():
+		var bookmark_art: TextureRect = browser._tabs.get_child(index).get_child(0)
+		check(bookmark_art.texture == Art.website(Art.WEB_ORDER[index + 1]) and bookmark_art.texture is AtlasTexture, "bookmark uses its original site emblem")
+
+	var guide := find_button(browser._body, "첫 출근 안내")
+	check(guide != null, "portal home directs a new hire to the first-day guide")
+	guide.pressed.emit()
+	check(browser._url.text == "https://nexora.test/start", "first-day guide has a stable direct URL")
+	await capture("nexora_first_day")
+	var product := find_button(browser._body, "Commerce Cloud 둘러보기")
+	product.pressed.emit()
+	check(browser._url.text == "https://nexora.test/commerce" and find_button(browser._body, "src/orders/orders.ts") != null, "company product page connects to the actual code paths")
+	browser._back.pressed.emit()
+	check(browser._url.text == "https://nexora.test/start", "history returns to the guide")
+	browser._url.text_submitted.emit("nexora.test/customers")
+	check(browser._url.text == "https://nexora.test/customers", "the case study opens when typed in the address bar")
+	var customer_story := find_button(browser._body, "재전송 사례 읽기")
+	customer_story.pressed.emit()
+	check(browser._url.text == "https://devdaily.test/retry", "customer page connects to the independent technical article")
+	toolbar.get_child(2).pressed.emit()
+	check(browser._url.text == "https://nexora.test", "the toolbar home button opens the company portal")
 
 	var bookmark := find_button(browser._tabs, "DevDaily")
 	var before: int = Sfx._next
@@ -94,6 +118,7 @@ func _run() -> void:
 	check(Sfx._next == (before + 1) % Sfx._players.size() and Sfx._players[before].stream.resource_path.ends_with("click.wav"), "real menu button is wired to the soft click")
 	bookmark.pressed.emit()
 	check(browser._url.text == "https://devdaily.test", "bookmark changes the displayed address")
+	check(browser._address_mark.texture == Art.website("news"), "address emblem follows the current site")
 	await capture("devdaily_ko")
 	var article := find_button(browser._body, "기사 읽기")
 	article.pressed.emit()
@@ -174,6 +199,37 @@ func _run() -> void:
 	check(browser._panes.vertical and browser._tabs.columns == 4, "compact window moves bookmarks above the content")
 	check(narrow_article.get_global_rect().end.y <= browser._scroll.get_global_rect().end.y, "compact lead article action stays in the initial view")
 	await capture("relay_compact")
+
+	Game.lang = "ko"
+	Story.start_new()
+	await pause(1.5)
+	desktop.open_resource("chat", "dm:alex")
+	await pause(0.25)
+	var alex_link := find_button(desktop._open["chat"], "첫 출근 안내 열기")
+	check(alex_link != null, "Alex's real welcome message contains a working intranet link")
+	if alex_link != null:
+		alex_link.pressed.emit()
+		check(desktop.top_window_app() == "browser" and browser._url.text == "https://nexora.test/start", "TeamChat takes the player directly to onboarding")
+	check((await Workspace.prepare())["ok"], "the Git client preview mounts the real repository")
+	desktop.open_app("pork")
+	var pork = desktop._find_method(desktop._open["pork"], "_new_branch")
+	var deadline := Time.get_ticks_msec() + 8000
+	while (pork._reading or pork._history.item_count == 0) and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	check(pork._history.item_count > 1, "Pork loads real commits in its desktop window")
+	if pork._history.item_count > 1:
+		pork._tabs.current_tab = 1
+		pork._history.select(1)
+		await pork._show_selection(1)
+		check("diff --git" in pork._diff.get_parsed_text(), "selecting a commit opens its actual diff")
+		desktop._toasts.hide()
+		desktop._guide.hide()
+		await capture("pork_git")
+	desktop.open_resource("browser", "portal/commerce")
+	var source := find_button(browser._body, "src/orders/orders.ts")
+	source.pressed.emit()
+	var editor = desktop._find_method(desktop._open["ide"], "open_file")
+	check(desktop.top_window_app() == "ide" and editor._current == "src/orders/orders.ts", "the product page opens the source in DevIDE")
 
 	Sfx.stop_all()
 	await pause(0.12)

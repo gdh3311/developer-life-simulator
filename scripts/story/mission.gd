@@ -16,7 +16,7 @@ var issue := ""
 var tutorial := false           # show the guide card with step-by-step help
 var objectives: Array = []
 var hints: Array = []           # [{ko,en}] revealed one by one in AICode
-var ai_task := {}               # { label, files: {path: content_path}, summary }
+var ai_task := {}               # Authored patch recipe: a substitution or file/base pairs.
 var default_reviewer := "daniel"
 var story: Node
 var handling_merge := false
