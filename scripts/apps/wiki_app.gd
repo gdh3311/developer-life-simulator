@@ -18,6 +18,10 @@ const PAGES := [
 	["concurrency", {"ko": "동시 요청과 선점", "en": "Concurrent requests and claims"}],
 	["rollout", {"ko": "배포와 관찰 기준", "en": "Rollout and observation"}],
 	["legacy17", {"ko": "LEGACY-17", "en": "LEGACY-17"}],
+	["preorder_scope", {"ko": "예약 판매 v1 범위", "en": "Pre-order v1 scope"}],
+	["preorder_deadline", {"ko": "예약 판매 마감 시각", "en": "Pre-order deadlines"}],
+	["preorder_cancel", {"ko": "예약 주문 취소와 환불", "en": "Pre-order cancellation and refunds"}],
+	["release", {"ko": "출시와 담당", "en": "Release and ownership"}],
 ]
 
 var _page := "overview"
@@ -105,8 +109,26 @@ func _content(id: String) -> String:
 			return _h(Game.L("동시 요청과 선점", "Concurrent requests and claims")) + Workspace.content("c02/concurrency_policy.txt")
 		"rollout":
 			return _h(Game.L("배포와 관찰 기준", "Rollout and observation")) + Workspace.content("c02/rollout_policy.txt")
+		"preorder_scope":
+			return _h(Game.L("예약 판매 v1 범위", "Pre-order v1 scope")) + Workspace.content("c03/scope.txt")
+		"preorder_deadline":
+			return _h(Game.L("예약 판매 마감 시각", "Pre-order deadlines")) + Workspace.content("c03/deadline_policy.txt")
+		"preorder_cancel":
+			if not Game.state["flags"].get("c03_cancel_policy", false):
+				return _h(Game.L("예약 주문 취소와 환불", "Pre-order cancellation and refunds")) + Game.L("초안 · 배송 준비 중인 주문의 취소 정책이 비어 있습니다. 판매자 정책은 Alex가 알고 있어요.",
+					"Draft · the policy for orders already in preparation is blank. Alex knows the seller-side rule.")
+			return _h(Game.L("예약 주문 취소와 환불", "Pre-order cancellation and refunds")) + Workspace.content("c03/cancel_policy.txt")
+		"release":
+			return _h(Game.L("출시와 담당", "Release and ownership")) + Workspace.content("c03/release_policy.txt")
 		"legacy17":
-			return _h("LEGACY-17") + Game.L("예전 주문 일부는 결제 쪽 번호와 주문 쪽 번호가 다르다. 현재 금액은 맞다.\n이관 전에 대조 규칙을 정해야 한다. (담당 미정 · 다음 분기 조사)",
+			var extra := ""
+			if Game.state["flags"].get("l17_pattern", false):
+				extra += Game.L("\n\n[감사 로그 표본] 부분 환불 뒤 재결제한 주문만 결제 쪽 번호가 새로 발급됐다 (ORD-2204, ORD-2213, ORD-2219). 주문 쪽 번호로 결제를 찾으면 이관 때 누락된다.",
+					"\n\n[Audit sample] Only orders re-paid after a partial refund got a new payment-side ID (ORD-2204, ORD-2213, ORD-2219). Looking payments up by the order reference loses them in migration.")
+			if Game.state["flags"].get("l17_note", false):
+				extra += Game.L("\n\n[Hana Yoon의 메모] 당시 결제사가 재결제에 새 번호를 줬고 주문 테이블을 바꿀 시간이 없어 결제 이력 테이블로 연결했다. 이관 때 이력 테이블을 함께 옮길 것.",
+					"\n\n[Hana Yoon's note] The provider issued new IDs on re-payment; with no time to change the orders table, they were linked through the payment history table. Migrate the history table too.")
+			return _h("LEGACY-17") + extra.strip_edges() + "\n\n" + Game.L("예전 주문 일부는 결제 쪽 번호와 주문 쪽 번호가 다르다. 현재 금액은 맞다.\n이관 전에 대조 규칙을 정해야 한다. (담당 미정 · 다음 분기 조사)",
 				"Some old orders have different payment-side and order-side IDs. Current amounts are correct.\nWe need a reconciliation rule before migration. (Owner TBD · investigate next quarter)")
 		"overview":
 			if en:

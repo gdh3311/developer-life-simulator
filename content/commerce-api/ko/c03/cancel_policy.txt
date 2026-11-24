@@ -1,0 +1,13 @@
+예약 주문 취소와 환불
+
+requestCancel(order) -> { state, refund }
+order: { paid, stage: 'placed' | 'preparing' | 'shipped' }
+
+| 단계 | 결제 전 | 결제 후 |
+|---|---|---|
+| placed(접수) | cancelled, 환불 없음 | refund_requested, 환불 true |
+| preparing(배송 준비) | needs_review | needs_review (자동 환불 없음) |
+| shipped(발송) | rejected | rejected |
+
+결제 후 취소를 '취소'로 같이 저장하면 정산에서 환불 기록이 사라진다.
+배송 준비 중 처리는 Alex가 판매자와 확인한 규칙이다: 판매자가 직접 판단한다.

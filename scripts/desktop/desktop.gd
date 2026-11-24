@@ -18,6 +18,7 @@ var apps: Array[Dictionary] = [
 	{"id": "chat", "name": "TeamChat", "icon": "chat", "color": Color("f5a524"), "size": Vector2(800, 520)},
 	{"id": "tasks", "name": "TaskBoard", "icon": "tasks", "color": Color("ec4899"), "size": Vector2(900, 520)},
 	{"id": "lab", "name": "Request Lab", "icon": "lab", "color": Color("2dd4bf"), "size": Vector2(860, 560)},
+	{"id": "docs", "name": "Docs", "icon": "doc", "color": Color("fbbf24"), "size": Vector2(820, 560)},
 	{"id": "wiki", "name": "Wiki", "icon": "wiki", "color": Color("22c3c3"), "size": Vector2(800, 540)},
 	{"id": "monitor", "name": "Monitor", "icon": "monitor", "color": Color("ff6b6b"), "size": Vector2(860, 520)},
 	{"id": "ai", "name": "AICode", "icon": "ai", "color": Color("c084fc"), "size": Vector2(600, 500)},
@@ -753,7 +754,10 @@ func _advance_workday() -> void:
 
 
 func _show_ending() -> void:
-	if Game.chapter() >= 2:
+	if Game.chapter() >= 3:
+		_show_chapter3_ending()
+		return
+	if Game.chapter() == 2:
 		_show_chapter2_ending()
 		return
 	UITheme.clear(_overlay)
@@ -821,10 +825,57 @@ func _show_chapter2_ending() -> void:
 		UITheme.label(Game.L("관찰 담당 %s · 되돌림 %d회 · 답장 시도 %d회   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Observation owner %s · Rollbacks %d · Reply drafts %d   ·   Avg. team trust %d   ·   Balance %s") % [String(r.get("owner", "-")), int(r.get("rollbacks", 0)), int(reply.get("attempts", 0)), roundi(Game.avg_trust()), Game.won(Game.money())], 13, UITheme.MUTED),
 		UITheme.label(Game.L("커밋 %d · PR %d · CI 통과 %d / 실패 %d · 리뷰 %d", "Commits %d · PRs %d · CI %d green / %d red · Reviews %d") % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews")], 13, UITheme.MUTED),
 		UITheme.label(_payday_line(), 13, UITheme.TEXT2),
-		UITheme.label(Game.L("다음 이야기: LEGACY-17 · 예전 주문의 번호가 맞지 않는다 — 챕터 3 개발 중", "Next: LEGACY-17 · old orders whose IDs don't match — Chapter 3 in development"), 13, UITheme.WARN),
+		UITheme.label(Game.L("다음: 챕터 3 처음부터 끝까지 — 첫 기능을 출시하고, Jamie와 Taeseok이 각자의 이야기를 들고 온다", "Next: Chapter 3 From start to finish — ship a first feature while Jamie and Taeseok bring their own stories"), 13, UITheme.WARN),
 	]:
 		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(lab)
+	_add_continue_button(v, Game.L("챕터 3 시작하기  →", "Start Chapter 3  →"))
+	var btn := UITheme.button(Game.L("현재 데스크톱 둘러보기", "Review this desktop"))
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.custom_minimum_size = Vector2(240, 40)
+	btn.pressed.connect(func() -> void:
+		_overlay.queue_free()
+		_overlay = null
+		_day_transitioning = false
+		_end_day_btn.visible = true)
+	v.add_child(btn)
+
+
+func _add_continue_button(v: VBoxContainer, text: String) -> void:
+	if not Story.can_continue_chapter():
+		return
+	var next := UITheme.button(text, "primary")
+	next.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	next.custom_minimum_size = Vector2(260, 42)
+	next.pressed.connect(_continue_chapter)
+	v.add_child(next)
+
+
+func _show_chapter3_ending() -> void:
+	UITheme.clear(_overlay)
+	Sfx.play("promote")
+	confetti(160)
+	(_overlay as ColorRect).color = Color(0.02, 0.03, 0.05, 0.96)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.add_child(center)
+	var v := UITheme.vbox(12)
+	center.add_child(v)
+	var review: Dictionary = Game.state["flags"].get("c03_review", {})
+	var lines: Array = [
+		UITheme.label("CHAPTER 3  —  " + Game.L("처음부터 끝까지", "FROM START TO FINISH"), 13, UITheme.ACCENT),
+		UITheme.bold(Game.L("출시 공지에 내 이름이 올라갔다", "My name is on the launch notice"), 26),
+		UITheme.label(Game.L("범위 6일 → 판매자 시간대 마감 → 취소·환불 분리 → 작은 베타 → 문구 수정 → 출시 → 담당 정리", "Six-day scope → seller-time deadlines → cancel/refund split → small beta → wording fix → launch → ownership"), 14, UITheme.TEXT2),
+		UITheme.label((Game.L("평가: %s로 승진", "Review: promoted to %s") % Game.rank_name()) if review.get("promoted", false) else Game.L("평가: 직급 유지 · 두 달 뒤 재평가와 주간 페어링", "Review: same level · re-review in two months with weekly pairing"), 13, UITheme.TEXT),
+	]
+	for a in Story.arcs.all():
+		lines.append(UITheme.label("%s  ·  %s" % [Game.tx(a.title), a.summary()], 13, UITheme.MUTED))
+	lines.append(UITheme.label(Game.L("커밋 %d · PR %d · CI 통과 %d / 실패 %d · 리뷰 %d   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Commits %d · PRs %d · CI %d green / %d red · Reviews %d   ·   Avg. team trust %d   ·   Balance %s") % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews"), roundi(Game.avg_trust()), Game.won(Game.money())], 12, UITheme.MUTED))
+	lines.append(UITheme.label(Game.L("다음: 챕터 4 오래된 결정 — 개발 중", "Next: Chapter 4 An old decision — in development"), 13, UITheme.WARN))
+	for lab in lines:
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(lab)
+	_add_continue_button(v, Game.L("챕터 4 시작하기  →", "Start Chapter 4  →"))
 	var btn := UITheme.button(Game.L("현재 데스크톱 둘러보기", "Review this desktop"), "primary")
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.custom_minimum_size = Vector2(240, 40)

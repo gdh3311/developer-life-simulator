@@ -1,0 +1,13 @@
+Pre-order v1 scope (draft)
+
+Launch date: set by Alex for the new contract demo. Six working days available.
+Requested items (cost in days):
+- Deadline in seller local time (2) — required
+- Separate cancel and refund requests (2) — required
+- Ship-date display (1) — required
+- Per-buyer quantity limit (2)
+- Coupons with pre-order items (3)
+- Restock SMS alerts (2)
+
+The three required items take five days. One more item goes over the budget.
+Write acceptance criteria as checkable sentences. 'Around' or 'roughly' cannot be checked.

@@ -1,0 +1,9 @@
+Release and ownership
+
+A release note says what changed, who it applies to, and when we roll back.
+Pick post-release checks that show what the feature actually does.
+- Good: order-blocking logs right after deadlines, cancel-request state mix, ship-date wording inquiries
+- Unrelated: server CPU (moves for reasons unrelated to pre-orders)
+
+When a feature ships, ownership remains: an owner, inquiry hours, a shared channel, and a runbook.
+If questions arrive by DM, the feature takes a day off whenever that person does.

@@ -13,6 +13,7 @@ const SCRIPTS := {
 	"ai": preload("res://scripts/apps/ai_app.gd"),
 	"browser": preload("res://scripts/apps/browser_app.gd"),
 	"dashboard": preload("res://scripts/apps/dashboard_app.gd"),
+	"docs": preload("res://scripts/apps/docs_app.gd"),
 }
 
 

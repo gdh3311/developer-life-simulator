@@ -1,0 +1,13 @@
+Pre-order cancellation and refunds
+
+requestCancel(order) -> { state, refund }
+order: { paid, stage: 'placed' | 'preparing' | 'shipped' }
+
+| Stage | Unpaid | Paid |
+|---|---|---|
+| placed | cancelled, no refund | refund_requested, refund true |
+| preparing | needs_review | needs_review (no automatic refund) |
+| shipped | rejected | rejected |
+
+Saving a paid cancellation as plain 'cancelled' loses the refund record in settlement.
+Orders in preparation follow the rule Alex agreed with sellers: the seller decides.

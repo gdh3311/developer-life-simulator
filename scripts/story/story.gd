@@ -26,19 +26,31 @@ const MISSIONS := [
 	preload("res://scripts/story/missions/c02_06_concurrency.gd"),
 	preload("res://scripts/story/missions/c02_07_rollout.gd"),
 	preload("res://scripts/story/missions/c02_08_reply.gd"),
+	preload("res://scripts/story/missions/c03_01_scope.gd"),
+	preload("res://scripts/story/missions/c03_02_deadline.gd"),
+	preload("res://scripts/story/missions/c03_03_cancel.gd"),
+	preload("res://scripts/story/missions/c03_04_beta.gd"),
+	preload("res://scripts/story/missions/c03_05_labels.gd"),
+	preload("res://scripts/story/missions/c03_06_release.gd"),
+	preload("res://scripts/story/missions/c03_07_ownership.gd"),
+	preload("res://scripts/story/missions/c03_08_contract.gd"),
 ]
 const SideEvents := preload("res://scripts/story/side_events.gd")
+const Arcs := preload("res://scripts/story/arcs.gd")
 const Chapters := preload("res://scripts/story/chapters.gd")
 
 var _missions: Array = []
 var active: RefCounted = null
 var side: RefCounted
+var arcs: RefCounted          # storyline engine (see docs/STORYLINES.md)
 
 
 func _ready() -> void:
 	_build()
 	Game.event.connect(_on_event)
-	Game.time_changed.connect(func(_d: int, _m: int) -> void: side.check())
+	Game.time_changed.connect(func(_d: int, _m: int) -> void:
+		side.check()
+		arcs.check())
 	Game.state_reset.connect(func() -> void:
 		active = null
 		_build())
@@ -51,6 +63,7 @@ func _build() -> void:
 		m.story = self
 		_missions.append(m)
 	side = SideEvents.new()
+	arcs = Arcs.new()
 
 
 func mission(id: String) -> RefCounted:
@@ -115,6 +128,7 @@ func resume() -> void:
 func start_day(_d: int) -> void:
 	_start_next()
 	side.check()
+	arcs.check()
 
 
 func _start_next() -> void:
@@ -128,6 +142,7 @@ func _start_next() -> void:
 	active = null
 	objectives_changed.emit()
 	side.flush_day()
+	arcs.flush_day()
 	_signal_chapter_end()
 	Game.finish_day()
 
@@ -173,6 +188,7 @@ func _on_event(kind: String, data: Dictionary) -> void:
 			Game.inc_stat("main_commits")
 			_main_commit_warning()
 	side.on_event(kind, data)
+	arcs.on_event(kind, data)
 	if active == null or status(active.id) != "active":
 		return
 	var m = active

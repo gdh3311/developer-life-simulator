@@ -1,0 +1,11 @@
+Pre-order deadlines
+
+Sellers write the deadline in their local time, e.g. '2026-03-10T23:00' with offsetMinutes 540 (KST).
+The server stores and compares UTC milliseconds.
+
+1. UTC instant = local time - offset (minutes). 23:00 KST is 14:00 UTC.
+2. Orders close at the deadline minute itself. With a 23:00 deadline, 22:59 is open and 23:00 is closed.
+3. Offsets can be negative (behind UTC) or half-hour steps.
+4. A deadline after local midnight may be the previous day in UTC. Never decide by the date alone.
+
+Display in the seller's local time: 'until Mar 10, 23:00 (seller time)'.

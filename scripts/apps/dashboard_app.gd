@@ -45,6 +45,22 @@ func _render() -> void:
 	prof.add_child(pr)
 	_root.add_child(prof)
 
+	# Storylines
+	if Game.chapter() >= 3:
+		var arcs := UITheme.panel(UITheme.BG2, 12, 14, Color(0, 0, 0, 0))
+		var av := UITheme.vbox(6)
+		av.add_child(UITheme.label(Game.L("스토리라인  ·  동시에 %d개까지 따라갈 수 있어요", "Storylines  ·  follow up to %d at once") % Story.arcs.MAX_ACTIVE, 12, UITheme.TEXT2))
+		for a in Story.arcs.all():
+			var status_text := {"active": Game.L("진행 중", "Active"), "deferred": Game.L("보류", "On hold"), "dropped": Game.L("내려놓음", "Set aside"), "offered": Game.L("제안됨", "Offered")}.get(a.status(), Game.L("아직", "Not yet")) as String
+			var row := UITheme.hbox(10)
+			row.add_child(UITheme.label(status_text, 12, UITheme.OK if a.is_active() else UITheme.MUTED))
+			row.add_child(UITheme.bold(Game.tx(a.title), 13))
+			row.add_child(UITheme.spacer())
+			row.add_child(UITheme.label(a.summary(), 12, UITheme.TEXT2))
+			av.add_child(row)
+		arcs.add_child(av)
+		_root.add_child(arcs)
+
 	# Stats
 	var grid := GridContainer.new()
 	grid.columns = 4

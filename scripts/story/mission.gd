@@ -178,6 +178,58 @@ func added_tests_count(pr_dict: Dictionary) -> int:
 	return n
 
 
+## --- Docs forms (scope, release, ownership...) -----------------------------------
+## forms_def: { form_id: spec } where spec = { title, intro, submit, slots: [{ id, label, multi, max,
+## capacity, options: [{ id, text, cost }] }] }. The Docs app renders open forms and calls submit_form.
+var forms_def := {}
+
+
+func open_forms() -> Array:
+	if not is_current():
+		return []
+	return forms_def.keys().map(func(k: String) -> Dictionary:
+		var spec: Dictionary = forms_def[k].duplicate()
+		spec["id"] = k
+		spec["done"] = form_done(k)
+		spec["picks"] = data().get("forms", {}).get(k, {})
+		return spec)
+
+
+func form_done(form_id: String) -> bool:
+	return data().get("forms", {}).has(form_id)
+
+
+## Returns notes ([{ko,en}]) explaining what to fix; empty means accepted.
+func submit_form(form_id: String, picks: Dictionary) -> Array:
+	if not is_current() or form_done(form_id) or not forms_def.has(form_id):
+		return []
+	var notes := FormRules.missing(forms_def[form_id], picks)
+	if notes.is_empty():
+		notes = judge_form(form_id, picks)
+	data()["form_tries_" + form_id] = int(data().get("form_tries_" + form_id, 0)) + 1
+	if not notes.is_empty():
+		Game.emit_event("form_rejected", {"form": form_id, "notes": notes.size()})
+		return notes
+	var forms: Dictionary = data().get("forms", {})
+	forms[form_id] = picks.duplicate(true)
+	data()["forms"] = forms
+	Game.save_soon()
+	Game.emit_event("form_submitted", {"form": form_id})
+	on_form_accepted(form_id, picks)
+	return []
+
+
+func judge_form(_form_id: String, _picks: Dictionary) -> Array:
+	return []
+
+
+func on_form_accepted(_form_id: String, _picks: Dictionary) -> void:
+	pass
+
+
+const FormRules := preload("res://scripts/story/form_rules.gd")
+
+
 ## Updates the production Monitor. status: ok | warn | down. mode: log stream preset.
 func monitor(service: String, status: String, mode := "") -> void:
 	var m: Dictionary = Game.state["monitor"]

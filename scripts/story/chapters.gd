@@ -4,10 +4,13 @@ extends RefCounted
 const DATA := {
 	1: {"title": {"ko": "첫 출근", "en": "First days"}, "period": {"ko": "첫 번째 달", "en": "Month one"}, "first_day": 1, "last_day": 4, "planned": 10, "complete": true},
 	2: {"title": {"ko": "내 이름이 적힌 업무", "en": "A task with my name on it"}, "period": {"ko": "두 번째 달", "en": "Month two"}, "first_day": 5, "last_day": 7, "planned": 8, "complete": true},
+	3: {"title": {"ko": "처음부터 끝까지", "en": "From start to finish"}, "period": {"ko": "네 번째 달", "en": "Month four"}, "first_day": 8, "last_day": 10, "planned": 8, "complete": true},
 }
 
 
 static func for_day(day: int) -> int:
+	if day >= 8:
+		return 3
 	return 2 if day >= 5 else 1
 
 

@@ -30,6 +30,8 @@ const NPCS := {
 	"ai": {"name": "AICode", "role": {"ko": "AI 코딩 에이전트", "en": "AI coding agent"}, "color": "c86bfa"},
 	"system": {"name": "NEXORA", "role": {"ko": "시스템", "en": "System"}, "color": "9aa4b5"},
 	"yuri": {"name": "Yuri Han", "role": {"ko": "고객 성공 매니저", "en": "Customer Success Manager"}, "color": "2dd4bf"},
+	"taeseok": {"name": "Taeseok Kang", "role": {"ko": "보안·감사 엔지니어", "en": "Security & Audit Engineer"}, "color": "94a3b8"},
+	"hana": {"name": "Hana Yoon", "role": {"ko": "전 결제팀 개발자", "en": "Former Payments Engineer"}, "color": "f0abfc"},
 	"recruiter": {"name": "Jamie Seo", "role": {"ko": "테크 리크루터 · Brightloop", "en": "Tech Recruiter · Brightloop"}, "color": "38bdf8"},
 }
 const REL_KEYS := {"tech": {"ko": "기술 신뢰", "en": "Tech trust"}, "work": {"ko": "업무 신뢰", "en": "Work trust"},
@@ -79,7 +81,7 @@ func _default_state() -> Dictionary:
 		"chat": [], "next_msg": 1, "unread": {},
 		"issues": [],
 		"stats": {}, "stats_today": {},
-		"story": {}, "side": {},
+		"story": {}, "side": {}, "arcs": {},
 		"investigations": {},
 		"codehub": {"prs": [], "next_id": 1},
 		"monitor": {"status": {"api": "ok", "auth": "ok", "payments": "ok"}, "mode": "normal"},
