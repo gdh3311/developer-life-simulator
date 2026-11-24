@@ -1,0 +1,277 @@
+{
+  "version": 1,
+  "slots": {
+    "keyboard": {
+      "anchor": [
+        960,
+        958
+      ],
+      "origin": "center",
+      "default": "kb_basic",
+      "name": {
+        "ko": "키보드",
+        "en": "Keyboard"
+      }
+    },
+    "mouse": {
+      "anchor": [
+        1430,
+        970
+      ],
+      "origin": "center",
+      "default": "mouse_basic",
+      "name": {
+        "ko": "마우스",
+        "en": "Mouse"
+      }
+    },
+    "mug": {
+      "anchor": [
+        470,
+        1034
+      ],
+      "origin": "bottom",
+      "default": "mug_white",
+      "name": {
+        "ko": "머그",
+        "en": "Mug"
+      }
+    },
+    "plant": {
+      "anchor": [
+        205,
+        900
+      ],
+      "origin": "bottom",
+      "default": "plant_fern",
+      "name": {
+        "ko": "화분",
+        "en": "Plant"
+      }
+    }
+  },
+  "items": [
+    {
+      "id": "kb_basic",
+      "slot": "keyboard",
+      "name": {
+        "ko": "기본 키보드",
+        "en": "Standard keyboard"
+      },
+      "file": "res://content/desk/kb_basic.svg",
+      "size": [
+        700,
+        86
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "kb_white",
+      "slot": "keyboard",
+      "name": {
+        "ko": "화이트 키보드",
+        "en": "White keyboard"
+      },
+      "file": "res://content/desk/kb_white.svg",
+      "size": [
+        700,
+        86
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "kb_rgb",
+      "slot": "keyboard",
+      "name": {
+        "ko": "기계식 RGB 키보드",
+        "en": "Mechanical RGB keyboard"
+      },
+      "file": "res://content/desk/kb_rgb.svg",
+      "size": [
+        700,
+        86
+      ],
+      "unlock": {
+        "owned": "keyboard_rgb"
+      }
+    },
+    {
+      "id": "kb_retro",
+      "slot": "keyboard",
+      "name": {
+        "ko": "레트로 키보드",
+        "en": "Retro keyboard"
+      },
+      "file": "res://content/desk/kb_retro.svg",
+      "size": [
+        700,
+        86
+      ],
+      "unlock": {
+        "rank": 2
+      }
+    },
+    {
+      "id": "mouse_basic",
+      "slot": "mouse",
+      "name": {
+        "ko": "기본 마우스",
+        "en": "Standard mouse"
+      },
+      "file": "res://content/desk/mouse_basic.svg",
+      "size": [
+        150,
+        92
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "mouse_white",
+      "slot": "mouse",
+      "name": {
+        "ko": "화이트 마우스",
+        "en": "White mouse"
+      },
+      "file": "res://content/desk/mouse_white.svg",
+      "size": [
+        150,
+        92
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "mouse_gaming",
+      "slot": "mouse",
+      "name": {
+        "ko": "게이밍 마우스",
+        "en": "Gaming mouse"
+      },
+      "file": "res://content/desk/mouse_gaming.svg",
+      "size": [
+        150,
+        92
+      ],
+      "unlock": {
+        "owned": "keyboard_rgb"
+      }
+    },
+    {
+      "id": "mug_white",
+      "slot": "mug",
+      "name": {
+        "ko": "{ } 머그",
+        "en": "{ } mug"
+      },
+      "file": "res://content/desk/mug_white.svg",
+      "size": [
+        96,
+        80
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "mug_black",
+      "slot": "mug",
+      "name": {
+        "ko": "무광 블랙 머그",
+        "en": "Matte black mug"
+      },
+      "file": "res://content/desk/mug_black.svg",
+      "size": [
+        96,
+        80
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "mug_nexora",
+      "slot": "mug",
+      "name": {
+        "ko": "NEXORA 굿즈 머그",
+        "en": "NEXORA swag mug"
+      },
+      "file": "res://content/desk/mug_nexora.svg",
+      "size": [
+        96,
+        80
+      ],
+      "unlock": {
+        "rank": 1
+      }
+    },
+    {
+      "id": "mug_moonlight",
+      "slot": "mug",
+      "name": {
+        "ko": "달빛상점 선물 머그",
+        "en": "Moonlight gift mug"
+      },
+      "file": "res://content/desk/mug_moonlight.svg",
+      "size": [
+        96,
+        80
+      ],
+      "unlock": {
+        "story": "c02_08"
+      }
+    },
+    {
+      "id": "plant_fern",
+      "slot": "plant",
+      "name": {
+        "ko": "고사리",
+        "en": "Fern"
+      },
+      "file": "res://content/desk/plant_fern.svg",
+      "size": [
+        220,
+        210
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "plant_snake",
+      "slot": "plant",
+      "name": {
+        "ko": "산세베리아",
+        "en": "Snake plant"
+      },
+      "file": "res://content/desk/plant_snake.svg",
+      "size": [
+        220,
+        210
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "plant_cactus",
+      "slot": "plant",
+      "name": {
+        "ko": "선인장",
+        "en": "Cactus"
+      },
+      "file": "res://content/desk/plant_cactus.svg",
+      "size": [
+        220,
+        210
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "plant_succulent",
+      "slot": "plant",
+      "name": {
+        "ko": "다육이",
+        "en": "Succulent"
+      },
+      "file": "res://content/desk/plant_succulent.svg",
+      "size": [
+        220,
+        210
+      ],
+      "unlock": {
+        "story": "c03_06"
+      }
+    }
+  ]
+}

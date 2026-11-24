@@ -82,7 +82,7 @@ func _default_state() -> Dictionary:
 		"chat": [], "next_msg": 1, "unread": {},
 		"issues": [],
 		"stats": {}, "stats_today": {},
-		"story": {}, "side": {}, "arcs": {}, "events": {},
+		"story": {}, "side": {}, "arcs": {}, "events": {}, "desk": {},
 		"investigations": {},
 		"codehub": {"prs": [], "next_id": 1},
 		"monitor": {"status": {"api": "ok", "auth": "ok", "payments": "ok"}, "mode": "normal"},

@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Godot,
     [switch]$Screenshots,
     [switch]$EngineVerbose,
-    [ValidateSet('gameplay', 'chapter', 'chapter2', 'chapter3', 'recovery', 'desk', 'events')][string]$Suite = 'gameplay',
+    [ValidateSet('gameplay', 'chapter', 'chapter2', 'chapter3', 'recovery', 'desk', 'events', 'desk_assets')][string]$Suite = 'gameplay',
     [ValidateSet('prevent', 'recover', 'resume')][string]$Profile = 'prevent'
 )
 
@@ -18,6 +18,7 @@ if ($Suite -eq 'chapter3') { $outputPath = Join-Path $workspacePath ('build\chap
 if ($Suite -eq 'recovery') { $outputPath = Join-Path $workspacePath 'build\recovery-qa' }
 if ($Suite -eq 'desk') { $outputPath = Join-Path $workspacePath 'build\desk-qa' }
 if ($Suite -eq 'events') { $outputPath = Join-Path $workspacePath 'build\events-qa' }
+if ($Suite -eq 'desk_assets') { $outputPath = Join-Path $workspacePath 'build\desk-assets-qa' }
 New-Item -ItemType Directory -Path $qaPath, $outputPath -Force | Out-Null
 $buildIgnore = Join-Path $workspacePath 'build\.gdignore'
 if (-not (Test-Path -LiteralPath $buildIgnore)) { [IO.File]::WriteAllText($buildIgnore, '') }

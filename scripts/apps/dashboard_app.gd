@@ -3,6 +3,7 @@ extends ScrollContainer
 
 const UITheme := preload("res://scripts/ui/ui_theme.gd")
 const Icon := preload("res://scripts/ui/icon.gd")
+const DeskItems := preload("res://scripts/room/desk_items.gd")
 
 var _root: VBoxContainer
 var _confirm := false
@@ -125,6 +126,8 @@ func _render() -> void:
 			UITheme.TEXT if st != "locked" else UITheme.MUTED))
 		_root.add_child(row)
 
+	_root.add_child(_desk_panel())
+
 	# Settings
 	_root.add_child(UITheme.label(Game.L("설정", "Settings"), 12, UITheme.MUTED))
 	var srow := UITheme.hbox(10)
@@ -189,6 +192,73 @@ func _render() -> void:
 		if Game.new_game():
 			get_tree().reload_current_scene())
 	_root.add_child(reset)
+
+
+## My desk: pick the keyboard, mouse, mug and plant. Locked items say how to unlock them.
+func _desk_panel() -> Control:
+	var box := UITheme.panel(UITheme.BG2, 12, 14, Color(0, 0, 0, 0))
+	var v := UITheme.vbox(10)
+	box.add_child(v)
+	var head := UITheme.hbox(8)
+	head.add_child(UITheme.label(Game.L("내 책상", "My desk"), 12, UITheme.TEXT2))
+	head.add_child(UITheme.spacer())
+	var reload := UITheme.button(Game.L("내 에셋 다시 읽기", "Reload my assets"))
+	reload.tooltip_text = DeskItems.CUSTOM_DIR
+	reload.pressed.connect(func() -> void:
+		DeskItems.reload()
+		Game.emit_event("desk_changed", {})
+		_render())
+	head.add_child(reload)
+	v.add_child(head)
+	for slot in DeskItems.slots():
+		var row := HFlowContainer.new()
+		row.add_theme_constant_override("h_separation", 8)
+		row.add_theme_constant_override("v_separation", 8)
+		var label := UITheme.label(Game.tx(DeskItems.slot_info(slot)["name"]), 12, UITheme.MUTED)
+		label.custom_minimum_size = Vector2(64, 0)
+		row.add_child(label)
+		var current: Dictionary = DeskItems.equipped(slot)
+		for it in DeskItems.items_for(slot):
+			row.add_child(_desk_choice(slot, it, it["id"] == current.get("id", "")))
+		v.add_child(row)
+	return box
+
+
+func _desk_choice(slot: String, it: Dictionary, selected: bool) -> Control:
+	var open := DeskItems.unlocked(it)
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(112, 86)
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = Game.tx(it["name"]) + ("" if open else "
+" + DeskItems.lock_reason(it))
+	b.disabled = not open
+	b.add_theme_stylebox_override("normal", UITheme.box(UITheme.BG3, 8, UITheme.ACCENT if selected else Color(1, 1, 1, 0.06), 6, 2 if selected else 1))
+	b.add_theme_stylebox_override("hover", UITheme.box(UITheme.BG3.lightened(0.05), 8, UITheme.ACCENT, 6))
+	b.add_theme_stylebox_override("disabled", UITheme.box(UITheme.BG1, 8, Color(1, 1, 1, 0.04), 6))
+	var v := UITheme.vbox(4)
+	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 6)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var pic := TextureRect.new()
+	pic.texture = DeskItems.texture(it)
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pic.custom_minimum_size = Vector2(98, 48)
+	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pic.modulate.a = 1.0 if open else 0.35
+	v.add_child(pic)
+	var name := UITheme.label(Game.tx(it["name"]) if open else "🔒 " + DeskItems.lock_reason(it), 10, UITheme.TEXT if open else UITheme.MUTED)
+	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name.custom_minimum_size.x = 98
+	name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(name)
+	b.add_child(v)
+	var item_id: String = it["id"]
+	b.pressed.connect(func() -> void:
+		if DeskItems.equip(slot, item_id):
+			Sfx.play("click")
+			_render())
+	return b
 
 
 func _render_cases() -> void:

@@ -3,6 +3,7 @@ extends Control
 ## The window's sky follows the in-game clock.
 
 const VIEW := Vector2(1920, 1080)
+const DeskItems := preload("res://scripts/room/desk_items.gd")
 
 var monitor_rect := Rect2()   # outer frame of the monitor (set by main)
 var screen_glow := 0.0        # 0..1, monitor light on the desk/wall
@@ -23,8 +24,13 @@ func _ready() -> void:
 		_buildings.append([x, w, _rng.randf_range(120, 420), _rng.randi()])
 		x += w + _rng.randf_range(2, 10)
 	Game.time_changed.connect(func(_d: int, _m: int) -> void: queue_redraw())
-	Game.event.connect(func(kind: String, _d: Dictionary) -> void:
+	Game.event.connect(func(kind: String, d: Dictionary) -> void:
 		if kind == "purchase":
+			# A new keyboard goes straight onto the desk.
+			if String(d.get("id", "")) == "keyboard_rgb":
+				DeskItems.equip("keyboard", "kb_rgb")
+			queue_redraw()
+		elif kind == "desk_changed":
 			queue_redraw())
 	Game.state_reset.connect(queue_redraw)
 
@@ -88,18 +94,18 @@ func _draw() -> void:
 		_draw_lamp(Vector2(1640, desk_y), day)
 	if tier >= 2:
 		_draw_desk_mat(desk_y)
-	_draw_plant(Vector2(250, desk_y))
-	_draw_mug(Vector2(420, desk_y))
+	_draw_slot("plant", func() -> void: _draw_plant(Vector2(250, desk_y)))
+	_draw_slot("mug", func() -> void: _draw_mug(Vector2(420, desk_y)))
 	if _owns("coffee_machine"):
 		_draw_coffee_machine(Vector2(560, desk_y))
-	_draw_keyboard(Vector2(VIEW.x / 2.0, desk_y + 58))
-	_draw_mouse(Vector2(VIEW.x / 2.0 + 470, desk_y + 70))
+	_draw_slot("keyboard", func() -> void: _draw_keyboard(Vector2(VIEW.x / 2.0, desk_y + 58)))
+	_draw_slot("mouse", func() -> void: _draw_mouse(Vector2(VIEW.x / 2.0 + 470, desk_y + 70)))
 	if _owns("figure"):
 		_draw_figure(Vector2(1380, desk_y))
 	if _owns("headphones"):
 		_draw_headphones(Vector2(1500, desk_y))
 	if tier >= 2:
-		_draw_nameplate(Vector2(VIEW.x / 2.0 - 470, desk_y + 120))
+		_draw_nameplate(Vector2(1665, desk_y + 128))
 	if tier >= 1 and side_rect.size != Vector2.ZERO:
 		_draw_side_stand(day)
 	if monitor_rect.size != Vector2.ZERO:
@@ -192,6 +198,21 @@ func _draw_lamp(base: Vector2, day: float) -> void:
 	draw_line(base + Vector2(40, -220), base + Vector2(-80, -320), Color("2b2f38"), 8.0, true)
 	draw_colored_polygon(PackedVector2Array([base + Vector2(-140, -350), base + Vector2(-50, -330), base + Vector2(-70, -300), base + Vector2(-130, -315)]), Color("343a46"))
 	draw_circle(base + Vector2(-95, -318), 9, Color(1.0, 0.9, 0.6, 0.4 + 0.6 * on))
+
+
+## Draw the equipped asset for a desk slot; fall back to the vector drawing if it can't load.
+func _draw_slot(slot: String, fallback: Callable) -> void:
+	var it := DeskItems.equipped(slot)
+	var tex := DeskItems.texture(it) if not it.is_empty() else null
+	if tex == null:
+		fallback.call()
+		return
+	draw_texture_rect(tex, DeskItems.rect_for(it), false)
+
+
+func equipped_texture(slot: String) -> Texture2D:
+	var it := DeskItems.equipped(slot)
+	return DeskItems.texture(it) if not it.is_empty() else null
 
 
 func _draw_plant(base: Vector2) -> void:
