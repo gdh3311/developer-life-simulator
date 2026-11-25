@@ -92,7 +92,8 @@ static func equipped(slot: String) -> Dictionary:
 	return it
 
 
-## Unlock rules: owned (bought in the shop), rank (reached), story (mission done). Custom items are free.
+## Unlock rules: owned (bought in the shop), rank (reached), story (mission done), achievement,
+## tickets (small tickets finished), stat [key, n]. Custom items are free.
 static func unlocked(it: Dictionary) -> bool:
 	var u: Dictionary = it.get("unlock", {})
 	if u.has("owned") and not Game.state["owned"].has(u["owned"]):
@@ -101,7 +102,18 @@ static func unlocked(it: Dictionary) -> bool:
 		return false
 	if u.has("story") and String(Game.state["story"].get(u["story"], {}).get("status", "")) != "done":
 		return false
+	if u.has("achievement") and not (Story.career != null and Story.career.unlocked(String(u["achievement"]))):
+		return false
+	if u.has("tickets") and _tickets_done() < int(u["tickets"]):
+		return false
+	if u.has("stat") and Game.stat(String(u["stat"][0])) < int(u["stat"][1]):
+		return false
 	return true
+
+
+static func _tickets_done() -> int:
+	var t = Game.state.get("tickets", {})
+	return (t.get("done", {}) as Dictionary).size() if t is Dictionary else 0
 
 
 static func lock_reason(it: Dictionary) -> String:
@@ -112,7 +124,106 @@ static func lock_reason(it: Dictionary) -> String:
 		return Game.L("%s 이상" % Game.tx(Game.RANKS[clampi(int(u["rank"]), 0, Game.RANKS.size() - 1)]), "%s or above" % Game.tx(Game.RANKS[clampi(int(u["rank"]), 0, Game.RANKS.size() - 1)]))
 	if u.has("story"):
 		return Game.L("이야기를 진행하면 열림", "Unlocks as the story continues")
+	if u.has("achievement"):
+		var a: Dictionary = Story.career.ACHIEVEMENTS.get(String(u["achievement"]), {}) if Story.career != null else {}
+		return Game.L("업적 '%s'", "Achievement '%s'") % (Game.tx(a["name"]) if a.has("name") else String(u["achievement"]))
+	if u.has("tickets"):
+		return Game.L("작은 일감 %d개 완료 (%d/%d)", "Finish %d small tickets (%d/%d)") % [int(u["tickets"]), mini(_tickets_done(), int(u["tickets"])), int(u["tickets"])]
+	if u.has("stat"):
+		var names := {"ai_used": Game.L("AICode에 맡기기", "Delegate to AICode"), "prs": Game.L("PR 만들기", "Open PRs"), "reviews": Game.L("리뷰하기", "Review")}
+		var have := mini(Game.stat(String(u["stat"][0])), int(u["stat"][1]))
+		return "%s %d/%d" % [names.get(String(u["stat"][0]), String(u["stat"][0])), have, int(u["stat"][1])]
 	return ""
+
+
+# --- Decor: collectible toys placed freely on the desk ------------------------------------------------
+
+const MAX_DECOR := 6
+const DECOR_AREA := Rect2(40, 905, 1840, 165)   # where a toy's base may stand (room coordinates)
+
+
+static func decor_items() -> Array:
+	return items_for("decor")
+
+
+## Placed toys: [{id, x, y}] with (x, y) the base centre in room coordinates.
+static func placed() -> Array:
+	var d := _state()
+	if typeof(d.get("decor")) != TYPE_ARRAY:
+		d["decor"] = []
+	return d["decor"]
+
+
+static func is_placed(id: String) -> bool:
+	return placed().any(func(p: Dictionary) -> bool: return p["id"] == id)
+
+
+static func clamp_spot(spot: Vector2) -> Vector2:
+	return Vector2(clampf(spot.x, DECOR_AREA.position.x, DECOR_AREA.end.x), clampf(spot.y, DECOR_AREA.position.y, DECOR_AREA.end.y))
+
+
+static func place(id: String, spot: Vector2) -> bool:
+	var it := item(id)
+	if it.is_empty() or it["slot"] != "decor" or not unlocked(it):
+		return false
+	spot = clamp_spot(spot)
+	for p in placed():
+		if p["id"] == id:
+			p["x"] = spot.x
+			p["y"] = spot.y
+			_changed("decor", id)
+			return true
+	if placed().size() >= MAX_DECOR:
+		return false
+	placed().append({"id": id, "x": spot.x, "y": spot.y})
+	_changed("decor", id)
+	return true
+
+
+static func remove(id: String) -> void:
+	_state()["decor"] = placed().filter(func(p: Dictionary) -> bool: return p["id"] != id)
+	_changed("decor", id)
+
+
+static func _changed(slot: String, id: String) -> void:
+	Game.emit_event("desk_changed", {"slot": slot, "item": id})
+	Game.save_soon()
+
+
+## Toys further back on the desk look a little smaller.
+static func decor_rect(it: Dictionary, spot: Vector2) -> Rect2:
+	var depth := clampf((spot.y - DECOR_AREA.position.y) / DECOR_AREA.size.y, 0.0, 1.0)
+	var size := Vector2(float(it["size"][0]), float(it["size"][1])) * lerpf(0.86, 1.08, depth)
+	return Rect2(spot - Vector2(size.x / 2.0, size.y), size)
+
+
+## Cycle a slot to its next unlocked item (decorating mode: click the keyboard to try the next one).
+static func cycle(slot: String) -> String:
+	var options := items_for(slot).filter(func(it: Dictionary) -> bool: return unlocked(it))
+	if options.is_empty():
+		return ""
+	var current := String(equipped(slot).get("id", ""))
+	var i := options.map(func(it: Dictionary) -> String: return it["id"]).find(current)
+	var next: Dictionary = options[(i + 1) % options.size()]
+	equip(slot, next["id"])
+	return next["id"]
+
+
+## Items that became available since the player last looked (for the "new toy!" notice).
+static func newly_unlocked() -> Array:
+	var d := _state()
+	var seen: Array = d.get("seen", [])
+	var fresh: Array = []
+	for it in catalog()["items"]:
+		if unlocked(it) and not it.get("custom", false) and not (it["id"] in seen):
+			fresh.append(it)
+	for it in fresh:
+		seen.append(it["id"])
+	d["seen"] = seen
+	if not d.get("seen_init", false):
+		d["seen_init"] = true   # the first look just records what's already there
+		return []
+	return fresh
 
 
 static func equip(slot: String, id: String) -> bool:

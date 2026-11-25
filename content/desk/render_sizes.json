@@ -1,0 +1,126 @@
+{
+  "decor_bonsai": [
+    72,
+    92
+  ],
+  "decor_clock": [
+    67,
+    78
+  ],
+  "decor_controller": [
+    98,
+    44
+  ],
+  "decor_cube": [
+    54,
+    54
+  ],
+  "decor_duck": [
+    68,
+    62
+  ],
+  "decor_lucky_cat": [
+    61,
+    102
+  ],
+  "decor_pen_cup": [
+    44,
+    112
+  ],
+  "decor_robot": [
+    57,
+    98
+  ],
+  "decor_rocket": [
+    48,
+    112
+  ],
+  "decor_snowglobe": [
+    59,
+    84
+  ],
+  "decor_trophy": [
+    86,
+    104
+  ],
+  "kb_basic": [
+    700,
+    161
+  ],
+  "kb_retro": [
+    700,
+    186
+  ],
+  "kb_rgb": [
+    700,
+    161
+  ],
+  "kb_white": [
+    700,
+    161
+  ],
+  "mat_cork": [
+    1240,
+    195
+  ],
+  "mat_navy": [
+    1240,
+    193
+  ],
+  "mat_pixel": [
+    1240,
+    193
+  ],
+  "mat_rgb": [
+    1240,
+    198
+  ],
+  "mouse_basic": [
+    128,
+    111
+  ],
+  "mouse_gaming": [
+    128,
+    119
+  ],
+  "mouse_white": [
+    128,
+    111
+  ],
+  "mug_black": [
+    99,
+    92
+  ],
+  "mug_moonlight": [
+    99,
+    92
+  ],
+  "mug_nexora": [
+    101,
+    92
+  ],
+  "mug_white": [
+    99,
+    92
+  ],
+  "plant_cactus": [
+    98,
+    215
+  ],
+  "plant_fern": [
+    250,
+    150
+  ],
+  "plant_snake": [
+    104,
+    215
+  ],
+  "plant_succulent": [
+    250,
+    153
+  ],
+  "mat_none": [
+    2,
+    2
+  ]
+}

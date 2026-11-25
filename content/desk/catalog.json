@@ -4,7 +4,7 @@
     "keyboard": {
       "anchor": [
         960,
-        958
+        988
       ],
       "origin": "center",
       "default": "kb_basic",
@@ -16,7 +16,7 @@
     "mouse": {
       "anchor": [
         1430,
-        970
+        992
       ],
       "origin": "center",
       "default": "mouse_basic",
@@ -48,6 +48,18 @@
         "ko": "화분",
         "en": "Plant"
       }
+    },
+    "mat": {
+      "anchor": [
+        960,
+        992
+      ],
+      "origin": "center",
+      "default": "mat_none",
+      "name": {
+        "ko": "데스크 매트",
+        "en": "Desk mat"
+      }
     }
   },
   "items": [
@@ -58,10 +70,10 @@
         "ko": "기본 키보드",
         "en": "Standard keyboard"
       },
-      "file": "res://content/desk/kb_basic.svg",
+      "file": "res://content/desk/kb_basic.png",
       "size": [
         700,
-        90
+        161
       ],
       "unlock": {}
     },
@@ -72,10 +84,10 @@
         "ko": "화이트 키보드",
         "en": "White keyboard"
       },
-      "file": "res://content/desk/kb_white.svg",
+      "file": "res://content/desk/kb_white.png",
       "size": [
         700,
-        90
+        161
       ],
       "unlock": {}
     },
@@ -86,10 +98,10 @@
         "ko": "기계식 RGB 키보드",
         "en": "Mechanical RGB keyboard"
       },
-      "file": "res://content/desk/kb_rgb.svg",
+      "file": "res://content/desk/kb_rgb.png",
       "size": [
         700,
-        90
+        161
       ],
       "unlock": {
         "owned": "keyboard_rgb"
@@ -102,10 +114,10 @@
         "ko": "레트로 키보드",
         "en": "Retro keyboard"
       },
-      "file": "res://content/desk/kb_retro.svg",
+      "file": "res://content/desk/kb_retro.png",
       "size": [
         700,
-        90
+        186
       ],
       "unlock": {
         "rank": 2
@@ -118,10 +130,10 @@
         "ko": "기본 마우스",
         "en": "Standard mouse"
       },
-      "file": "res://content/desk/mouse_basic.svg",
+      "file": "res://content/desk/mouse_basic.png",
       "size": [
-        150,
-        92
+        128,
+        111
       ],
       "unlock": {}
     },
@@ -132,10 +144,10 @@
         "ko": "화이트 마우스",
         "en": "White mouse"
       },
-      "file": "res://content/desk/mouse_white.svg",
+      "file": "res://content/desk/mouse_white.png",
       "size": [
-        150,
-        92
+        128,
+        111
       ],
       "unlock": {}
     },
@@ -146,10 +158,10 @@
         "ko": "게이밍 마우스",
         "en": "Gaming mouse"
       },
-      "file": "res://content/desk/mouse_gaming.svg",
+      "file": "res://content/desk/mouse_gaming.png",
       "size": [
-        150,
-        92
+        128,
+        119
       ],
       "unlock": {
         "owned": "keyboard_rgb"
@@ -162,10 +174,10 @@
         "ko": "{ } 머그",
         "en": "{ } mug"
       },
-      "file": "res://content/desk/mug_white.svg",
+      "file": "res://content/desk/mug_white.png",
       "size": [
-        96,
-        80
+        99,
+        92
       ],
       "unlock": {}
     },
@@ -176,10 +188,10 @@
         "ko": "무광 블랙 머그",
         "en": "Matte black mug"
       },
-      "file": "res://content/desk/mug_black.svg",
+      "file": "res://content/desk/mug_black.png",
       "size": [
-        96,
-        80
+        99,
+        92
       ],
       "unlock": {}
     },
@@ -190,10 +202,10 @@
         "ko": "NEXORA 굿즈 머그",
         "en": "NEXORA swag mug"
       },
-      "file": "res://content/desk/mug_nexora.svg",
+      "file": "res://content/desk/mug_nexora.png",
       "size": [
-        96,
-        80
+        101,
+        92
       ],
       "unlock": {
         "rank": 1
@@ -206,10 +218,10 @@
         "ko": "달빛상점 선물 머그",
         "en": "Moonlight gift mug"
       },
-      "file": "res://content/desk/mug_moonlight.svg",
+      "file": "res://content/desk/mug_moonlight.png",
       "size": [
-        96,
-        80
+        99,
+        92
       ],
       "unlock": {
         "story": "c02_08"
@@ -222,10 +234,10 @@
         "ko": "고사리",
         "en": "Fern"
       },
-      "file": "res://content/desk/plant_fern.svg",
+      "file": "res://content/desk/plant_fern.png",
       "size": [
-        220,
-        210
+        250,
+        150
       ],
       "unlock": {}
     },
@@ -236,10 +248,10 @@
         "ko": "산세베리아",
         "en": "Snake plant"
       },
-      "file": "res://content/desk/plant_snake.svg",
+      "file": "res://content/desk/plant_snake.png",
       "size": [
-        220,
-        210
+        104,
+        215
       ],
       "unlock": {}
     },
@@ -250,10 +262,10 @@
         "ko": "선인장",
         "en": "Cactus"
       },
-      "file": "res://content/desk/plant_cactus.svg",
+      "file": "res://content/desk/plant_cactus.png",
       "size": [
-        220,
-        210
+        98,
+        215
       ],
       "unlock": {}
     },
@@ -264,13 +276,264 @@
         "ko": "다육이",
         "en": "Succulent"
       },
-      "file": "res://content/desk/plant_succulent.svg",
+      "file": "res://content/desk/plant_succulent.png",
       "size": [
-        220,
-        210
+        250,
+        153
       ],
       "unlock": {
         "story": "c03_06"
+      }
+    },
+    {
+      "id": "mat_none",
+      "slot": "mat",
+      "name": {
+        "ko": "매트 없음",
+        "en": "No mat"
+      },
+      "file": "res://content/desk/mat_none.png",
+      "size": [
+        2,
+        2
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "mat_navy",
+      "slot": "mat",
+      "name": {
+        "ko": "네이비 펠트",
+        "en": "Navy felt"
+      },
+      "file": "res://content/desk/mat_navy.png",
+      "size": [
+        1240,
+        193
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "mat_cork",
+      "slot": "mat",
+      "name": {
+        "ko": "코르크",
+        "en": "Cork"
+      },
+      "file": "res://content/desk/mat_cork.png",
+      "size": [
+        1240,
+        195
+      ],
+      "unlock": {
+        "rank": 1
+      }
+    },
+    {
+      "id": "mat_pixel",
+      "slot": "mat",
+      "name": {
+        "ko": "픽셀 패턴",
+        "en": "Pixel pattern"
+      },
+      "file": "res://content/desk/mat_pixel.png",
+      "size": [
+        1240,
+        193
+      ],
+      "unlock": {
+        "achievement": "first_merge"
+      }
+    },
+    {
+      "id": "mat_rgb",
+      "slot": "mat",
+      "name": {
+        "ko": "RGB 매트",
+        "en": "RGB mat"
+      },
+      "file": "res://content/desk/mat_rgb.png",
+      "size": [
+        1240,
+        198
+      ],
+      "unlock": {
+        "owned": "keyboard_rgb"
+      }
+    },
+    {
+      "id": "decor_pen_cup",
+      "slot": "decor",
+      "name": {
+        "ko": "펜꽂이",
+        "en": "Pen cup"
+      },
+      "file": "res://content/desk/decor_pen_cup.png",
+      "size": [
+        44,
+        112
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "decor_clock",
+      "slot": "decor",
+      "name": {
+        "ko": "자명종",
+        "en": "Alarm clock"
+      },
+      "file": "res://content/desk/decor_clock.png",
+      "size": [
+        67,
+        78
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "decor_duck",
+      "slot": "decor",
+      "name": {
+        "ko": "디버깅 고무 오리",
+        "en": "Debugging duck"
+      },
+      "file": "res://content/desk/decor_duck.png",
+      "size": [
+        68,
+        62
+      ],
+      "unlock": {
+        "tickets": 1
+      }
+    },
+    {
+      "id": "decor_robot",
+      "slot": "decor",
+      "name": {
+        "ko": "장난감 로봇",
+        "en": "Toy robot"
+      },
+      "file": "res://content/desk/decor_robot.png",
+      "size": [
+        57,
+        98
+      ],
+      "unlock": {
+        "stat": [
+          "ai_used",
+          3
+        ]
+      }
+    },
+    {
+      "id": "decor_lucky_cat",
+      "slot": "decor",
+      "name": {
+        "ko": "복고양이",
+        "en": "Lucky cat"
+      },
+      "file": "res://content/desk/decor_lucky_cat.png",
+      "size": [
+        61,
+        102
+      ],
+      "unlock": {
+        "achievement": "moonlight"
+      }
+    },
+    {
+      "id": "decor_rocket",
+      "slot": "decor",
+      "name": {
+        "ko": "출시 로켓",
+        "en": "Launch rocket"
+      },
+      "file": "res://content/desk/decor_rocket.png",
+      "size": [
+        48,
+        112
+      ],
+      "unlock": {
+        "achievement": "launch"
+      }
+    },
+    {
+      "id": "decor_controller",
+      "slot": "decor",
+      "name": {
+        "ko": "게임패드",
+        "en": "Gamepad"
+      },
+      "file": "res://content/desk/decor_controller.png",
+      "size": [
+        98,
+        44
+      ],
+      "unlock": {
+        "achievement": "game_dev"
+      }
+    },
+    {
+      "id": "decor_trophy",
+      "slot": "decor",
+      "name": {
+        "ko": "완벽한 하루 트로피",
+        "en": "Perfect-day trophy"
+      },
+      "file": "res://content/desk/decor_trophy.png",
+      "size": [
+        86,
+        104
+      ],
+      "unlock": {
+        "achievement": "perfect_day"
+      }
+    },
+    {
+      "id": "decor_cube",
+      "slot": "decor",
+      "name": {
+        "ko": "큐브 퍼즐",
+        "en": "Puzzle cube"
+      },
+      "file": "res://content/desk/decor_cube.png",
+      "size": [
+        54,
+        54
+      ],
+      "unlock": {
+        "tickets": 5
+      }
+    },
+    {
+      "id": "decor_bonsai",
+      "slot": "decor",
+      "name": {
+        "ko": "분재",
+        "en": "Bonsai"
+      },
+      "file": "res://content/desk/decor_bonsai.png",
+      "size": [
+        72,
+        92
+      ],
+      "unlock": {
+        "achievement": "specialist"
+      }
+    },
+    {
+      "id": "decor_snowglobe",
+      "slot": "decor",
+      "name": {
+        "ko": "도시 스노우볼",
+        "en": "City snow globe"
+      },
+      "file": "res://content/desk/decor_snowglobe.png",
+      "size": [
+        59,
+        84
+      ],
+      "unlock": {
+        "story": "c05_08"
       }
     }
   ]

@@ -54,9 +54,10 @@ func _run() -> void:
 	Game.state["player_name"] = "Desk Tester"
 	Game.set_time(15 * 60)
 	DeskItems.reload()
-	check(DeskItems.slots().size() == 4 and DeskItems.catalog()["items"].size() >= 15, "the catalog lists four slots and the built-in items")
+	check(DeskItems.slots().size() == 5 and DeskItems.catalog()["items"].size() >= 31, "the catalog lists five slots, the built-in items, mats and toys")
+	check(DeskItems.decor_items().size() == 11, "eleven collectible toys")
 	var all_load: bool = DeskItems.catalog()["items"].all(func(it: Dictionary) -> bool: return DeskItems.texture(it) != null)
-	check(all_load, "every built-in SVG loads as a texture")
+	check(all_load, "every built-in item loads as a texture")
 	for slot in DeskItems.slots():
 		check(eq(slot) == String(DeskItems.slot_info(slot)["default"]), "a new save uses the default " + slot)
 
@@ -123,10 +124,13 @@ func _run() -> void:
 	layer.add_child(panel)
 	await get_tree().process_frame
 	var buttons := panel.find_children("*", "Button", true, false)
-	check(buttons.size() >= DeskItems.catalog()["items"].size(), "the Dashboard shows a choice for every item")
+	var slot_items: int = DeskItems.catalog()["items"].filter(func(it: Dictionary) -> bool: return it["slot"] != "decor").size()
+	check(buttons.size() >= slot_items, "the Dashboard shows a choice for every slot item")
 	await capture("desk_assets_dashboard")
 	layer.queue_free()
 	dash.free()
+
+	await _decorate()
 
 	# Save and load keep the choices.
 	DirAccess.make_dir_recursive_absolute("user://sandbox")
@@ -148,3 +152,57 @@ func _run() -> void:
 	print("DESK_ASSETS_QA: %d checks, %d failures" % [_checks, _failures])
 	await pause(0.1)
 	get_tree().quit(0 if _failures == 0 else 1)
+
+
+## Decorating mode: collectible unlocks, drag from the tray, move, put away, the desk limit, swapping.
+func _decorate() -> void:
+	var duck := DeskItems.item("decor_duck")
+	check(not DeskItems.unlocked(duck) and DeskItems.lock_reason(duck).contains("작은 일감"), "the debugging duck waits for the first small ticket")
+	check(DeskItems.unlocked(DeskItems.item("decor_pen_cup")) and DeskItems.unlocked(DeskItems.item("decor_clock")), "two starter toys are free")
+	DeskItems.newly_unlocked()  # whatever is open now has been seen
+	Game.state["tickets"] = {"active": "", "done": {"t01": {"minutes": 40}}, "taken": {}}
+	Game.emit_event("ticket_done", {"ticket": "t01"})
+	check(DeskItems.unlocked(duck) and "decor_duck" in Game.state["desk"].get("seen", []), "finishing a ticket unlocks the duck and announces it once")
+	check(DeskItems.newly_unlocked().is_empty(), "the announcement doesn't repeat")
+	var studio: Control = _main.open_studio()
+	await pause(0.3)
+	check(is_instance_valid(studio) and _main._view == "desk", "Decor opens over the desk view")
+	check(studio._tray.get_child_count() == 11, "the tray shows the whole collection, locked ones as silhouettes")
+	await capture("desk_studio_open")
+	# From the tray onto the desk.
+	studio._begin("decor_duck", true)
+	studio.move_drag(Vector2(640, 1010))
+	studio._drop(Vector2(640, 1010))
+	var spot: Array = DeskItems.placed().filter(func(p: Dictionary) -> bool: return p["id"] == "decor_duck")
+	check(spot.size() == 1 and int(spot[0]["x"]) == 640, "dragging a toy onto the desk places it")
+	studio._begin("decor_pen_cup", true)
+	studio._drop(Vector2(1240, 930))
+	studio._begin("decor_clock", true)
+	studio._drop(Vector2(1660, 1050))
+	# Move, then put away by dragging it off the desk.
+	studio._begin("decor_duck", false)
+	studio.move_drag(Vector2(575, 1066))
+	studio._drop(Vector2(575, 1066))
+	check(int(DeskItems.placed().filter(func(p: Dictionary) -> bool: return p["id"] == "decor_duck")[0]["x"]) == 575, "a placed toy can be moved")
+	studio._begin("decor_clock", false)
+	studio._drop(Vector2(1660, 600))
+	check(not DeskItems.is_placed("decor_clock"), "dragging a toy off the desk puts it away")
+	# Unlock the rest through what they stand for, then hit the desk limit.
+	for a in ["moonlight", "launch", "game_dev", "perfect_day", "specialist"]:
+		Story.career.st()["achievements"][a] = Game.day()
+	var spots := {"decor_clock": Vector2(330, 990), "decor_lucky_cat": Vector2(1610, 1000), "decor_rocket": Vector2(1790, 1030), "decor_trophy": Vector2(1530, 1068)}
+	for id in spots:
+		check(DeskItems.place(id, spots[id]), "placed " + id)
+	check(DeskItems.placed().size() == DeskItems.MAX_DECOR and not DeskItems.place("decor_bonsai", Vector2(900, 960)), "the desk holds six toys at most")
+	check(not DeskItems.place("decor_snowglobe", Vector2(900, 960)), "a still-locked toy can't be placed")
+	# Swap desk items by clicking them.
+	var before := String(DeskItems.equipped("mug")["id"])
+	studio._cycle("mug")
+	check(String(DeskItems.equipped("mug")["id"]) != before, "clicking the mug swaps it for the next one")
+	DeskItems.equip("mat", "mat_navy")
+	await pause(0.3)
+	await capture("desk_studio_decorated")
+	studio.close()
+	await pause(0.3)
+	check(not is_instance_valid(studio) or studio.is_queued_for_deletion(), "Done closes decorating mode")
+	await capture("desk_decorated")

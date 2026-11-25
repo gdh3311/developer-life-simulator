@@ -139,6 +139,13 @@ func _build_monitor() -> void:
 	_focus_button.add_theme_stylebox_override("pressed", UITheme.box(Color("344c52"), 4, Color("7b9da4"), 3))
 	_focus_button.pressed.connect(_toggle_view)
 	_rig.add_child(_focus_button)
+	var decorate := _focus_button.duplicate(Node.DUPLICATE_GROUPS | Node.DUPLICATE_SCRIPTS) as Button  # styles, not the F2 signal
+	decorate.text = Game.L("꾸미기", "Decor")
+	decorate.tooltip_text = Game.L("책상 꾸미기", "Decorate the desk")
+	decorate.size = Vector2(52, 23)
+	decorate.position = _focus_button.position - Vector2(58.0, 0.0)
+	decorate.pressed.connect(open_studio)
+	_rig.add_child(decorate)
 
 	# Screen: SubViewport rendered at 2x, displayed at 1x for crisp text and shapes.
 	var screen_pos := frame_pos + Vector2(BEZEL, BEZEL)
@@ -344,6 +351,26 @@ func morning_transition() -> void:
 	_screen_off.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_screen_powered = true
 	await get_tree().create_timer(0.5).timeout
+
+
+var _studio: Control
+
+
+## 🎨 Decorating mode: step back to the desk view and open the toy tray over it.
+func open_studio() -> Control:
+	if _studio != null and is_instance_valid(_studio):
+		return _studio
+	if _view != "desk":
+		_apply_view("desk")
+	_studio = preload("res://scripts/room/desk_studio.gd").new()
+	_studio.room = _room
+	var layer := CanvasLayer.new()   # its own layer, sized to the window, above the desk and the monitor
+	layer.layer = 40
+	add_child(layer)
+	layer.add_child(_studio)
+	_studio.tree_exited.connect(layer.queue_free)
+	Sfx.play("click", 1.1, -6.0)
+	return _studio
 
 
 func _toggle_view() -> void:

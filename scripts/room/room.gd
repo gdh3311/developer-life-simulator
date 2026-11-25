@@ -14,6 +14,8 @@ var side_rect := Rect2()      # outer frame of the side monitor (tier 1+)
 var _buildings: Array = []    # [x, w, h, lit windows seed]
 var _rng := RandomNumberGenerator.new()
 var _desk_surface: Texture2D
+var _views := {}              # window_day/dusk/night renders of the 3D city (tools/blender/city_window.py)
+var highlight := ""           # toy being dragged in decorating mode (drawn with a glow)
 
 
 func _ready() -> void:
@@ -21,6 +23,10 @@ func _ready() -> void:
 	size = VIEW
 	if ResourceLoader.exists(DESK_SURFACE, "Texture2D"):
 		_desk_surface = load(DESK_SURFACE)
+	for v in ["day", "dusk", "night"]:
+		var path := "res://content/room/window_%s.png" % v
+		if ResourceLoader.exists(path, "Texture2D"):
+			_views[v] = load(path)
 	_rng.seed = 7
 	var x := 0.0
 	while x < 520:
@@ -35,8 +41,19 @@ func _ready() -> void:
 				DeskItems.equip("keyboard", "kb_rgb")
 			queue_redraw()
 		elif kind == "desk_changed":
-			queue_redraw())
+			queue_redraw()
+		if kind in ["ticket_done", "achievement", "pr_merged", "purchase", "promoted", "skill_up", "ai_used", "form_submitted", "arc_stage"]:
+			_announce_new_items())
 	Game.state_reset.connect(queue_redraw)
+
+
+## "New desk toy!" — tell the player when something they did unlocked a mat or a toy.
+func _announce_new_items() -> void:
+	for it in DeskItems.newly_unlocked():
+		if it["slot"] in ["decor", "mat"] and it["id"] != "mat_none":
+			Sfx.play("promote", 1.3, -8.0)
+			Game.notify("dashboard", Game.L("🎁 새 책상 소품", "🎁 New desk item"),
+				Game.L("%s — F2로 책상을 보고 [꾸미기]", "%s — press F2 for the desk, then [Decor]") % Game.tx(it["name"]))
 
 
 func _owns(item: String) -> bool:
@@ -101,18 +118,39 @@ func _draw() -> void:
 		_draw_monstera(Vector2(1830, 1000))
 	if tier < 1:
 		_draw_lamp(Vector2(1640, desk_y), day)
-	if tier >= 2:
+	var mat_item := DeskItems.equipped("mat")
+	if not mat_item.is_empty() and mat_item["id"] != "mat_none":
+		_draw_slot("mat", func() -> void: pass)
+	elif tier >= 2:
 		_draw_desk_mat(desk_y)
-	_draw_slot("plant", func() -> void: _draw_plant(Vector2(250, desk_y)))
-	_draw_slot("mug", func() -> void: _draw_mug(Vector2(420, desk_y)))
 	if _owns("coffee_machine"):
 		_draw_coffee_machine(Vector2(560, desk_y))
-	_draw_slot("keyboard", func() -> void: _draw_keyboard(Vector2(VIEW.x / 2.0, desk_y + 58)))
-	_draw_slot("mouse", func() -> void: _draw_mouse(Vector2(VIEW.x / 2.0 + 470, desk_y + 70)))
 	if _owns("figure"):
 		_draw_figure(Vector2(1380, desk_y))
 	if _owns("headphones"):
 		_draw_headphones(Vector2(1500, desk_y))
+	# Slot items and placed toys, back to front, so a toy behind the keyboard really sits behind it.
+	var layers: Array = []
+	var fallbacks := {
+		"plant": func() -> void: _draw_plant(Vector2(250, desk_y)),
+		"mug": func() -> void: _draw_mug(Vector2(420, desk_y)),
+		"keyboard": func() -> void: _draw_keyboard(Vector2(VIEW.x / 2.0, desk_y + 58)),
+		"mouse": func() -> void: _draw_mouse(Vector2(VIEW.x / 2.0 + 470, desk_y + 70)),
+	}
+	for slot in fallbacks:
+		var it := DeskItems.equipped(slot)
+		var bottom := DeskItems.rect_for(it).end.y if not it.is_empty() else desk_y
+		layers.append([bottom, slot, null])
+	for p in DeskItems.placed():
+		var it := DeskItems.item(String(p["id"]))
+		if not it.is_empty() and DeskItems.unlocked(it):
+			layers.append([float(p["y"]), "", p])
+	layers.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	for layer in layers:
+		if layer[2] == null:
+			_draw_slot(layer[1], fallbacks[layer[1]])
+		else:
+			_draw_decor(layer[2])
 	if tier >= 2:
 		_draw_nameplate(Vector2(1665, desk_y + 128))
 	if tier >= 1 and side_rect.size != Vector2.ZERO:
@@ -134,7 +172,17 @@ func _draw_window(r: Rect2, day: float, dusk: float) -> void:
 	var bottom := night_bottom.lerp(day_bottom, day).lerp(dusk_bottom, dusk * 0.85)
 	_vgradient(r, top, bottom)
 
-	# Skyline
+	# The 3D city rendered for night, day and dusk, cross-faded by the clock.
+	if _views.size() == 3:
+		draw_texture_rect(_views["night"], r, false)
+		if day > 0.0:
+			draw_texture_rect(_views["day"], r, false, Color(1, 1, 1, day))
+		if dusk > 0.0:
+			draw_texture_rect(_views["dusk"], r, false, Color(1, 1, 1, dusk * 0.9))
+		_draw_window_frame(r, day, dusk)
+		return
+
+	# Fallback skyline (no renders)
 	var base := r.end.y
 	for b in _buildings:
 		var bx: float = r.position.x + b[0]
@@ -156,7 +204,10 @@ func _draw_window(r: Rect2, day: float, dusk: float) -> void:
 					draw_rect(Rect2(wx, wy, 6, 8), Color(1.0, 0.85, 0.5, 0.75 - day * 0.4))
 				wx += 13
 			wy += 16
+	_draw_window_frame(r, day, dusk)
 
+
+func _draw_window_frame(r: Rect2, day: float, dusk: float) -> void:
 	# Glass reflection + blinds + frame
 	draw_colored_polygon(PackedVector2Array([r.position + Vector2(r.size.x * 0.55, 0), r.position + Vector2(r.size.x * 0.75, 0),
 		r.position + Vector2(r.size.x * 0.35, r.size.y), r.position + Vector2(r.size.x * 0.15, r.size.y)]), Color(1, 1, 1, 0.035))
@@ -216,7 +267,27 @@ func _draw_slot(slot: String, fallback: Callable) -> void:
 	if tex == null:
 		fallback.call()
 		return
-	draw_texture_rect(tex, DeskItems.rect_for(it), false)
+	var r := DeskItems.rect_for(it)
+	# Soft contact shadow so rendered items sit on the desk instead of floating over it.
+	var foot := Vector2(r.get_center().x, r.end.y - r.size.y * (0.08 if slot in ["keyboard", "mouse"] else 0.03))
+	_radial(foot, Vector2(r.size.x * 0.55, maxf(10.0, r.size.y * 0.12)), Color(0, 0, 0, 0.42))
+	# Renders are lit like a bright room; dim them a little with the evening.
+	var shade := lerpf(0.78, 1.0, _daylight())
+	draw_texture_rect(tex, r, false, Color(shade, shade * 0.99, shade * 1.02))
+
+
+## A placed toy: base centre at (x, y), with the same contact shadow and evening shade as slot items.
+func _draw_decor(p: Dictionary) -> void:
+	var it := DeskItems.item(String(p["id"]))
+	var tex := DeskItems.texture(it)
+	if tex == null:
+		return
+	var r := DeskItems.decor_rect(it, Vector2(float(p["x"]), float(p["y"])))
+	if String(p["id"]) == highlight:
+		_radial(Vector2(r.get_center().x, r.end.y - 4), Vector2(r.size.x * 0.9, 18), Color(1.0, 0.85, 0.4, 0.35))
+	_radial(Vector2(r.get_center().x, r.end.y - 3), Vector2(r.size.x * 0.55, maxf(8.0, r.size.y * 0.1)), Color(0, 0, 0, 0.45))
+	var shade := lerpf(0.78, 1.0, _daylight())
+	draw_texture_rect(tex, r, false, Color(shade, shade * 0.99, shade * 1.02))
 
 
 func equipped_texture(slot: String) -> Texture2D:

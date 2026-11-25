@@ -12,11 +12,34 @@ OUT = Path(__file__).resolve().parent.parent / "content" / "desk"
 
 # Where each slot sits on the desk (room coordinates, 1920x1080 base) and how items attach.
 SLOTS = {
-    "keyboard": {"anchor": [960, 958], "origin": "center", "default": "kb_basic", "name": {"ko": "키보드", "en": "Keyboard"}},
-    "mouse": {"anchor": [1430, 970], "origin": "center", "default": "mouse_basic", "name": {"ko": "마우스", "en": "Mouse"}},
+    "keyboard": {"anchor": [960, 988], "origin": "center", "default": "kb_basic", "name": {"ko": "키보드", "en": "Keyboard"}},
+    "mouse": {"anchor": [1430, 992], "origin": "center", "default": "mouse_basic", "name": {"ko": "마우스", "en": "Mouse"}},
     "mug": {"anchor": [470, 1034], "origin": "bottom", "default": "mug_white", "name": {"ko": "머그", "en": "Mug"}},
     "plant": {"anchor": [205, 900], "origin": "bottom", "default": "plant_fern", "name": {"ko": "화분", "en": "Plant"}},
+    "mat": {"anchor": [960, 992], "origin": "center", "default": "mat_none", "name": {"ko": "데스크 매트", "en": "Desk mat"}},
 }
+
+# Items that exist only as Blender renders (tools/blender/desk_models.py): mats and collectible decor.
+# Decor isn't a slot: you place up to MAX_DECOR of them anywhere on the desk in decorating mode.
+# unlock: owned (shop) · rank · story (mission done) · achievement · tickets (small tickets done) · stat [key, n]
+RENDER_ONLY = [
+    ("mat_none", "mat", {"ko": "매트 없음", "en": "No mat"}, {}),
+    ("mat_navy", "mat", {"ko": "네이비 펠트", "en": "Navy felt"}, {}),
+    ("mat_cork", "mat", {"ko": "코르크", "en": "Cork"}, {"rank": 1}),
+    ("mat_pixel", "mat", {"ko": "픽셀 패턴", "en": "Pixel pattern"}, {"achievement": "first_merge"}),
+    ("mat_rgb", "mat", {"ko": "RGB 매트", "en": "RGB mat"}, {"owned": "keyboard_rgb"}),
+    ("decor_pen_cup", "decor", {"ko": "펜꽂이", "en": "Pen cup"}, {}),
+    ("decor_clock", "decor", {"ko": "자명종", "en": "Alarm clock"}, {}),
+    ("decor_duck", "decor", {"ko": "디버깅 고무 오리", "en": "Debugging duck"}, {"tickets": 1}),
+    ("decor_robot", "decor", {"ko": "장난감 로봇", "en": "Toy robot"}, {"stat": ["ai_used", 3]}),
+    ("decor_lucky_cat", "decor", {"ko": "복고양이", "en": "Lucky cat"}, {"achievement": "moonlight"}),
+    ("decor_rocket", "decor", {"ko": "출시 로켓", "en": "Launch rocket"}, {"achievement": "launch"}),
+    ("decor_controller", "decor", {"ko": "게임패드", "en": "Gamepad"}, {"achievement": "game_dev"}),
+    ("decor_trophy", "decor", {"ko": "완벽한 하루 트로피", "en": "Perfect-day trophy"}, {"achievement": "perfect_day"}),
+    ("decor_cube", "decor", {"ko": "큐브 퍼즐", "en": "Puzzle cube"}, {"tickets": 5}),
+    ("decor_bonsai", "decor", {"ko": "분재", "en": "Bonsai"}, {"achievement": "specialist"}),
+    ("decor_snowglobe", "decor", {"ko": "도시 스노우볼", "en": "City snow globe"}, {"story": "c05_08"}),
+]
 
 
 def svg(w, h, body):
@@ -244,9 +267,21 @@ ITEMS = [
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     catalog = {"version": 1, "slots": SLOTS, "items": []}
+    # Items rendered from the Blender models (tools/blender/) win over the flat SVG fallbacks.
+    rendered = {}
+    sizes_file = OUT / "render_sizes.json"
+    if sizes_file.exists():
+        rendered = json.loads(sizes_file.read_text(encoding="utf-8"))
     for item_id, slot, name, text, unlock, size in ITEMS:
         (OUT / f"{item_id}.svg").write_text(text, encoding="utf-8", newline="\n")
-        catalog["items"].append({"id": item_id, "slot": slot, "name": name, "file": f"res://content/desk/{item_id}.svg", "size": size, "unlock": unlock})
+        file = f"res://content/desk/{item_id}.svg"
+        if item_id in rendered and (OUT / f"{item_id}.png").exists():
+            file, size = f"res://content/desk/{item_id}.png", rendered[item_id]
+        catalog["items"].append({"id": item_id, "slot": slot, "name": name, "file": file, "size": size, "unlock": unlock})
+    for item_id, slot, name, unlock in RENDER_ONLY:
+        if item_id in rendered and (OUT / f"{item_id}.png").exists():
+            catalog["items"].append({"id": item_id, "slot": slot, "name": name, "file": f"res://content/desk/{item_id}.png",
+                                     "size": rendered[item_id], "unlock": unlock})
     (OUT / "catalog.json").write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"{len(ITEMS)} desk items written to {OUT}")
 
