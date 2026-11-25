@@ -49,6 +49,9 @@ func _render() -> void:
 	prof.add_child(pr)
 	_root.add_child(prof)
 	_root.add_child(preload("res://scripts/apps/career_panel.gd").dashboard())
+	var record: Control = preload("res://scripts/apps/evidence_panel.gd").dashboard()
+	if record != null:
+		_root.add_child(record)
 
 	# Storylines
 	if Game.chapter() >= 3:

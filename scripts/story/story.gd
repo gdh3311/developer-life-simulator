@@ -56,6 +56,7 @@ const Arcs := preload("res://scripts/story/arcs.gd")
 const Events := preload("res://scripts/story/events.gd")
 const Career := preload("res://scripts/story/career.gd")
 const Tickets := preload("res://scripts/story/tickets.gd")
+const Evidence := preload("res://scripts/story/evidence.gd")
 const Chapters := preload("res://scripts/story/chapters.gd")
 
 var _missions: Array = []
@@ -65,6 +66,7 @@ var arcs: RefCounted          # storyline engine (see docs/STORYLINES.md)
 var events: RefCounted        # event card engine
 var career: RefCounted        # skills, daily goals, grades, achievements
 var tickets: RefCounted       # side-ticket board (small real bugs between main tasks)
+var evidence: RefCounted      # long-term evidence grades that later chapters read
 
 
 func _ready() -> void:
@@ -90,6 +92,7 @@ func _build() -> void:
 	events = Events.new()
 	career = Career.new()
 	tickets = Tickets.new()
+	evidence = Evidence.new()
 
 
 func mission(id: String) -> RefCounted:
@@ -133,6 +136,7 @@ func resume() -> void:
 	# Fresh mission instances invalidate coroutines left behind by a scene/language reload.
 	active = null
 	_build()
+	evidence.refresh()   # older saves get their grades from what they already finished
 	arcs.resume()
 	for m in _missions:
 		if status(m.id) == "active":
@@ -205,6 +209,7 @@ func finish_mission(m: RefCounted) -> void:
 		Game.set_issue(m.issue, "done")
 	Game.inc_stat("missions")
 	Cases.close_case(m.id)
+	evidence.refresh()
 	Game.save_soon()
 	await get_tree().create_timer(2.5).timeout
 	if active == m and status(m.id) == "done":
@@ -222,6 +227,8 @@ func _on_event(kind: String, data: Dictionary) -> void:
 	events.on_event(kind, data)
 	career.on_event(kind, data)
 	tickets.on_event(kind, data)
+	if kind == "form_submitted":
+		evidence.refresh()
 	if active == null or status(active.id) != "active":
 		return
 	var m = active

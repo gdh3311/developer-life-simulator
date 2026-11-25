@@ -183,4 +183,10 @@ func finish() -> void:
 	Sfx.stop_all()
 	print("TICKETS_QA: %d checks, %d failures" % [_checks, _failures])
 	await get_tree().create_timer(0.1, true, false, true).timeout
+	# A late chat sound can start during the wait; its playback would show up as a leak at exit.
+	Sfx.stop_all()
+	for player in Sfx._players + [Sfx._featured] + Sfx._score_players.values():
+		player.stream = null
+	await get_tree().process_frame
+	await get_tree().process_frame
 	get_tree().quit(0 if _failures == 0 else 1)
