@@ -120,7 +120,10 @@ static func goals_list(size := 12) -> Control:
 static func goals_strip() -> Control:
 	var career = Story.career
 	var strip := UITheme.panel(Color("16202e"), 0, 8, Color(0, 0, 0, 0))
-	var h := UITheme.hbox(14)
+	# Wraps onto a second line instead of widening TaskBoard (English goals are long).
+	var h := HFlowContainer.new()
+	h.add_theme_constant_override("h_separation", 14)
+	h.add_theme_constant_override("v_separation", 4)
 	strip.add_child(h)
 	h.add_child(UITheme.label(Game.L("오늘의 목표", "Today's goals"), 11, UITheme.ACCENT.lightened(0.2)))
 	for id in career.goals():
@@ -128,6 +131,5 @@ static func goals_strip() -> Control:
 		var mark := {"done": "✓", "failed": "✕", "open": "○"}[status] as String
 		var col: Color = {"done": UITheme.OK, "failed": UITheme.ERR.darkened(0.15), "open": UITheme.TEXT2}[status]
 		h.add_child(UITheme.label("%s %s" % [mark, Game.tx(career.GOALS[id]["text"])], 11, col))
-	h.add_child(UITheme.spacer())
 	h.add_child(UITheme.label(Game.L("달성마다 +%s · 경험치", "+%s and XP each") % Game.won(career.GOAL_REWARD), 10, UITheme.MUTED))
 	return strip

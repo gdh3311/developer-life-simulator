@@ -9,16 +9,24 @@ func _init() -> void:
 	title = t("다른 책상 · Brightloop", "A different desk · Brightloop")
 	stages = [t("제안 전", "Not offered yet"), t("커피챗 예정", "Coffee chat planned"),
 		t("커피챗 완료 · 과제 안내 대기", "Coffee chat done · waiting for the take-home"),
-		t("과제 일정 확정 (챕터 4)", "Take-home scheduled (Chapter 4)")]
+		t("과제 진행 중", "Working on the take-home"),
+		t("과제 제출 · 기술 면담 예정", "Take-home submitted · technical interview next"),
+		t("기술 면담 통과 · 조건 협의", "Passed the interview · discussing terms"),
+		t("오퍼 대기 (챕터 5 이동 창)", "Waiting for the offer (Chapter 5 move window)")]
 	beats = [
 		["invite", 8, 12 * 60 + 10, false],
 		["invite2", 9, 12 * 60 + 10, false],
 		["coffee", 9, 18 * 60 + 20, true],
 		["task", 10, 19 * 60, false],
+		["submit", 11, 19 * 60, false],
+		["interview", 12, 18 * 60 + 30, true],
+		["terms", 13, 19 * 60, false],
 	]
 
 
-func evening_label(_beat: String) -> Dictionary:
+func evening_label(beat: String) -> Dictionary:
+	if beat == "interview":
+		return t("Brightloop 기술 면담", "Brightloop technical interview")
 	return t("Jamie와 커피챗 (Brightloop)", "Coffee chat with Jamie (Brightloop)")
 
 
@@ -32,6 +40,12 @@ func can_fire(beat: String) -> bool:
 			return is_active() and stage() == 1
 		"task":
 			return is_active() and stage() == 2
+		"submit":
+			return is_active() and stage() == 3
+		"interview":
+			return is_active() and stage() == 4
+		"terms":
+			return is_active() and stage() == 5
 	return false
 
 
@@ -48,6 +62,9 @@ func _opening() -> Dictionary:
 
 
 func fire(beat: String) -> void:
+	if beat in ["submit", "interview", "terms"]:
+		_fire_ch4(beat)
+		return
 	match beat:
 		"invite":
 			choice("recruiter", _opening(), "arc_offer_invite", [
@@ -75,8 +92,60 @@ func fire(beat: String) -> void:
 					["withdraw", t("생각해 보니 지금은 아닌 것 같아요. 여기서 멈출게요.", "On reflection, now isn't the time. I'll stop here.")]], {"channel": "connectly"})
 
 
+func _fire_ch4(beat: String) -> void:
+	match beat:
+		"submit":
+			choice("recruiter", t("과제 기한이에요. 어떻게 제출할래요?", "The take-home is due. How will you submit it?"), "arc_offer_submit", [
+				["public", t("공개된 지식만으로 만든 코드와 테스트, 짧은 설계 메모를 보낸다", "Send code and tests built from public knowledge, plus a short design note")],
+				["company", t("회사 주문 중복 처리 코드를 조금 참고해 완성도를 높인다", "Borrow a bit of the company's dedupe code to polish it")],
+				["withdraw", t("시간이 없었다. 이번엔 정중히 빠진다", "There wasn't time. Bow out politely")]], {"channel": "connectly"})
+		"interview":
+			say("recruiter", t("기술 면담이에요. Brightloop 엔지니어 두 명이 함께해요.", "Technical interview. Two Brightloop engineers are joining."), {"channel": "connectly"})
+			choice("recruiter", t("면접관: 결제 응답이 늦어서 같은 주문 요청이 두 번 오면 어떻게 하시겠어요?", "Interviewer: if a slow payment response makes the same order request arrive twice, what do you do?"), "arc_offer_interview", [
+				["deep", t("요청 키로 같은 구매 시도를 묶고, 겹치는 요청은 원자적 선점으로, 생성 실패는 해제로 처리해요. 실제로 겪었어요.", "Group the attempt by request key, claim atomically for overlaps, release on failed creates. I've handled exactly this.")],
+				["shallow", t("버튼을 비활성화하면 될 것 같아요.", "Disabling the button should do it.")]], {"channel": "connectly"})
+		"terms":
+			choice("recruiter", t("팀 반응이 좋아요. 조건 이야기를 해 볼까요? 가장 중요한 하나를 골라 주세요.", "The team liked you. Shall we talk terms? Pick the one thing that matters most."), "arc_offer_terms", [
+				["pay", t("연봉", "Salary")],
+				["role", t("맡게 될 역할과 팀", "The role and the team")],
+				["remote", t("원격 근무와 일하는 시간", "Remote work and hours")]], {"channel": "connectly"})
+
+
+func _on_ch4_choice(key: String, option: String) -> void:
+	match key:
+		"arc_offer_submit":
+			data()["submit"] = option
+			match option:
+				"public":
+					say("recruiter", t("받았어요. 설계 메모가 특히 좋네요. 기술 면담 잡을게요.", "Got it. The design note is especially good. I'll schedule the technical interview."), {"channel": "connectly"})
+					set_stage(4)
+				"company":
+					Game.state["flags"]["offer_ethics"] = true
+					say("recruiter", t("죄송하지만 지금 회사 코드가 들어간 과제는 받을 수 없어요. 처음에 말씀드렸죠. 이번 전형은 여기서 멈출게요.", "Sorry, we can't accept a take-home with your current employer's code. I mentioned that at the start. We'll stop the process here."), {"channel": "connectly"})
+					Story.arcs.drop(id)
+				"withdraw":
+					say("recruiter", t("괜찮아요. 출시 끝나고 여유 생기면 다시 이야기해요.", "No problem. Let's talk again when things calm down."), {"channel": "connectly"})
+					Story.arcs.drop(id)
+		"arc_offer_interview":
+			data()["interview"] = option
+			Game.advance(60)
+			if option == "deep":
+				say("recruiter", t("면접관들이 '직접 겪어 본 답'이라고 했어요. 통과예요!", "The interviewers called it 'an answer from experience'. You passed!"), {"channel": "connectly"})
+			else:
+				say("recruiter", t("버튼만으로는 부족하다는 피드백이 있었지만, 나머지 대화가 좋아서 다음 단계로 가요.", "They noted the button alone isn't enough, but the rest went well, so you're moving on."), {"channel": "connectly"})
+			set_stage(5)
+		"arc_offer_terms":
+			data()["terms"] = option
+			Game.state["flags"]["offer_priority"] = option
+			say("recruiter", t("정리해서 다음 달에 공식 오퍼로 드릴게요. 결정은 그때 천천히 해요.", "I'll put it together as a formal offer next month. Take your time deciding then."), {"channel": "connectly"})
+			set_stage(6)
+
+
 func on_event(kind: String, d: Dictionary) -> void:
 	if kind != "choice":
+		return
+	if String(d.get("key", "")) in ["arc_offer_submit", "arc_offer_interview", "arc_offer_terms"]:
+		_on_ch4_choice(String(d["key"]), String(d["option"]))
 		return
 	match String(d.get("key", "")):
 		"arc_offer_invite", "arc_offer_invite2":

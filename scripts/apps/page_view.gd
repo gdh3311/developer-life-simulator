@@ -11,7 +11,10 @@ const THEMES := {
 	"paper": {"bg": Color("f5f1e8"), "bg2": Color("e9e2d2"), "text": Color("2b2b2b"), "muted": Color("6b665c"), "accent": Color("3b5bdb"), "card": Color("ffffff")},
 }
 
+const LaunchStore := preload("res://scripts/apps/launch_store_view.gd")
+
 var build := {}
+var store: Control = null
 var minutes_left := 125
 var cart: Array = []
 var stock: Array = []
@@ -39,6 +42,13 @@ func _load() -> void:
 	cart.clear()
 	stock.clear()
 	UITheme.clear(self)
+	store = null
+	if LaunchStore.launched():
+		# The pre-order store from the Chapter 3 launch is live, with or without the promo page.
+		store = LaunchStore.new()
+		add_child(store)
+	if build.is_empty() and store != null:
+		return
 	if build.is_empty():
 		var empty := UITheme.vbox(8)
 		empty.add_child(UITheme.bold("404", 40, UITheme.MUTED))

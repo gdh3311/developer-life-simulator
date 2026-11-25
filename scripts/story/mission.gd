@@ -219,6 +219,19 @@ func submit_form(form_id: String, picks: Dictionary) -> Array:
 	return []
 
 
+## A teammate or another team comments on one of your submitted documents (shown in Docs' archive).
+func doc_comment(form_id: String, from: String, text, mission_id := "") -> void:
+	var key := (mission_id if mission_id != "" else id) + ":" + form_id
+	var all: Dictionary = Game.state["flags"].get("doc_comments", {})
+	var list: Array = all.get(key, [])
+	for c in list:
+		if c["from"] == from and JSON.stringify(c["text"]) == JSON.stringify(text):
+			return
+	list.append({"from": from, "text": text, "day": Game.day()})
+	all[key] = list
+	Game.state["flags"]["doc_comments"] = all
+
+
 func judge_form(_form_id: String, _picks: Dictionary) -> Array:
 	return []
 

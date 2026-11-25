@@ -21,18 +21,21 @@ func _init() -> void:
 	npc = "taeseok"
 	title = t("오래된 번호의 원래 주인 · LEGACY-17", "The original owner of an old number · LEGACY-17")
 	stages = [t("제안 전", "Not offered yet"), t("감사 로그 표본 확인 예정", "Audit sample to review"),
-		t("불일치 패턴 확인", "Mismatch pattern found"), t("당시 결정 메모 확보 (챕터 4)", "Original decision note found (Chapter 4)")]
+		t("불일치 패턴 확인", "Mismatch pattern found"), t("당시 결정 메모 확보", "Original decision note found"),
+		t("이관 규칙 초안 (챕터 5 검토)", "Migration rule drafted (review in Chapter 5)")]
 	beats = [
 		["offer", 8, 10 * 60 + 40, false],
 		["offer2", 9, 10 * 60 + 40, false],
 		["audit", 9, 18 * 60 + 20, true],
 		["former", 10, 18 * 60 + 30, false],
+		["migration", 12, 18 * 60 + 20, true],
 	]
 	var options: Array = []
 	for r in ROWS:
 		options.append({"id": r[0], "text": {"ko": "%s · 주문 쪽 %s / 결제 쪽 %s · %s" % [r[0], r[1], r[2], r[3]["ko"]],
 			"en": "%s · order side %s / payment side %s · %s" % [r[0], r[1], r[2], r[3]["en"]]}})
 	forms_def = {
+		"migration": {},
 		"audit": {
 			"title": t("LEGACY-17 감사 로그 표본", "LEGACY-17 audit log sample"),
 			"intro": t("예전 주문 8건의 주문 쪽 결제 번호와 결제 쪽 번호예요. 금액은 모두 맞아요. 번호가 다른 주문을 모두 고르고, 왜 달라졌는지 가장 근거 있는 설명을 고르세요.",
@@ -49,7 +52,26 @@ func _init() -> void:
 	}
 
 
-func evening_label(_beat: String) -> Dictionary:
+func _migration_form() -> Dictionary:
+	return {
+		"title": t("LEGACY-17 이관 규칙", "LEGACY-17 migration rule"),
+		"intro": t("이관할 때 예전 주문과 결제를 어떻게 이을지 정해요. Hana의 메모와 감사 로그 표본이 근거예요.", "Decide how old orders and payments get linked during migration. Hana's note and the audit sample are the evidence."),
+		"submit": t("Taeseok에게 보내기", "Send to Taeseok"),
+		"slots": [
+			{"id": "match", "label": t("연결 규칙", "Linking rule"), "options": [
+				{"id": "order_ref", "text": t("주문 쪽 결제 번호로 결제를 찾는다", "Find payments by the order's payment reference")},
+				{"id": "history", "text": t("결제 이력 테이블을 거쳐 최신 결제 번호로 잇는다", "Go through the payment history table to the latest payment ID")},
+				{"id": "amount_time", "text": t("금액과 결제 시각이 같은 것끼리 잇는다", "Link records with the same amount and payment time")}]},
+			{"id": "check", "label": t("확인 방법", "Verification"), "options": [
+				{"id": "sample", "text": t("재결제 주문을 포함한 표본 200건으로 이관 전후 금액 대조", "Compare amounts before and after on 200 samples including re-paid orders")},
+				{"id": "skip", "text": t("규칙이 명확하니 바로 이관", "The rule is clear; migrate directly")}]},
+		],
+	}
+
+
+func evening_label(beat: String) -> Dictionary:
+	if beat == "migration":
+		return t("LEGACY-17 이관 규칙 쓰기 (Taeseok)", "Draft the LEGACY-17 migration rule (Taeseok)")
 	return t("LEGACY-17 감사 로그 보기 (Taeseok)", "Review the LEGACY-17 audit log (Taeseok)")
 
 
@@ -63,10 +85,24 @@ func can_fire(beat: String) -> bool:
 			return is_active() and stage() == 1
 		"former":
 			return is_active() and stage() == 2
+		"migration":
+			return is_active() and stage() == 3
 	return false
 
 
+func open_forms() -> Array:
+	forms_def["migration"] = _migration_form()
+	return super.open_forms()
+
+
+func submit_form(form_id: String, picks: Dictionary) -> Array:
+	forms_def["migration"] = _migration_form()
+	return super.submit_form(form_id, picks)
+
+
 func form_open(form_id: String) -> bool:
+	if form_id == "migration":
+		return is_active() and stage() == 3 and data().get("fired", {}).has("migration")
 	return form_id == "audit" and is_active() and stage() == 1 and data().get("fired", {}).has("audit")
 
 
@@ -82,6 +118,9 @@ func fire(beat: String) -> void:
 		"audit":
 			say("taeseok", t("표본 보냈어요. Docs의 'LEGACY-17 감사 로그 표본'에 있어요. 개인정보는 다 지웠어요.",
 				"Sample sent. It's in Docs under 'LEGACY-17 audit log sample'. Personal data is removed."))
+		"migration":
+			say("taeseok", t("Hana 메모로 이관 규칙 초안을 써 볼까요? Docs에 'LEGACY-17 이관 규칙'을 올려 뒀어요. 이관 때 주문과 결제를 어떻게 이을지예요.",
+				"Shall we draft the migration rule from Hana's note? 'LEGACY-17 migration rule' is in Docs: how to link orders and payments during migration."))
 		"former":
 			choice("taeseok", t("당시 결제 연동을 만든 분이 Hana Yoon인데, 2년 전에 퇴사했어요. 왜 그렇게 설계했는지 아는 사람은 그분뿐이에요. 어떻게 연락해 볼까요?",
 				"The person who built the payment integration back then was Hana Yoon. She left two years ago, and she's the only one who knows why it was designed that way. How should we reach her?"),
@@ -92,6 +131,16 @@ func fire(beat: String) -> void:
 
 
 func judge_form(form_id: String, picks: Dictionary) -> Array:
+	if form_id == "migration":
+		var notes: Array = []
+		match FormRules.picked(picks, "match")[0]:
+			"order_ref":
+				notes.append(t("주문 쪽 번호로만 찾으면 재결제 주문 세 건이 빠져요. 그게 LEGACY-17이었잖아요.", "Matching on the order reference alone drops the three re-paid orders. That was LEGACY-17."))
+			"amount_time":
+				notes.append(t("금액과 시각이 같은 다른 주문이 있으면 잘못 이어져요. Hana가 말한 테이블이 있어요.", "Different orders with the same amount and time would be linked wrongly. Hana named the right table."))
+		if FormRules.picked(picks, "check")[0] == "skip":
+			notes.append(t("규칙은 표본으로 확인해야 해요. 재결제 주문을 꼭 포함해서요.", "A rule needs a sample check, including re-paid orders."))
+		return notes
 	if form_id != "audit":
 		return []
 	var notes: Array = []
@@ -112,6 +161,12 @@ func judge_form(form_id: String, picks: Dictionary) -> Array:
 
 
 func on_form_accepted(form_id: String, _picks: Dictionary) -> void:
+	if form_id == "migration":
+		Game.state["flags"]["l17_rule"] = true
+		set_stage(4)
+		say("taeseok", t("좋아요. 결제 이력 테이블을 거쳐 잇고, 재결제 주문을 포함한 표본으로 확인. 이 규칙이면 ATLAS 시범에서도 같은 패턴을 바로 알아볼 수 있겠어요.",
+			"Good: link through the payment history table and verify on a sample with re-paid orders. With this rule, the ATLAS pilot will recognize the same pattern right away."))
+		return
 	if form_id != "audit":
 		return
 	Game.state["flags"]["l17_pattern"] = true
@@ -147,6 +202,12 @@ func on_event(kind: String, d: Dictionary) -> void:
 						"I got Security's request. The provider issued new IDs on re-payment, and we linked them via the payment history table. I'll pass the design note through Security."), 8.0)
 				"skip":
 					say("taeseok", t("알겠어요. 기록만으로도 꽤 갈 수 있어요. 필요해지면 그때 연락해 봐요.", "Okay. Records alone can take us a long way. We can reach out later if needed."))
+
+
+func resume() -> void:
+	var contact := String(data().get("contact", ""))
+	if is_active() and stage() == 2 and contact in ["polite", "official"]:
+		on_event("choice", {"key": "arc_l17_contact", "option": contact})
 
 
 func _hana_reply(text: Dictionary, delay: float) -> void:

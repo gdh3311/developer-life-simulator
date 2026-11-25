@@ -75,4 +75,6 @@ func on_form_accepted(_form_id: String, _picks: Dictionary) -> void:
 	say("alex", t("켰어요! 첫 한 시간, 지정한 세 숫자 모두 기준 안이에요.", "It's live! First hour: all three numbers are within bounds."))
 	say("mina", t("마감 직후 차단 로그 깨끗해요. 판매자 확인 상태도 정상으로 쌓여요.", "Post-deadline blocking logs are clean. Seller-review states are piling up normally."), {"channel": "general"})
 	Game.notify("browser", "Connectly", Game.L("포트폴리오에 '예약 판매 v1 출시'가 추가됐습니다.", "'Pre-order v1 launch' was added to your portfolio."))
+	say("yuri", t("Relay에서 moonlight.shop 열어 보세요. 손님 화면에서 예약하고 취소 요청도 눌러 볼 수 있어요. 마감 시각이랑 취소 동작이 우리가 만든 그대로예요.",
+		"Open moonlight.shop in Relay. You can pre-order and request cancels from the customer's side. The deadline and cancel behavior are exactly what we built."))
 	finish()

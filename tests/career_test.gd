@@ -101,13 +101,16 @@ func _run() -> void:
 	Game.state["day_done"] = false
 
 	# Goals: live status, reward once, failure.
-	c().st()["goals"] = ["ci_clean", "social", "no_slack"]
+	c().st()["goals"] = ["repro_first", "social", "no_slack"]
 	c().st()["goals_done"] = []
-	check(c().goal_status("ci_clean") == "open" and c().goal_status("no_slack") == "open", "goals start open")
+	check(c().goal_status("repro_first") == "open" and c().goal_status("no_slack") == "open", "goals start open")
 	var money: int = Game.money()
-	Game.inc_stat("ci_pass")
+	Game.emit_event("tests", {"ok": true})
+	check(c().goal_status("repro_first") == "open", "passing tests alone isn't reproducing a failure")
+	Game.emit_event("tests", {"ok": false})
+	Game.emit_event("tests", {"ok": true})
 	Game.emit_event("choice", {"key": "a", "option": "b"})
-	check(c().goal_status("ci_clean") == "done" and c().goal_status("social") == "done", "goals complete as you play")
+	check(c().goal_status("repro_first") == "done" and c().goal_status("social") == "done", "seeing the failure, then fixing it, completes the goal")
 	check(Game.money() == money + 2 * c().GOAL_REWARD, "each goal pays once")
 	Game.emit_event("choice", {"key": "a", "option": "b"})
 	check(Game.money() == money + 2 * c().GOAL_REWARD, "a finished goal doesn't pay twice")
@@ -120,7 +123,8 @@ func _run() -> void:
 	desktop._boot.hide()
 	Game.state["day_done"] = true
 	c().finish_day()
-	check(c().grade(5) == "S" and c().unlocked("perfect_day"), "three goals, nothing caught and green CI make an S and an achievement")
+	check(c().grade(5) == "S" and c().unlocked("perfect_day"), "three goals and nothing caught make an S and an achievement")
+	check(not c().GOALS.has("ci_clean") and not c().GOALS.has("tests3") and not c().GOALS.has("no_hints"), "no goal rewards counting runs or never failing")
 	for toast in desktop._toasts.get_children():
 		toast.hide()
 	desktop._show_day_summary()

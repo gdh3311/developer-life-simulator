@@ -22,6 +22,8 @@ const PAGES := [
 	["preorder_deadline", {"ko": "예약 판매 마감 시각", "en": "Pre-order deadlines"}],
 	["preorder_cancel", {"ko": "예약 주문 취소와 환불", "en": "Pre-order cancellation and refunds"}],
 	["release", {"ko": "출시와 담당", "en": "Release and ownership"}],
+	["refund_policy", {"ko": "환불 계산", "en": "Refund calculation"}],
+	["atlas", {"ko": "ATLAS 이중 기록", "en": "ATLAS dual write"}],
 ]
 
 var _page := "overview"
@@ -120,6 +122,14 @@ func _content(id: String) -> String:
 			return _h(Game.L("예약 주문 취소와 환불", "Pre-order cancellation and refunds")) + Workspace.content("c03/cancel_policy.txt")
 		"release":
 			return _h(Game.L("출시와 담당", "Release and ownership")) + Workspace.content("c03/release_policy.txt")
+		"refund_policy":
+			var refund := Workspace.content("c04/refund_policy.txt")
+			if Game.state["flags"].get("c04_background", false):
+				refund += Game.L("\n[설계 배경 · Daniel] 2023년 판매자 12곳, 개발자 1명. 10원 내림은 임시 조치가 아니라 첫 계약 7조. 계약은 내년 3월 만료.",
+					"\n[Design background · Daniel] 2023: 12 sellers, one engineer. Rounding down to 10 won was contract §7, not a hack. The contract expires next March.")
+			return _h(Game.L("환불 계산", "Refund calculation")) + refund
+		"atlas":
+			return _h(Game.L("ATLAS 이중 기록", "ATLAS dual write")) + Workspace.content("c04/atlas_policy.txt")
 		"legacy17":
 			var extra := ""
 			if Game.state["flags"].get("l17_pattern", false):

@@ -69,4 +69,5 @@ func on_form_accepted(_form_id: String, picks: Dictionary) -> void:
 		Game.relate("sophie", {"close": 3, "agree": 2})
 		say("sophie", t("화면 담당 좋아요! 제 이름도 운영 문서에 올라가네요.", "Screen owner, yes! My name's on the runbook too."))
 	say("yuri", t("#preorder 채널로 다 옮겼어요. 화·목 오후에 모아서 물어볼게요.", "Moved everything to #preorder. I'll batch questions for Tue/Thu afternoons."))
+	doc_comment("own", "yuri", t("지원팀: 이 문서 링크를 고객 문의 답변 템플릿에 넣었어요.", "Support: we added a link to this doc in our reply templates."))
 	finish()

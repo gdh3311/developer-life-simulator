@@ -89,6 +89,11 @@ func on_event(_kind: String, _d: Dictionary) -> void:
 	pass
 
 
+## Called after a save is loaded: re-arm anything that was waiting on a timer.
+func resume() -> void:
+	pass
+
+
 ## One line for the Dashboard / chapter ending.
 func summary() -> String:
 	return Game.tx(stages[clampi(stage(), 0, stages.size() - 1)])

@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Godot,
     [switch]$Screenshots,
     [switch]$EngineVerbose,
-    [ValidateSet('gameplay', 'chapter', 'chapter2', 'chapter3', 'recovery', 'desk', 'browser', 'events', 'arcade', 'desk_assets', 'studio', 'career')][string]$Suite = 'gameplay',
+    [ValidateSet('gameplay', 'chapter', 'chapter2', 'chapter3', 'recovery', 'desk', 'browser', 'events', 'arcade', 'desk_assets', 'studio', 'career', 'chapter4', 'chapter4_edge')][string]$Suite = 'gameplay',
     [ValidateSet('prevent', 'recover', 'resume')][string]$Profile = 'prevent'
 )
 
@@ -15,12 +15,14 @@ $outputPath = Join-Path $workspacePath 'build\gameplay-qa'
 if ($Suite -eq 'chapter') { $outputPath = Join-Path $workspacePath ('build\chapter-qa\' + $Profile) }
 if ($Suite -eq 'chapter2') { $outputPath = Join-Path $workspacePath ('build\chapter2-qa\' + $Profile) }
 if ($Suite -eq 'chapter3') { $outputPath = Join-Path $workspacePath ('build\chapter3-qa\' + $Profile) }
+if ($Suite -eq 'chapter4') { $outputPath = Join-Path $workspacePath ('build\chapter4-qa\' + $Profile) }
 if ($Suite -eq 'recovery') { $outputPath = Join-Path $workspacePath 'build\recovery-qa' }
 if ($Suite -eq 'desk') { $outputPath = Join-Path $workspacePath 'build\desk-qa' }
 if ($Suite -eq 'events') { $outputPath = Join-Path $workspacePath 'build\events-qa' }
 if ($Suite -eq 'desk_assets') { $outputPath = Join-Path $workspacePath 'build\desk-assets-qa' }
 if ($Suite -eq 'studio') { $outputPath = Join-Path $workspacePath 'build\studio-qa' }
 if ($Suite -eq 'career') { $outputPath = Join-Path $workspacePath 'build\career-qa' }
+if ($Suite -eq 'chapter4_edge') { $outputPath = Join-Path $workspacePath 'build\chapter4-qa\edge' }
 if ($Suite -eq 'browser') { $outputPath = Join-Path $workspacePath 'build\browser-qa' }
 if ($Suite -eq 'arcade') { $outputPath = Join-Path $workspacePath 'build\arcade-qa' }
 New-Item -ItemType Directory -Path $qaPath, $outputPath -Force | Out-Null
@@ -46,13 +48,13 @@ try {
     if ($LASTEXITCODE -ne 0 -or -not ($preflight -match 'QA_PREFLIGHT_OK') -or ($preflight -match 'SCRIPT ERROR:|ERROR:')) { throw ('QA compilation failed. See ' + (Join-Path $outputPath 'preflight.log')) }
     $scenePath = 'res://tests/' + $Suite + '_test.tscn'
     $resultTag = $Suite.ToUpper() + '_QA'
-    $stages = if ($Suite -eq 'chapter2') { @('before', 'after', 'finale') } elseif ($Suite -eq 'chapter3') { @('before', 'after') } elseif ($Suite -eq 'recovery') { @('before', 'after') } elseif ($Suite -eq 'chapter' -and $Profile -eq 'resume') { @('before', 'review', 'after') } else { @('') }
+    $stages = if ($Suite -eq 'chapter2') { @('before', 'after', 'finale') } elseif ($Suite -eq 'chapter3') { @('before', 'after') } elseif ($Suite -eq 'chapter4') { @('before', 'after') } elseif ($Suite -eq 'recovery') { @('before', 'after') } elseif ($Suite -eq 'chapter' -and $Profile -eq 'resume') { @('before', 'review', 'after') } else { @('') }
     foreach ($stage in $stages) {
         $runArgs = @('--path', $qaPath, $scenePath, '--max-fps', '120', '--quit-after', '72000')
         if ($EngineVerbose) { $runArgs += '--verbose' }
         $userArgs = @()
         if ($Screenshots) { $userArgs += '--screenshots' } else { $runArgs = @('--headless') + $runArgs }
-        if ($Suite -in @('chapter', 'chapter2', 'chapter3')) { $userArgs += @('--profile', $Profile) }
+        if ($Suite -in @('chapter', 'chapter2', 'chapter3', 'chapter4')) { $userArgs += @('--profile', $Profile) }
         if ($stage) { $userArgs += @('--stage', $stage) }
         if ($userArgs.Count -gt 0) { $runArgs += @('--') + $userArgs }
         $logName = if ($stage) { 'tests_' + $stage + '.log' } else { 'tests.log' }

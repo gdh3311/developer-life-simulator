@@ -52,9 +52,86 @@ func _render() -> void:
 		_root.add_child(UITheme.bold("Docs", 17))
 		_root.add_child(UITheme.label(Game.L("지금 작성할 문서가 없습니다. 업무나 동료가 문서를 요청하면 여기에 나타납니다.",
 			"No documents to write right now. They appear here when a task or a teammate asks for one."), 13, UITheme.MUTED))
-		return
 	for spec in list:
 		_root.add_child(_form(spec))
+	var past := archive()
+	if not past.is_empty():
+		_root.add_child(UITheme.label(Game.L("내 문서함  ·  %d", "My documents  ·  %d") % past.size(), 12, UITheme.MUTED))
+		for doc in past:
+			_root.add_child(_archived(doc))
+
+
+## Every document you submitted in finished tasks, newest first, with comments from others.
+static func archive() -> Array:
+	var docs: Array = []
+	var comments: Dictionary = Game.state["flags"].get("doc_comments", {})
+	for m in Story.missions():
+		if Story.status(m.id) != "done" or m.forms_def.is_empty():
+			continue
+		var saved: Dictionary = Game.state["story"].get(m.id, {}).get("data", {}).get("forms", {})
+		for form_id in saved:
+			if not m.forms_def.has(form_id):
+				continue
+			var spec: Dictionary = m.forms_def[form_id]
+			if m.has_method("manual") and m.manual():
+				# Documents keep the title they were written under (e.g. the manual pilot).
+				spec = spec.duplicate(true)
+				spec["title"] = {"ko": "수동 대조 시범 판매자", "en": "Manual reconciliation pilot seller"}
+			if m.has_method("_records") and form_id == "review":
+				spec = spec.duplicate(true)
+				spec["slots"][0]["options"] = m._records().map(func(x: Dictionary) -> Dictionary: return {"id": x["id"], "text": x["text"]})
+			docs.append({"key": m.id + ":" + form_id, "title": spec["title"], "spec": spec, "picks": saved[form_id],
+				"task": m.issue, "day": m.day, "comments": comments.get(m.id + ":" + form_id, [])})
+	for a in Story.arcs.all():
+		for form_id in a.data().get("forms", {}):
+			var spec: Dictionary = a.forms_def.get(form_id, {})
+			if spec.is_empty() and a.has_method("_migration_form") and form_id == "migration":
+				spec = a._migration_form()
+			if spec.is_empty():
+				continue
+			docs.append({"key": a.id + ":" + form_id, "title": spec["title"], "spec": spec, "picks": a.data()["forms"][form_id],
+				"task": Game.tx(a.title), "day": 99, "comments": comments.get(a.id + ":" + form_id, [])})
+	docs.sort_custom(func(x: Dictionary, y: Dictionary) -> bool: return int(x["day"]) > int(y["day"]))
+	return docs
+
+
+func _archived(doc: Dictionary) -> Control:
+	var card := UITheme.panel(UITheme.BG1, 10, 12, Color(1, 1, 1, 0.04))
+	var v := UITheme.vbox(6)
+	card.add_child(v)
+	var head := UITheme.hbox(8)
+	var title := UITheme.bold(Game.tx(doc["title"]), 14)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	head.add_child(UITheme.label(String(doc["task"]), 11, UITheme.MUTED))
+	var comments: Array = doc["comments"]
+	if not comments.is_empty():
+		head.add_child(UITheme.chip(Game.L("댓글 %d", "%d comments") % comments.size(), UITheme.ACCENT))
+	var toggle := UITheme.button(Game.L("열기", "Open"))
+	head.add_child(toggle)
+	v.add_child(head)
+	var detail := UITheme.vbox(6)
+	detail.visible = false
+	v.add_child(detail)
+	toggle.pressed.connect(func() -> void:
+		detail.visible = not detail.visible
+		toggle.text = Game.L("닫기", "Close") if detail.visible else Game.L("열기", "Open"))
+	var spec: Dictionary = doc["spec"]
+	for slot in spec["slots"]:
+		var chosen := FormRules.picked(doc["picks"], slot["id"])
+		if chosen.is_empty():
+			continue
+		detail.add_child(UITheme.label(Game.tx(slot["label"]), 11, UITheme.MUTED))
+		for id in chosen:
+			detail.add_child(UITheme.wrap("· " + Game.tx(FormRules.option(spec, slot["id"], id).get("text", {})), 12, UITheme.TEXT))
+	for c in comments:
+		var row := UITheme.hbox(8)
+		row.add_child(UITheme.avatar(String(c["from"]), 22))
+		var text := UITheme.wrap("%s  ·  %s" % [Game.npc_name(String(c["from"])), Game.tx(c["text"])], 12, UITheme.TEXT2)
+		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(text)
+		detail.add_child(row)
+	return card
 
 
 func _form(spec: Dictionary) -> Control:
@@ -90,6 +167,14 @@ func _form(spec: Dictionary) -> Control:
 			capacity_label = UITheme.label("", 12, UITheme.TEXT2)
 			v.add_child(capacity_label)
 		var group: ButtonGroup = null if slot.get("multi", false) else ButtonGroup.new()
+		# Inline slots (classification grids) lay their options out side by side.
+		var holder: Container = v
+		if slot.get("inline", false):
+			var flow := HFlowContainer.new()
+			flow.add_theme_constant_override("h_separation", 6)
+			flow.add_theme_constant_override("v_separation", 6)
+			v.add_child(flow)
+			holder = flow
 		for o in slot["options"]:
 			var b := CheckBox.new()
 			if group != null:
@@ -99,7 +184,10 @@ func _form(spec: Dictionary) -> Control:
 				text += Game.L("  · %d일", "  · %d d") % int(o["cost"])
 			b.text = text
 			b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			b.custom_minimum_size.x = 560
+			b.custom_minimum_size.x = 0
+			b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN if slot.get("inline", false) else Control.SIZE_EXPAND_FILL
+			if slot.get("inline", false):
+				b.autowrap_mode = TextServer.AUTOWRAP_OFF
 			b.focus_mode = Control.FOCUS_NONE
 			b.button_pressed = FormRules.picked(picks, sid).has(o["id"])
 			var oid: String = o["id"]
@@ -118,7 +206,7 @@ func _form(spec: Dictionary) -> Control:
 					picks[sid] = oid
 				if cap != null:
 					_update_capacity(cap, spec, slot_ref, picks))
-			v.add_child(b)
+			holder.add_child(b)
 		if capacity_label != null:
 			_update_capacity(capacity_label, spec, slot, picks)
 	var notes: Array = _notes.get(key, [])

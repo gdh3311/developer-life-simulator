@@ -1,0 +1,9 @@
+ATLAS dual write
+
+writeBoth(record, old, ledger, retry) -> { status, retry }
+1. The old store is the source of truth. If it fails, don't write the ledger: status 'failed'.
+2. If only the ledger fails: status 'partial', and queue the record id for retry. Once per id.
+3. If both succeed: 'ok'. Leave the retry list alone.
+4. Never swallow failures silently. Missing comparison records make the later cutover decision impossible.
+
+No cutover in this stage. The ledger is for comparison only.

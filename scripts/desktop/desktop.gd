@@ -844,7 +844,10 @@ func _advance_workday() -> void:
 
 
 func _show_ending() -> void:
-	if Game.chapter() >= 3:
+	if Game.chapter() >= 4:
+		_show_chapter4_ending()
+		return
+	if Game.chapter() == 3:
 		_show_chapter3_ending()
 		return
 	if Game.chapter() == 2:
@@ -961,11 +964,48 @@ func _show_chapter3_ending() -> void:
 	for a in Story.arcs.all():
 		lines.append(UITheme.label("%s  ·  %s" % [Game.tx(a.title), a.summary()], 13, UITheme.MUTED))
 	lines.append(UITheme.label(Game.L("커밋 %d · PR %d · CI 통과 %d / 실패 %d · 리뷰 %d   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Commits %d · PRs %d · CI %d green / %d red · Reviews %d   ·   Avg. team trust %d   ·   Balance %s") % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews"), roundi(Game.avg_trust()), Game.won(Game.money())], 12, UITheme.MUTED))
-	lines.append(UITheme.label(Game.L("다음: 챕터 4 오래된 결정 — 개발 중", "Next: Chapter 4 An old decision — in development"), 13, UITheme.WARN))
+	lines.append(UITheme.label(Game.L("다음: 챕터 4 오래된 결정 — 환불 코드의 작성자를 만난다", "Next: Chapter 4 An old decision — meet the author of the refund code"), 13, UITheme.WARN))
 	for lab in lines:
 		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(lab)
 	_add_continue_button(v, Game.L("챕터 4 시작하기  →", "Start Chapter 4  →"))
+	var btn := UITheme.button(Game.L("현재 데스크톱 둘러보기", "Review this desktop"), "primary")
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.custom_minimum_size = Vector2(240, 40)
+	btn.pressed.connect(func() -> void:
+		_overlay.queue_free()
+		_overlay = null
+		_day_transitioning = false
+		_end_day_btn.visible = true)
+	v.add_child(btn)
+
+
+func _show_chapter4_ending() -> void:
+	UITheme.clear(_overlay)
+	Sfx.play("promote")
+	confetti(140)
+	(_overlay as ColorRect).color = Color(0.02, 0.03, 0.05, 0.96)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.add_child(center)
+	var v := UITheme.vbox(12)
+	center.add_child(v)
+	var flags: Dictionary = Game.state["flags"]
+	var scope := {"phased": Game.L("단계별 교체 (환불부터)", "phased (refunds first)"), "status_quo": Game.L("현상 유지 + 재검토", "status quo + review")}.get(String(flags.get("c04_scope", "")), "-") as String
+	var lines: Array = [
+		UITheme.label("CHAPTER 4  —  " + Game.L("오래된 결정", "AN OLD DECISION"), 13, UITheme.ACCENT),
+		UITheme.bold(Game.L("다른 팀이 내 결정 기록에 질문을 달았다", "Another team commented on my decision record"), 26),
+		UITheme.label(Game.L("특성 테스트 → 작성자의 배경 → 이중 기록 → 대조 보고서 → 범위 결정 → 시범 → 리뷰 분담 → 결정 기록", "Characterization tests → the author's context → dual write → reconciliation → scope → pilot → review rotation → decision record"), 14, UITheme.TEXT2),
+		UITheme.label(Game.L("ATLAS 1단계: %s  ·  남긴 질문 %d개  ·  정직하게 답한 질문 %d / 3", "ATLAS stage 1: %s  ·  open questions %d  ·  honest answers %d / 3") % [scope, (flags.get("c04_open_questions", []) as Array).size(), int(flags.get("c04_honest_answers", 0))], 13, UITheme.TEXT),
+	]
+	for a in Story.arcs.all():
+		lines.append(UITheme.label("%s  ·  %s" % [Game.tx(a.title), a.summary()], 13, UITheme.MUTED))
+	lines.append(UITheme.label(Game.L("커밋 %d · PR %d · CI 통과 %d / 실패 %d · 리뷰 %d   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Commits %d · PRs %d · CI %d green / %d red · Reviews %d   ·   Avg. team trust %d   ·   Balance %s") % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews"), roundi(Game.avg_trust()), Game.won(Game.money())], 12, UITheme.MUTED))
+	lines.append(UITheme.label(Game.L("다음: 챕터 5 사람들이 몰려오는 날 — 개발 중", "Next: Chapter 5 The day everyone shows up — in development"), 13, UITheme.WARN))
+	for lab in lines:
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(lab)
+	_add_continue_button(v, Game.L("챕터 5 시작하기  →", "Start Chapter 5  →"))
 	var btn := UITheme.button(Game.L("현재 데스크톱 둘러보기", "Review this desktop"), "primary")
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.custom_minimum_size = Vector2(240, 40)

@@ -70,6 +70,23 @@
 
 **스토리라인:** Brightloop의 Jamie(커피챗 → 과제 안내)와 보안팀 Taeseok의 LEGACY-17(감사 로그 불일치 패턴 → 퇴사한 개발자 Hana에게 당시 결정 묻기)이 업무와 나란히 진행됩니다. 수락·보류·거절할 수 있고, 둘 다 따라가면 같은 저녁을 두고 하나를 골라야 합니다(다른 하나는 다음 날 점심으로). Dashboard에서 진행 상황을 봅니다.
 
+## Chapter 4 · 오래된 결정 (8개 업무)
+
+챕터 3 결과 화면의 **챕터 4 시작하기**로 이어집니다. 환불 코드의 오래된 `legacy` 분기와 그 작성자 Daniel, ATLAS의 첫 조각을 다룹니다.
+
+| 업무 | 플레이 |
+|---|---|
+| NXR-051 지울 수 없는 조건문 | 특성 테스트 작성 → **변이 검사**: 게임이 legacy 분기를 지운 복사본에 내 테스트를 돌려, 실패해야 통과 |
+| NXR-052 작성자 Daniel Park | `git log`/`git blame`으로 작성자 찾기 → 배경과 바뀐 가정을 나누는 질문 고르기 |
+| NXR-053 두 번 적는 이유 | 원장 쓰기 실패를 삼키던 이중 기록을 재처리 목록으로 (AI 초안은 CI에서 실패) |
+| NXR-054 숫자가 맞지 않는 금요일 | 차이 6건을 반올림·기간·단위·누락으로 분류하는 대조 보고서 (‘허용 오차’로 덮으면 반려) |
+| NXR-055 전부 다시 만들고 싶은 오후 | 실제 인원 2명으로 끝낼 수 있는 ATLAS 범위와 되돌리기 계획 |
+| NXR-056 고객 한 곳만 먼저 | 단순한 판매자 vs 예외 많은 판매자 시범 |
+| NXR-057 도와주지 않는 친절 | 모든 PR을 직접 고치는 Daniel을 위한 리뷰 분담표 |
+| NXR-058 처음 쓰는 결정 기록 | 다른 팀 질문에 답하기: 모르면 담당과 기한을 남긴다 |
+
+스토리라인: Brightloop 과제 제출(회사 코드를 쓰면 전형이 끝남) → 기술 면담 → 조건 협의, LEGACY-17 이관 규칙 초안. 12일 저녁은 두 이야기가 겹칩니다.
+
 ## 실행
 필요한 것: [Godot 4.7](https://godotengine.org/download), Git, Node.js 22.6 이상 (출시 버전에서는 게임에 포함할 예정)
 
@@ -119,7 +136,7 @@ content/ci/{ko,en}/             미션별 숨겨진 [CI] 검증 테스트
 
 게임성: [플레이 흐름과 후속 설계](docs/GAMEPLAY.md). 조사 노트와 실패 감점 조정은 구현되어 있으며, 업무 전략·성장 도구·난이도 프로필은 후속 계획입니다.
 
-장편 본편 기획: [전체 시나리오](docs/SCENARIO.md) · [96개 업무와 48개 선택 사건](docs/SCENARIO_MISSIONS.md) · [인물·분기·엔딩](docs/SCENARIO_CHARACTERS.md) · [챕터 2 대본](docs/SCENARIO_CHAPTER_02.md) · [챕터 3 대본](docs/SCENARIO_CHAPTER_03.md) · [제작 기준](docs/SCENARIO_PRODUCTION.md) · [멀티 스토리라인·이벤트 설계](docs/STORYLINES.md). 현재 구현 범위는 위의 Chapter 1~3과 스토리라인 2개입니다.
+장편 본편 기획: [전체 시나리오](docs/SCENARIO.md) · [96개 업무와 48개 선택 사건](docs/SCENARIO_MISSIONS.md) · [인물·분기·엔딩](docs/SCENARIO_CHARACTERS.md) · [챕터 2 대본](docs/SCENARIO_CHAPTER_02.md) · [챕터 3 대본](docs/SCENARIO_CHAPTER_03.md) · [챕터 4 대본](docs/SCENARIO_CHAPTER_04.md) · [제작 기준](docs/SCENARIO_PRODUCTION.md) · [멀티 스토리라인·이벤트 설계](docs/STORYLINES.md). 현재 구현 범위는 위의 Chapter 1~4와 스토리라인 2개입니다.
 
 1. ~~기술 검증~~ ✅  2. ~~Vertical Slice~~ ✅  3. ~~Chapter 1 확장 (인턴 4일, 튜토리얼, 한/영)~~ ✅
 4. ~~Chapter 2·3 구현, 스토리라인 엔진~~ → 이벤트 카드 엔진, 나머지 스토리라인, Chapter 4, Node·Git 런타임 번들, 플레이어 코드 OS 수준 격리

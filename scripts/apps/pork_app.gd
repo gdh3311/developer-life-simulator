@@ -216,6 +216,8 @@ func _show_selection(tab: int, report := true) -> void:
 	_diff.text = Game.L("변경 내용 불러오는 중…", "Reading changes…")
 	if tab == 1:
 		var commit := await Workspace._working_git(["show", "--no-ext-diff", "--format=fuller", "--stat", "--patch", id])
+		if report and commit["code"] == 0:
+			Game.emit_event("command_finished", {"argv": ["git", "show", id], "code": 0, "out": String(commit["out"])})
 		if request == _detail_request:
 			var details := String(commit["out"]) + String(commit["err"])
 			if commit["code"] == 0 and "\ndiff --git " not in details:

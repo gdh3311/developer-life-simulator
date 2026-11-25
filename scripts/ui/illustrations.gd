@@ -5,6 +5,8 @@ const WEB := "res://content/web/art/relay-site-icons.png"
 const ARCADE := "res://content/web/art/packet-run-sprites.png"
 const MOONLIGHT := "res://content/web/art/moonlight-products.png"
 const WEB_ORDER := ["relay", "portal", "connectly", "news", "video", "lounge", "shop", "arcade", "moonlight"]
+## Sites added after the 3×3 icon sheet was painted use their own image file.
+const WEB_EXTRA := {"atlas": "res://content/web/art/site-atlas.svg"}
 const ARCADE_ORDER := ["courier", "packet", "barrier", "exit_locked", "exit_open", "floor"]
 const PRODUCT_ORDER := ["tea", "cup", "cookie", "candle", "jam", "hero"]
 
@@ -12,6 +14,18 @@ static var _textures := {}
 
 
 static func website(id: String) -> Texture2D:
+	if WEB_EXTRA.has(id):
+		# Same shape as the sheet icons (an AtlasTexture), cached so every caller gets one instance.
+		var key := "extra:" + id
+		if not _textures.has(key):
+			var image := load(WEB_EXTRA[id]) as Texture2D
+			if image == null:
+				return null
+			var tile := AtlasTexture.new()
+			tile.atlas = image
+			tile.region = Rect2(Vector2.ZERO, image.get_size())
+			_textures[key] = tile
+		return _textures[key]
 	var index := WEB_ORDER.find(id)
 	if index < 0:
 		return null

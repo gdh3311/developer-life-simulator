@@ -160,6 +160,11 @@ func on_event(kind: String, d: Dictionary) -> void:
 
 # --- Forms ------------------------------------------------------------------------------
 
+func resume() -> void:
+	for a in _arcs:
+		a.resume()
+
+
 func open_forms() -> Array:
 	var result: Array = []
 	for a in _arcs:

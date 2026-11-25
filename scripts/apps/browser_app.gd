@@ -29,6 +29,7 @@ const SITES := [
 	{"id": "shop", "name": "Shoply", "url": "shoply.test", "fun": true, "color": "7cc5ae"},
 	{"id": "arcade", "name": "Arcade", "url": "arcade.test", "fun": false, "color": "f1cd84"},
 	{"id": "moonlight", "name": "Moonlight", "url": "moonlight.shop", "fun": false, "color": "f4c95d"},
+	{"id": "atlas", "name": "ATLAS", "url": "atlas.nexora.test", "fun": false, "color": "7dd3fc"},
 ]
 
 const ITEMS := [
@@ -366,9 +367,18 @@ func _toolbar_arrow(glyph: String, tooltip: String) -> Button:
 	return button
 
 
+## Internal tools join the bookmarks once the team has them (ATLAS from Chapter 4).
+static func bookmarked(site: Dictionary) -> bool:
+	if site["id"] == "atlas":
+		return Game.chapter() >= 4 or Game.state["story"].has("c04_03")
+	return true
+
+
 func _render() -> void:
 	UITheme.clear(_tabs)
 	for s in SITES:
+		if not bookmarked(s) and s["id"] != _site:
+			continue
 		var b := _browser_button(s["name"], "https://" + String(s["url"]))
 		var sel: bool = s["id"] == _site
 		var tint := Color(s["color"])
@@ -421,6 +431,8 @@ func _render() -> void:
 			_body.add_child(Arcade.new())
 		"moonlight":
 			_body.add_child(preload("res://scripts/apps/page_view.gd").new())
+		"atlas":
+			_body.add_child(preload("res://scripts/apps/atlas_view.gd").new())
 
 
 func _site_button_style(fill: Color, edge: Color) -> StyleBoxFlat:

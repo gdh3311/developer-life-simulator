@@ -23,11 +23,13 @@ const PERKS := [
 	["debug", 3, {"ko": "AI 토큰 하루 한도 +25%", "en": "+25% daily AI tokens"}],
 ]
 
-## Daily goal pool. kind: needs a code task today (code) or any day (any).
+## Daily goal pool: good engineering habits, not counts. kind: needs a code task today (code),
+## a review today (review) or any day (any). A red CI run is not a failure here: catching it is the point.
 const GOALS := {
-	"ci_clean": {"skill": "testing", "kind": "code", "text": {"ko": "CI를 한 번도 실패하지 않고 통과", "en": "Pass CI without a single red run"}},
-	"tests3": {"skill": "testing", "kind": "code", "text": {"ko": "테스트 3번 이상 실행", "en": "Run the tests 3+ times"}},
-	"no_hints": {"skill": "debug", "kind": "any", "text": {"ko": "힌트 없이 업무 끝내기", "en": "Finish the work without hints"}},
+	"repro_first": {"skill": "debug", "kind": "code", "text": {"ko": "고치기 전에 실패를 먼저 재현하기", "en": "Reproduce the failure before fixing it"}},
+	"ci_catch": {"skill": "testing", "kind": "code", "text": {"ko": "CI가 잡은 문제를 고쳐 다시 통과시키기", "en": "Fix what CI caught and get it green again"}},
+	"leave_tests": {"skill": "craft", "kind": "code", "text": {"ko": "다음 사람을 위한 테스트 남기기", "en": "Leave tests behind for the next person"}},
+	"explain_pr": {"skill": "collab", "kind": "code", "text": {"ko": "PR 설명에 확인한 범위 적기", "en": "Write the checked scope in your PR description"}},
 	"no_main": {"skill": "craft", "kind": "code", "text": {"ko": "main에 직접 커밋하지 않기", "en": "No commits straight to main"}},
 	"social": {"skill": "collab", "kind": "any", "text": {"ko": "동료에게 두 번 이상 답하기", "en": "Reply to teammates 2+ times"}},
 	"no_slack": {"skill": "ops", "kind": "any", "text": {"ko": "딴짓 들키지 않기", "en": "Don't get caught slacking"}},
@@ -137,6 +139,7 @@ func _ensure_day() -> void:
 	c["day"] = Game.day()
 	c["xp_today"] = {}
 	c["caps_today"] = {}
+	c["today"] = {"test_cases": _test_case_count()}
 	c["goals_done"] = []
 	c["goals"] = _pick_goals()
 
@@ -170,6 +173,24 @@ func _pick_goals() -> Array:
 	return picked
 
 
+func _today_flags() -> Dictionary:
+	if not st().has("today") or typeof(st()["today"]) != TYPE_DICTIONARY:
+		st()["today"] = {}
+	return st()["today"]
+
+
+## How many test cases exist in the working copy (to tell whether tests were added today).
+func _test_case_count() -> int:
+	if not (Workspace.is_ready and Workspace.exists()):
+		return 0
+	var n := 0
+	for path in Workspace.list_files():
+		var p := String(path)
+		if p.begins_with("tests/") and p.ends_with(".test.ts"):
+			n += Workspace.read_file(p).count("test(")
+	return n
+
+
 func goals() -> Array:
 	_ensure_day()
 	return st()["goals"]
@@ -184,17 +205,16 @@ func goal_status(id: String) -> String:
 	if id in st()["goals_done"]:
 		return "done"
 	var end: bool = Game.state["day_done"]
+	var today := _today_flags()
 	match id:
-		"ci_clean":
-			if _today("ci_fail") > 0:
-				return "failed"
-			return "done" if _today("ci_pass") > 0 else "open"
-		"tests3":
-			return "done" if _today("test_runs") >= 3 else "open"
-		"no_hints":
-			if _today("hints") > 0:
-				return "failed"
-			return "done" if end and _today("missions") > 0 else "open"
+		"repro_first":
+			return "done" if today.get("reproduced", false) else ("failed" if end else "open")
+		"ci_catch":
+			return "done" if today.get("ci_recovered", false) else ("failed" if end else "open")
+		"leave_tests":
+			return "done" if today.get("tests_added", false) else ("failed" if end else "open")
+		"explain_pr":
+			return "done" if today.get("explained", false) else ("failed" if end else "open")
 		"no_main":
 			if _today("main_commits") > 0:
 				return "failed"
@@ -227,10 +247,11 @@ func _check_goals() -> void:
 
 # --- Grade ----------------------------------------------------------------------------------
 
-## S: all three goals, nothing caught, no red CI · A: two goals · B: one · C: none.
+## S: all three goals and nothing caught · A: two goals · B: one · C: none.
+## A red CI run doesn't lower the grade: CI catching a problem is the system working.
 func grade_for_today() -> String:
 	var done := goals().filter(func(id: String) -> bool: return goal_status(id) == "done").size()
-	if done >= 3 and _today("caught_slacking") == 0 and _today("ci_fail") == 0:
+	if done >= 3 and _today("caught_slacking") == 0:
 		return "S"
 	return ["C", "B", "A", "A"][mini(done, 3)]
 
@@ -321,16 +342,35 @@ func on_event(kind: String, d: Dictionary) -> void:
 	_ensure_day()
 	match kind:
 		"tests":
+			var today := _today_flags()
+			if not d.get("ok", false):
+				today["saw_failure"] = true
+			elif today.get("saw_failure", false):
+				today["reproduced"] = true
+			if d.get("ok", false) and _test_case_count() > int(today.get("test_cases", 1 << 30)):
+				today["tests_added"] = true
 			if not _capped("tests", 3):
 				gain("testing", 4 if d.get("ok", false) else 2)
 		"ci":
-			if CodeHub.get_pr(int(d.get("pr", 0))).get("author", "") == "me" and d.get("ok", false) and _once("ci_pr_%d" % int(d.get("pr", 0))):
+			var pr_id := int(d.get("pr", 0))
+			if CodeHub.get_pr(pr_id).get("author", "") == "me":
+				var today := _today_flags()
+				var red: Array = today.get("red_prs", [])
+				if not d.get("ok", false):
+					if not pr_id in red:
+						red.append(pr_id)
+					today["red_prs"] = red
+				elif pr_id in red:
+					today["ci_recovered"] = true
+			if CodeHub.get_pr(pr_id).get("author", "") == "me" and d.get("ok", false) and _once("ci_pr_%d" % pr_id):
 				gain("testing", 10)
 		"pr_merged":
 			if CodeHub.get_pr(int(d.get("pr", 0))).get("author", "") == "me":
 				gain("craft", 15)
 		"pr_opened":
 			gain("collab", 4)
+			if String(CodeHub.get_pr(int(d.get("pr", 0))).get("body", "")).strip_edges().length() >= 30:
+				_today_flags()["explained"] = true
 		"player_review":
 			gain("collab", 8)
 			gain("debug", 6)

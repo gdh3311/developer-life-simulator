@@ -34,6 +34,14 @@ const MISSIONS := [
 	preload("res://scripts/story/missions/c03_06_release.gd"),
 	preload("res://scripts/story/missions/c03_07_ownership.gd"),
 	preload("res://scripts/story/missions/c03_08_contract.gd"),
+	preload("res://scripts/story/missions/c04_01_legacy_branch.gd"),
+	preload("res://scripts/story/missions/c04_02_author.gd"),
+	preload("res://scripts/story/missions/c04_03_dual_write.gd"),
+	preload("res://scripts/story/missions/c04_04_reconcile.gd"),
+	preload("res://scripts/story/missions/c04_05_rewrite.gd"),
+	preload("res://scripts/story/missions/c04_06_pilot.gd"),
+	preload("res://scripts/story/missions/c04_07_review_load.gd"),
+	preload("res://scripts/story/missions/c04_08_decision_record.gd"),
 ]
 const SideEvents := preload("res://scripts/story/side_events.gd")
 const Arcs := preload("res://scripts/story/arcs.gd")
@@ -114,6 +122,7 @@ func resume() -> void:
 	# Fresh mission instances invalidate coroutines left behind by a scene/language reload.
 	active = null
 	_build()
+	arcs.resume()
 	for m in _missions:
 		if status(m.id) == "active":
 			active = m

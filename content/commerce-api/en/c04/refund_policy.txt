@@ -1,0 +1,9 @@
+Refund calculation
+
+refundAmount(order, ratio) -> integer won
+- Regular orders: round half up (Math.round)
+- Legacy orders: round down to 10 won — §7 of the 2023 launch contract (12 sellers)
+
+The legacy branch looks unused but runs every day for launch-contract refunds.
+Pin today's behavior with characterization tests before removing it, and plan the
+retirement around the contract's expiry.
