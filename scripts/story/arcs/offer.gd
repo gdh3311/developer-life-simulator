@@ -12,7 +12,8 @@ func _init() -> void:
 		t("과제 진행 중", "Working on the take-home"),
 		t("과제 제출 · 기술 면담 예정", "Take-home submitted · technical interview next"),
 		t("기술 면담 통과 · 조건 협의", "Passed the interview · discussing terms"),
-		t("오퍼 대기 (챕터 5 이동 창)", "Waiting for the offer (Chapter 5 move window)")]
+		t("오퍼 대기 (챕터 5 이동 창)", "Waiting for the offer (Chapter 5 move window)"),
+		t("공식 오퍼 · 결정함", "Formal offer · decided")]
 	beats = [
 		["invite", 8, 12 * 60 + 10, false],
 		["invite2", 9, 12 * 60 + 10, false],
@@ -21,12 +22,15 @@ func _init() -> void:
 		["submit", 11, 19 * 60, false],
 		["interview", 12, 18 * 60 + 30, true],
 		["terms", 13, 19 * 60, false],
+		["visit", 14, 18 * 60 + 40, true],
 	]
 
 
 func evening_label(beat: String) -> Dictionary:
 	if beat == "interview":
 		return t("Brightloop 기술 면담", "Brightloop technical interview")
+	if beat == "visit":
+		return t("Brightloop 사무실 방문", "Visiting the Brightloop office")
 	return t("Jamie와 커피챗 (Brightloop)", "Coffee chat with Jamie (Brightloop)")
 
 
@@ -46,6 +50,8 @@ func can_fire(beat: String) -> bool:
 			return is_active() and stage() == 4
 		"terms":
 			return is_active() and stage() == 5
+		"visit":
+			return is_active() and stage() == 6 and not data().has("visit")
 	return false
 
 
@@ -64,6 +70,13 @@ func _opening() -> Dictionary:
 func fire(beat: String) -> void:
 	if beat in ["submit", "interview", "terms"]:
 		_fire_ch4(beat)
+		return
+	if beat == "visit":
+		choice("recruiter", t("오퍼 전에 사무실에 한번 와 볼래요? 함께 일할 팀이랑 저녁 먹으면서, 당직이나 출퇴근도 직접 물어볼 수 있어요.",
+			"Want to visit the office before the offer? Have dinner with the team you'd work with and ask about on-call and commuting yourself."),
+			"arc_offer_visit", [
+				["visit", t("갈게요. 직접 보고 싶어요.", "I'll come. I want to see it myself.")],
+				["skip", t("이번 주는 캠페인 준비라 어려워요. 오퍼로 볼게요.", "This week is campaign prep. I'll look at the offer itself.")]], {"channel": "connectly"})
 		return
 	match beat:
 		"invite":
@@ -143,6 +156,16 @@ func _on_ch4_choice(key: String, option: String) -> void:
 
 func on_event(kind: String, d: Dictionary) -> void:
 	if kind != "choice":
+		return
+	if String(d.get("key", "")) == "arc_offer_visit":
+		data()["visit"] = d["option"]
+		if d["option"] == "visit":
+			Game.advance(90)
+			Game.change_condition(-4)
+			say("recruiter", t("와 줘서 고마워요. 팀 리드가 당직은 입사 6주 뒤부터라고 했죠? 판교까지 거리는 꼭 계산해 보세요.",
+				"Thanks for coming. The team lead said on-call starts six weeks in, right? Do work out the distance to Pangyo."), {"channel": "connectly"})
+		else:
+			say("recruiter", t("물론이죠. 오퍼에 최대한 자세히 적을게요.", "Of course. I'll put as much detail as I can into the offer."), {"channel": "connectly"})
 		return
 	if String(d.get("key", "")) in ["arc_offer_submit", "arc_offer_interview", "arc_offer_terms"]:
 		_on_ch4_choice(String(d["key"]), String(d["option"]))

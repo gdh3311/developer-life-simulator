@@ -311,9 +311,7 @@ func days_twelve_thirteen() -> void:
 	check(l17.stage() == 4, "LEGACY-17 reached its migration rule")
 	if _profile == "prevent":
 		await wait_until(func() -> bool: return offer.stage() == 6, "Brightloop terms are discussed")
-	check(not Story.can_continue_chapter(), "no empty Chapter 5 is offered")
-	Game.next_day()
-	check(Game.day() == 13, "cannot advance past the last implemented chapter")
+	check(Story.can_continue_chapter(), "Chapter 5 is offered after Chapter 4")
 	_desktop = Desktop.new()
 	_desktop.theme = UITheme.build()
 	_desktop.size = Vector2(1000, 700)

@@ -844,7 +844,10 @@ func _advance_workday() -> void:
 
 
 func _show_ending() -> void:
-	if Game.chapter() >= 4:
+	if Game.chapter() >= 5:
+		_show_chapter5_ending()
+		return
+	if Game.chapter() == 4:
 		_show_chapter4_ending()
 		return
 	if Game.chapter() == 3:
@@ -980,6 +983,50 @@ func _show_chapter3_ending() -> void:
 	v.add_child(btn)
 
 
+func _show_chapter5_ending() -> void:
+	UITheme.clear(_overlay)
+	Sfx.play("promote")
+	confetti(120)
+	(_overlay as ColorRect).color = Color(0.02, 0.03, 0.05, 0.96)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.add_child(center)
+	var v := UITheme.vbox(12)
+	center.add_child(v)
+	var flags: Dictionary = Game.state["flags"]
+	var rush: Dictionary = flags.get("c05_rush", {}) if flags.get("c05_rush") is Dictionary else {}
+	var employer := String(flags.get("employer", "nexora"))
+	var decision := {"accept": Game.L("Brightloop로 이동", "moving to Brightloop"), "stay": Game.L("NEXORA 잔류 · 역할 확대", "staying at NEXORA · broader role"),
+		"hold": Game.L("오퍼 보류 · NEXORA 잔류", "offer on hold · staying at NEXORA")}.get(String(flags.get("c05_offer", "")), Game.L("NEXORA 잔류", "staying at NEXORA")) as String
+	var lines: Array = [
+		UITheme.label("CHAPTER 5  —  " + Game.L("사람들이 몰려오는 날", "THE DAY EVERYONE SHOWS UP"), 13, UITheme.ACCENT),
+		UITheme.bold(Game.L("행사가 끝난 평범한 월요일, 알림 없이 점심을 먹었다", "An ordinary Monday after the campaign: lunch with no alerts"), 24),
+		UITheme.label(Game.L("분당 시나리오 → 재고 예약 → 가격 캐시 → 결제 웹훅 → 운영표 → 단계별 개방 → 종료 보고서 → 오퍼와 인수인계", "Per-minute scenario → inventory holds → price cache → payment webhooks → on-call rota → staged opening → close report → offer and handoff"), 14, UITheme.TEXT2),
+		UITheme.label(Game.L("20시 러시: 판매 %d · 초과 판매 %d · 중복 청구 %d · 조정 목록 %d · 매출 %s", "20:00 rush: sold %d · oversold %d · double charges %d · reconciliation %d · revenue %s")
+			% [int(rush.get("sold", 0)), int(rush.get("oversold", 0)), int(rush.get("duplicateCharges", 0)), (rush.get("reconcile", []) as Array).size(), Game.won(int(rush.get("revenue", 0)))], 13, UITheme.TEXT),
+		UITheme.label(Game.L("다음 자리: %s", "Next desk: %s") % decision, 13, UITheme.TEXT),
+		UITheme.label(Game.L("Hana: \"제일 높은 숫자가 나온 날보다, 아무 알림 없이 점심 먹은 오늘이 더 오래 기억날 것 같아요.\"",
+			"Hana: \"I think I'll remember today, lunch with no alerts, longer than the day of the biggest number.\""), 13, UITheme.MUTED),
+	]
+	for a in Story.arcs.all():
+		lines.append(UITheme.label("%s  ·  %s" % [Game.tx(a.title), a.summary()], 13, UITheme.MUTED))
+	lines.append(UITheme.label(Game.L("커밋 %d · PR %d · CI 통과 %d / 실패 %d · 리뷰 %d   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Commits %d · PRs %d · CI %d green / %d red · Reviews %d   ·   Avg. team trust %d   ·   Balance %s") % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews"), roundi(Game.avg_trust()), Game.won(Game.money())], 12, UITheme.MUTED))
+	lines.append(UITheme.label(Game.L("다음: 챕터 6 같은 업계 다른 책상 (%s) — 개발 중", "Next: Chapter 6 Same industry, different desk (%s) — in development") % ("Brightloop" if employer == "brightloop" else "NEXORA"), 13, UITheme.WARN))
+	for lab in lines:
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(lab)
+	_add_continue_button(v, Game.L("챕터 6 시작하기  →", "Start Chapter 6  →"))
+	var btn := UITheme.button(Game.L("현재 데스크톱 둘러보기", "Review this desktop"), "primary")
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.custom_minimum_size = Vector2(240, 40)
+	btn.pressed.connect(func() -> void:
+		_overlay.queue_free()
+		_overlay = null
+		_day_transitioning = false
+		_end_day_btn.visible = true)
+	v.add_child(btn)
+
+
 func _show_chapter4_ending() -> void:
 	UITheme.clear(_overlay)
 	Sfx.play("promote")
@@ -1001,7 +1048,7 @@ func _show_chapter4_ending() -> void:
 	for a in Story.arcs.all():
 		lines.append(UITheme.label("%s  ·  %s" % [Game.tx(a.title), a.summary()], 13, UITheme.MUTED))
 	lines.append(UITheme.label(Game.L("커밋 %d · PR %d · CI 통과 %d / 실패 %d · 리뷰 %d   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Commits %d · PRs %d · CI %d green / %d red · Reviews %d   ·   Avg. team trust %d   ·   Balance %s") % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews"), roundi(Game.avg_trust()), Game.won(Game.money())], 12, UITheme.MUTED))
-	lines.append(UITheme.label(Game.L("다음: 챕터 5 사람들이 몰려오는 날 — 개발 중", "Next: Chapter 5 The day everyone shows up — in development"), 13, UITheme.WARN))
+	lines.append(UITheme.label(Game.L("다음: 챕터 5 사람들이 몰려오는 날 — 성수기 캠페인과 Brightloop의 오퍼", "Next: Chapter 5 The day everyone shows up — the peak campaign and Brightloop's offer"), 13, UITheme.WARN))
 	for lab in lines:
 		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(lab)

@@ -87,6 +87,23 @@
 
 스토리라인: Brightloop 과제 제출(회사 코드를 쓰면 전형이 끝남) → 기술 면담 → 조건 협의, LEGACY-17 이관 규칙 초안. 12일 저녁은 두 이야기가 겹칩니다.
 
+## Chapter 5 · 사람들이 몰려오는 날 (8개 업무)
+
+챕터 4 결과 화면의 **챕터 5 시작하기**로 이어집니다. 봄 한정 캠페인 20시 오픈을 준비하고, 행사 당일엔 내가 고친 코드가 그대로 20시 러시를 받습니다. Relay의 **campaign.nexora.test**에서 작년 분당 트래픽, 리허설, 실제 행사 결과(판매·초과 판매·중복 청구·틀린 가격·조정 목록·누적 매출)를 볼 수 있습니다.
+
+| 업무 | 플레이 |
+|---|---|
+| NXR-061 세 배라는 숫자 | 작년 분당 기록을 보고 부하 시나리오와 병목 고르기 (평균 ×3, 전 구간 ×10은 반려) |
+| NXR-062 마지막 한 개의 재고 | 동시 예약 초과 판매 수정, 만료·감사 로그 실패는 CI가 검증 (AI 초안은 CI에서 실패) |
+| NXR-063 빨라진 오래된 값 | 가격 변경 후 그 상품만 캐시 무효화, 결제 금액은 항상 원본 |
+| NXR-064 늦게 도착한 성공 | 중복·순서 바뀐 웹훅을 한 번만, 늦은 성공과 모르는 주문은 조정 목록으로 |
+| NXR-065 누가 밤에 받나요 | 운영표: 혼자 모든 시간대, 12시간 연속, Hana 휴가일 배정은 반려 |
+| NXR-066 열 분만 먼저 열기 | 단계별 개방·요청 제한 → 서진의 연장 요청(수용·축소·거절) → 20:00 러시 |
+| NXR-067 잘된 행사 뒤의 일 | 조정 목록 처리와 종료 보고서 (매출 그래프만은 반려). 거절했다면 다음 날 서진이 질문을 보냄 |
+| NXR-068 다른 회사의 제안 | Brightloop 오퍼를 업무·지원·제품 책임·통근·연봉으로 비교 → 잔류·수락·보류, 미완료 업무 인수인계 |
+
+스토리라인: Brightloop 사무실 방문(14일 저녁, 오퍼에 지원·통근 정보가 채워짐) → 공식 오퍼, LEGACY-17 이관 규칙 검토(15일 점심). Hana가 SRE로 돌아옵니다.
+
 ## 실행
 필요한 것: [Godot 4.7](https://godotengine.org/download), Git, Node.js 22.6 이상 (출시 버전에서는 게임에 포함할 예정)
 
@@ -136,7 +153,7 @@ content/ci/{ko,en}/             미션별 숨겨진 [CI] 검증 테스트
 
 게임성: [플레이 흐름과 후속 설계](docs/GAMEPLAY.md). 조사 노트와 실패 감점 조정은 구현되어 있으며, 업무 전략·성장 도구·난이도 프로필은 후속 계획입니다.
 
-장편 본편 기획: [전체 시나리오](docs/SCENARIO.md) · [96개 업무와 48개 선택 사건](docs/SCENARIO_MISSIONS.md) · [인물·분기·엔딩](docs/SCENARIO_CHARACTERS.md) · [챕터 2 대본](docs/SCENARIO_CHAPTER_02.md) · [챕터 3 대본](docs/SCENARIO_CHAPTER_03.md) · [챕터 4 대본](docs/SCENARIO_CHAPTER_04.md) · [제작 기준](docs/SCENARIO_PRODUCTION.md) · [멀티 스토리라인·이벤트 설계](docs/STORYLINES.md). 현재 구현 범위는 위의 Chapter 1~4와 스토리라인 2개입니다.
+장편 본편 기획: [전체 시나리오](docs/SCENARIO.md) · [96개 업무와 48개 선택 사건](docs/SCENARIO_MISSIONS.md) · [인물·분기·엔딩](docs/SCENARIO_CHARACTERS.md) · [챕터 2 대본](docs/SCENARIO_CHAPTER_02.md) · [챕터 3 대본](docs/SCENARIO_CHAPTER_03.md) · [챕터 4 대본](docs/SCENARIO_CHAPTER_04.md) · [챕터 5 대본](docs/SCENARIO_CHAPTER_05.md) · [제작 기준](docs/SCENARIO_PRODUCTION.md) · [멀티 스토리라인·이벤트 설계](docs/STORYLINES.md). 현재 구현 범위는 위의 Chapter 1~5와 스토리라인 2개입니다.
 
 1. ~~기술 검증~~ ✅  2. ~~Vertical Slice~~ ✅  3. ~~Chapter 1 확장 (인턴 4일, 튜토리얼, 한/영)~~ ✅
 4. ~~Chapter 2·3 구현, 스토리라인 엔진~~ → 이벤트 카드 엔진, 나머지 스토리라인, Chapter 4, Node·Git 런타임 번들, 플레이어 코드 OS 수준 격리

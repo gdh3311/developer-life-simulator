@@ -66,6 +66,8 @@ static func archive() -> Array:
 	var docs: Array = []
 	var comments: Dictionary = Game.state["flags"].get("doc_comments", {})
 	for m in Story.missions():
+		if Story.status(m.id) == "done" and m.has_method("_build"):
+			m._build()  # forms whose options carry live numbers are built on demand
 		if Story.status(m.id) != "done" or m.forms_def.is_empty():
 			continue
 		var saved: Dictionary = Game.state["story"].get(m.id, {}).get("data", {}).get("forms", {})

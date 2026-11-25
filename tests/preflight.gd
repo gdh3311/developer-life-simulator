@@ -14,6 +14,7 @@ const Studio := preload("res://tests/studio_test.gd")
 const Career := preload("res://tests/career_test.gd")
 const Chapter4 := preload("res://tests/chapter4_test.gd")
 const Chapter4Edge := preload("res://tests/chapter4_edge_test.gd")
+const Chapter5 := preload("res://tests/chapter5_test.gd")
 const MainScene := preload("res://scenes/main.tscn")
 
 

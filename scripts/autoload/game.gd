@@ -35,6 +35,7 @@ const NPCS := {
 	"family": {"name": {"ko": "엄마", "en": "Mom"}, "role": {"ko": "가족", "en": "Family"}, "color": "fda4af"},
 	"taeseok": {"name": "Taeseok Kang", "role": {"ko": "보안·감사 엔지니어", "en": "Security & Audit Engineer"}, "color": "94a3b8"},
 	"hana": {"name": "Hana Yoon", "role": {"ko": "전 결제팀 개발자", "en": "Former Payments Engineer"}, "color": "f0abfc"},
+	"seojin": {"name": {"ko": "서진", "en": "Seojin"}, "role": {"ko": "달빛상점 대표", "en": "Owner, Moonlight"}, "color": "f4c95d"},
 	"recruiter": {"name": "Jamie Seo", "role": {"ko": "테크 리크루터 · Brightloop", "en": "Tech Recruiter · Brightloop"}, "color": "38bdf8"},
 }
 const REL_KEYS := {"tech": {"ko": "기술 신뢰", "en": "Tech trust"}, "work": {"ko": "업무 신뢰", "en": "Work trust"},
@@ -348,6 +349,8 @@ func rel(npc: String, key: String) -> int:
 ## changes: { "tech": +5, "close": -3, ... }
 ## Trust is earned slowly (diminishing gains) and lost fast (mistakes hit 1.6x).
 func relate(npc: String, changes: Dictionary) -> void:
+	if not state["rel"].has(npc):
+		return  # only teammates have trust scores
 	for key in changes:
 		var delta := int(changes[key])
 		var cur := rel(npc, key)
@@ -376,6 +379,8 @@ func npc_name(id: String) -> String:
 
 
 func npc_role(id: String) -> String:
+	if id == "hana" and chapter() >= 5:
+		return L("SRE · 운영팀", "SRE · Operations")
 	return tx(NPCS[id]["role"]) if NPCS.has(id) else ""
 
 

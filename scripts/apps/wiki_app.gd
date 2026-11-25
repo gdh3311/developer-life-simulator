@@ -24,6 +24,7 @@ const PAGES := [
 	["release", {"ko": "출시와 담당", "en": "Release and ownership"}],
 	["refund_policy", {"ko": "환불 계산", "en": "Refund calculation"}],
 	["atlas", {"ko": "ATLAS 이중 기록", "en": "ATLAS dual write"}],
+	["campaign", {"ko": "캠페인 준비", "en": "Campaign prep"}],
 ]
 
 var _page := "overview"
@@ -130,6 +131,8 @@ func _content(id: String) -> String:
 			return _h(Game.L("환불 계산", "Refund calculation")) + refund
 		"atlas":
 			return _h(Game.L("ATLAS 이중 기록", "ATLAS dual write")) + Workspace.content("c04/atlas_policy.txt")
+		"campaign":
+			return _h(Game.L("캠페인 준비", "Campaign prep")) + Workspace.content("c05/campaign_runbook.txt")
 		"legacy17":
 			var extra := ""
 			if Game.state["flags"].get("l17_pattern", false):

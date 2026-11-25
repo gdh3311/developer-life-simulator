@@ -22,13 +22,15 @@ func _init() -> void:
 	title = t("오래된 번호의 원래 주인 · LEGACY-17", "The original owner of an old number · LEGACY-17")
 	stages = [t("제안 전", "Not offered yet"), t("감사 로그 표본 확인 예정", "Audit sample to review"),
 		t("불일치 패턴 확인", "Mismatch pattern found"), t("당시 결정 메모 확보", "Original decision note found"),
-		t("이관 규칙 초안 (챕터 5 검토)", "Migration rule drafted (review in Chapter 5)")]
+		t("이관 규칙 초안 (챕터 5 검토)", "Migration rule drafted (review in Chapter 5)"),
+		t("이관 규칙 검토 · 행사 후 표본 실행", "Rule reviewed · sample run after the campaign")]
 	beats = [
 		["offer", 8, 10 * 60 + 40, false],
 		["offer2", 9, 10 * 60 + 40, false],
 		["audit", 9, 18 * 60 + 20, true],
 		["former", 10, 18 * 60 + 30, false],
 		["migration", 12, 18 * 60 + 20, true],
+		["review", 15, 12 * 60 + 20, false],
 	]
 	var options: Array = []
 	for r in ROWS:
@@ -87,6 +89,8 @@ func can_fire(beat: String) -> bool:
 			return is_active() and stage() == 2
 		"migration":
 			return is_active() and stage() == 3
+		"review":
+			return is_active() and stage() == 4
 	return false
 
 
@@ -121,6 +125,12 @@ func fire(beat: String) -> void:
 		"migration":
 			say("taeseok", t("Hana 메모로 이관 규칙 초안을 써 볼까요? Docs에 'LEGACY-17 이관 규칙'을 올려 뒀어요. 이관 때 주문과 결제를 어떻게 이을지예요.",
 				"Shall we draft the migration rule from Hana's note? 'LEGACY-17 migration rule' is in Docs: how to link orders and payments during migration."))
+		"review":
+			choice("hana", t("점심 먹으면서 LEGACY-17 이관 규칙 초안 봤어요. 결제 이력 테이블로 잇는 거, 제 기억이랑 맞아요. 표본 실행은 언제 할까요?",
+				"I read the LEGACY-17 migration draft over lunch. Linking through the payment history table matches what I remember. When do we run the sample?"),
+				"arc_l17_review", [
+					["after", t("캠페인 동결이 끝나는 목요일에, 재결제 주문을 포함한 표본으로 돌려요.", "Thursday, when the campaign freeze ends, on a sample that includes re-paid orders.")],
+					["now", t("오늘 바로 운영 DB에서 돌려 봐요.", "Let's run it on the production DB today.")]])
 		"former":
 			choice("taeseok", t("당시 결제 연동을 만든 분이 Hana Yoon인데, 2년 전에 퇴사했어요. 왜 그렇게 설계했는지 아는 사람은 그분뿐이에요. 어떻게 연락해 볼까요?",
 				"The person who built the payment integration back then was Hana Yoon. She left two years ago, and she's the only one who knows why it was designed that way. How should we reach her?"),
@@ -190,6 +200,14 @@ func on_event(kind: String, d: Dictionary) -> void:
 				"pass":
 					Story.arcs.drop(id)
 					say("taeseok", t("괜찮아요. 제가 천천히 볼게요. 결과는 공유할게요.", "No problem. I'll look at it slowly and share what I find."))
+		"arc_l17_review":
+			data()["review"] = d["option"]
+			if d["option"] == "now":
+				say("hana", t("이번 주는 행사 동결 기간이에요. 운영 DB는 수요일까지 손대지 않아요. 목요일로 잡을게요.", "This week is the campaign freeze. Nobody touches the production DB until Wednesday. I'll book Thursday."))
+			else:
+				say("hana", t("좋아요. 목요일 오후로 잡을게요. 2년 전에 못 끝낸 걸 이번엔 끝내겠네요.", "Good, Thursday afternoon. We'll finish what I couldn't two years ago."))
+			Game.state["flags"]["l17_reviewed"] = true
+			set_stage(5)
 		"arc_l17_contact":
 			data()["contact"] = d["option"]
 			match d["option"]:

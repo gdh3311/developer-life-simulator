@@ -42,6 +42,14 @@ const MISSIONS := [
 	preload("res://scripts/story/missions/c04_06_pilot.gd"),
 	preload("res://scripts/story/missions/c04_07_review_load.gd"),
 	preload("res://scripts/story/missions/c04_08_decision_record.gd"),
+	preload("res://scripts/story/missions/c05_01_three_times.gd"),
+	preload("res://scripts/story/missions/c05_02_last_item.gd"),
+	preload("res://scripts/story/missions/c05_03_stale_price.gd"),
+	preload("res://scripts/story/missions/c05_04_late_success.gd"),
+	preload("res://scripts/story/missions/c05_05_night_shift.gd"),
+	preload("res://scripts/story/missions/c05_06_open_slowly.gd"),
+	preload("res://scripts/story/missions/c05_07_after_event.gd"),
+	preload("res://scripts/story/missions/c05_08_offer.gd"),
 ]
 const SideEvents := preload("res://scripts/story/side_events.gd")
 const Arcs := preload("res://scripts/story/arcs.gd")

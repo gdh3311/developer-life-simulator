@@ -30,6 +30,7 @@ const SITES := [
 	{"id": "arcade", "name": "Arcade", "url": "arcade.test", "fun": false, "color": "f1cd84"},
 	{"id": "moonlight", "name": "Moonlight", "url": "moonlight.shop", "fun": false, "color": "f4c95d"},
 	{"id": "atlas", "name": "ATLAS", "url": "atlas.nexora.test", "fun": false, "color": "7dd3fc"},
+	{"id": "campaign", "name": "Campaign", "url": "campaign.nexora.test", "fun": false, "color": "fb7185"},
 ]
 
 const ITEMS := [
@@ -369,8 +370,11 @@ func _toolbar_arrow(glyph: String, tooltip: String) -> Button:
 
 ## Internal tools join the bookmarks once the team has them (ATLAS from Chapter 4).
 static func bookmarked(site: Dictionary) -> bool:
+	# One internal-tool slot: ATLAS in Chapter 4, the campaign console from Chapter 5 (both stay reachable by URL).
+	if site["id"] == "campaign":
+		return Game.chapter() >= 5 or Game.state["story"].has("c05_01")
 	if site["id"] == "atlas":
-		return Game.chapter() >= 4 or Game.state["story"].has("c04_03")
+		return (Game.chapter() >= 4 or Game.state["story"].has("c04_03")) and not bookmarked({"id": "campaign"})
 	return true
 
 
@@ -433,6 +437,8 @@ func _render() -> void:
 			_body.add_child(preload("res://scripts/apps/page_view.gd").new())
 		"atlas":
 			_body.add_child(preload("res://scripts/apps/atlas_view.gd").new())
+		"campaign":
+			_body.add_child(preload("res://scripts/apps/campaign_view.gd").new())
 
 
 func _site_button_style(fill: Color, edge: Color) -> StyleBoxFlat:

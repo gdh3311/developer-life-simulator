@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="352" height="352" viewBox="0 0 176 176">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4a1d3a"/>
+      <stop offset="1" stop-color="#1a0c1c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fb7185" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#fb7185" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="6" y="6" width="164" height="164" rx="38" fill="url(#tile)"/>
+  <rect x="6" y="6" width="164" height="164" rx="38" fill="url(#glow)"/>
+  <rect x="8" y="8" width="160" height="160" rx="36" fill="none" stroke="#fb7185" stroke-opacity="0.35" stroke-width="2"/>
+  <!-- per-minute bars with the 20:00 spike -->
+  <rect x="34" y="118" width="12" height="16" rx="3" fill="#7a4060"/>
+  <rect x="50" y="114" width="12" height="20" rx="3" fill="#7a4060"/>
+  <rect x="66" y="44" width="14" height="90" rx="3" fill="#fb7185"/>
+  <rect x="84" y="88" width="12" height="46" rx="3" fill="#c25576"/>
+  <rect x="100" y="102" width="12" height="32" rx="3" fill="#9a4a68"/>
+  <rect x="116" y="110" width="12" height="24" rx="3" fill="#7a4060"/>
+  <rect x="132" y="114" width="12" height="20" rx="3" fill="#7a4060"/>
+  <!-- clock at 20:00 -->
+  <circle cx="126" cy="56" r="20" fill="#1a0c1c" stroke="#f4c95d" stroke-width="5"/>
+  <path d="M126 56 L126 43" stroke="#f4c95d" stroke-width="5" stroke-linecap="round"/>
+  <path d="M126 56 L115 50" stroke="#f4c95d" stroke-width="5" stroke-linecap="round"/>
+  <rect x="30" y="138" width="118" height="4" rx="2" fill="#fb7185" fill-opacity="0.5"/>
+</svg>

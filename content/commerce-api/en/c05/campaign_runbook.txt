@@ -1,0 +1,19 @@
+Campaign prep — Spring limited, opens 20:00
+
+Load
+- The problem isn't the average; it's the first minute at 20:00. Last year it was 9x the average.
+- Scenarios replay the real per-minute record. Don't put the biggest number on every interval.
+
+Inventory holds (src/inventory/reserve.ts)
+- reserve holds one item for 10 minutes before payment. No await between the check and the claim.
+- Expired holds go back to stock, and an expired hold can't be confirmed.
+- If the audit log write fails, release the claim and return false.
+
+Price cache (src/pricing/price_cache.ts)
+- Display prices are cached for 60 seconds. A price change clears that product only.
+- The charged amount never uses the cache. Lookup speed and order accuracy are different metrics.
+
+Payment webhooks (src/payments/webhook.ts)
+- Handle each event id once. Never charge an order that's already paid.
+- A success for a cancelled order, or an event for an unknown order, goes to the reconciliation list (a person checks it), never the bin.
+- A late failure never overwrites a result that already arrived.
