@@ -55,6 +55,7 @@ const SideEvents := preload("res://scripts/story/side_events.gd")
 const Arcs := preload("res://scripts/story/arcs.gd")
 const Events := preload("res://scripts/story/events.gd")
 const Career := preload("res://scripts/story/career.gd")
+const Tickets := preload("res://scripts/story/tickets.gd")
 const Chapters := preload("res://scripts/story/chapters.gd")
 
 var _missions: Array = []
@@ -63,6 +64,7 @@ var side: RefCounted
 var arcs: RefCounted          # storyline engine (see docs/STORYLINES.md)
 var events: RefCounted        # event card engine
 var career: RefCounted        # skills, daily goals, grades, achievements
+var tickets: RefCounted       # side-ticket board (small real bugs between main tasks)
 
 
 func _ready() -> void:
@@ -87,6 +89,7 @@ func _build() -> void:
 	arcs = Arcs.new()
 	events = Events.new()
 	career = Career.new()
+	tickets = Tickets.new()
 
 
 func mission(id: String) -> RefCounted:
@@ -218,6 +221,7 @@ func _on_event(kind: String, data: Dictionary) -> void:
 	arcs.on_event(kind, data)
 	events.on_event(kind, data)
 	career.on_event(kind, data)
+	tickets.on_event(kind, data)
 	if active == null or status(active.id) != "active":
 		return
 	var m = active
@@ -238,6 +242,8 @@ func _main_commit_warning() -> void:
 
 
 func claim_pr(pr: Dictionary) -> void:
+	if tickets.claim(pr):
+		return  # ticket/<id> branches belong to the side-ticket board
 	if active != null and active.has_objective("pr") and not active.is_done("pr") \
 			and int(active.data().get("pr", 0)) == 0:
 		active.data()["pr"] = pr["id"]
@@ -245,6 +251,8 @@ func claim_pr(pr: Dictionary) -> void:
 
 
 func hidden_tests_for(pr: Dictionary) -> Dictionary:
+	if String(pr.get("mission", "")).begins_with("ticket:"):
+		return tickets.hidden_tests(pr["mission"])
 	var m = mission(pr.get("mission", ""))
 	return m.hidden_tests() if m != null else {}
 
