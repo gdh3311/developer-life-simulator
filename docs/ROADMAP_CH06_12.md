@@ -95,6 +95,8 @@
 
 ### 3.3 맡기기 `scripts/story/delegation.gd`
 
+> 구현: `Story.delegation`. 미션은 `Story.delegation.open(spec)`으로 요청을 연다(이미 있으면 무시하므로 begin/resume 어디서 불러도 된다). spec은 세이브에 그대로 저장되는 데이터다: `id, title, intro, people, away, self, pieces[{id, text, kind(tech|work), size(1~3), hours, minutes(보고까지), needs[{evidence, grade} | {flag, text}], report_ok, report_fail{이유: 문장}}]`. Docs에 조각마다 한 칸, 사람마다 한 선택지로 나타나고, 실패할 이유가 선택지 밑에 ⚠로 미리 보인다(경고는 제출을 막지 않는다). 실패 조건은 다섯 가지이고 무작위는 없다: 관계(크기별 기준 25/45/65), 손이 닿는 범위(지우는 `mentoring_evidence`가 없거나 takeover면 작은 일, explained면 중간, independent면 전부), 필요한 근거나 플래그, 동시 부담(한 사람 최대 4시간, 같은 폼에서 앞서 고른 것 포함), 자리 비움. 보고는 게임 시간이 `minutes`만큼 지나면 DM으로 온다. 실패 보고는 멈춘 이유를 말하고 그 조각만 다시 열린다(같은 사람에게 "지난번에 여기서 멈췄어요" 표시). 이벤트: `delegation_assigned`, `delegation_reported{ok, reason}`, `delegation_reopened`, `delegation_done{results}`. 테스트: `-Suite delegation`.
+
 - "이 확인은 누가 할까요?" 폼: 업무 조각을 동료에게 배정한다.
 - 배정된 동료는 시간이 흐르면 결과를 보고한다. 성공률은 관계(tech/work), 증거 등급, 일의 크기로 정한다. **무작위로 실패하지 않는다.** 실패할 조건이면 배정 화면에 미리 경고가 뜬다.
 - 7장 M05(자리 비우기), 9장(재배치), 11장(전환 중 분담)에서 쓴다.

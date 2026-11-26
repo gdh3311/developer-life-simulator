@@ -19,7 +19,7 @@ func _ready() -> void:
 	get_child(0).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	Story.objectives_changed.connect(_render)
 	Game.event.connect(func(kind: String, _d: Dictionary) -> void:
-		if kind in ["arc_stage", "arc_status", "form_submitted"]:
+		if kind in ["arc_stage", "arc_status", "form_submitted", "delegation_opened", "delegation_reported", "delegation_reopened", "delegation_done"]:
 			_render())
 	_render()
 
@@ -29,10 +29,13 @@ static func forms() -> Array:
 	if Story.active != null:
 		result.append_array(Story.active.open_forms())
 	result.append_array(Story.arcs.open_forms())
+	result.append_array(Story.delegation.open_forms())
 	return result
 
 
 static func owner_of(spec: Dictionary):
+	if spec.get("owner", "") == "delegation":
+		return Story.delegation
 	return Story.arcs.arc(spec["arc"]) if spec.has("arc") else Story.active
 
 
@@ -42,7 +45,7 @@ static func submit(spec: Dictionary, picks: Dictionary) -> Array:
 
 
 func _key(spec: Dictionary) -> String:
-	return String(spec.get("arc", "task")) + ":" + String(spec["id"])
+	return String(spec.get("arc", spec.get("owner", "task"))) + ":" + String(spec["id"])
 
 
 func _render() -> void:
@@ -53,6 +56,9 @@ func _render() -> void:
 		_root.add_child(UITheme.label(Game.L("지금 작성할 문서가 없습니다. 업무나 동료가 문서를 요청하면 여기에 나타납니다.",
 			"No documents to write right now. They appear here when a task or a teammate asks for one."), 13, UITheme.MUTED))
 	for spec in list:
+		if spec.get("live", false) and not spec["done"]:
+			# Delegation warnings depend on what else is picked on the same form.
+			spec = Story.delegation.form_spec(spec["id"], _picks.get(_key(spec), {}))
 		_root.add_child(_form(spec))
 	var past := archive()
 	if not past.is_empty():
@@ -149,6 +155,10 @@ func _form(spec: Dictionary) -> Control:
 	v.add_child(UITheme.wrap(Game.tx(spec.get("intro", {})), 12, UITheme.TEXT2))
 	if spec["done"]:
 		v.add_child(UITheme.label(Game.L("제출됨", "Submitted"), 12, UITheme.OK))
+		if spec.has("status_lines"):
+			for line in spec["status_lines"]:
+				v.add_child(UITheme.wrap("· " + Game.tx(line), 12, UITheme.TEXT))
+			return card
 		for slot in spec["slots"]:
 			var chosen := FormRules.picked(spec["picks"], slot["id"])
 			var texts: Array = chosen.map(func(id: String) -> String: return Game.tx(FormRules.option(spec, slot["id"], id).get("text", {})))
@@ -207,8 +217,11 @@ func _form(spec: Dictionary) -> Control:
 				elif on:
 					picks[sid] = oid
 				if cap != null:
-					_update_capacity(cap, spec, slot_ref, picks))
+					_update_capacity(cap, spec, slot_ref, picks)
+				if on and spec.get("live", false):
+					_render.call_deferred())
 			holder.add_child(b)
+			_option_notes(holder, o)
 		if capacity_label != null:
 			_update_capacity(capacity_label, spec, slot, picks)
 	var notes: Array = _notes.get(key, [])
@@ -229,6 +242,23 @@ func _form(spec: Dictionary) -> Control:
 		_render())
 	v.add_child(send)
 	return card
+
+
+## Warnings shown under an option before submitting (delegation: why this person would get stuck).
+func _option_notes(holder: Container, o: Dictionary) -> void:
+	var warns: Array = o.get("warn", [])
+	if warns.is_empty() and not o.has("ok"):
+		return
+	var box := UITheme.vbox(2)
+	box.name = "OptionNotes"
+	var pad := MarginContainer.new()
+	pad.add_theme_constant_override("margin_left", 28)
+	pad.add_child(box)
+	for w in warns:
+		box.add_child(UITheme.wrap("⚠ " + Game.tx(w), 11, UITheme.WARN))
+	if warns.is_empty():
+		box.add_child(UITheme.label("✓ " + Game.tx(o["ok"]), 11, UITheme.OK))
+	holder.add_child(pad)
 
 
 func _update_capacity(label: Label, spec: Dictionary, slot: Dictionary, picks: Dictionary) -> void:

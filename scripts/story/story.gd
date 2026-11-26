@@ -58,6 +58,7 @@ const Career := preload("res://scripts/story/career.gd")
 const Tickets := preload("res://scripts/story/tickets.gd")
 const Evidence := preload("res://scripts/story/evidence.gd")
 const NpcPrs := preload("res://scripts/services/npc_pr.gd")
+const Delegation := preload("res://scripts/story/delegation.gd")
 const Chapters := preload("res://scripts/story/chapters.gd")
 const AuroraMission := preload("res://scripts/story/missions/c06_aurora.gd")
 
@@ -70,6 +71,7 @@ var career: RefCounted        # skills, daily goals, grades, achievements
 var tickets: RefCounted       # side-ticket board (small real bugs between main tasks)
 var evidence: RefCounted      # long-term evidence grades that later chapters read
 var npc_prs: RefCounted       # teammates' PRs: fix it, comment, or pair
+var delegation: RefCounted    # "who takes this check?" hand-offs with predictable reports
 
 
 func _ready() -> void:
@@ -78,7 +80,8 @@ func _ready() -> void:
 	Game.time_changed.connect(func(_d: int, _m: int) -> void:
 		side.check()
 		arcs.check()
-		events.check())
+		events.check()
+		delegation.check())
 	Game.state_reset.connect(func() -> void:
 		active = null
 		_build())
@@ -101,6 +104,7 @@ func _build() -> void:
 	tickets = Tickets.new()
 	evidence = Evidence.new()
 	npc_prs = NpcPrs.new()
+	delegation = Delegation.new()
 
 
 func mission(id: String) -> RefCounted:
@@ -146,6 +150,7 @@ func resume() -> void:
 	_build()
 	evidence.refresh()   # older saves get their grades from what they already finished
 	npc_prs.resume()
+	delegation.resume()
 	arcs.resume()
 	for m in _missions:
 		if status(m.id) == "active":
