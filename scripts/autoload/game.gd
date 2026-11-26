@@ -38,6 +38,7 @@ const NPCS := {
 	"seojin": {"name": {"ko": "서진", "en": "Seojin"}, "role": {"ko": "달빛상점 대표", "en": "Owner, Moonlight"}, "color": "f4c95d"},
 	"recruiter": {"name": "Jamie Seo", "role": {"ko": "테크 리크루터 · Brightloop", "en": "Tech Recruiter · Brightloop"}, "color": "38bdf8"},
 	"raon": {"name": "Raon Lim", "role": {"ko": "인수팀 엔지니어 · Brightloop", "en": "Receiving Team Engineer · Brightloop"}, "color": "a78bfa"},
+	"jiwoo": {"name": {"ko": "박지우", "en": "Jiwoo Park"}, "role": {"ko": "신입 백엔드 개발자", "en": "New Backend Developer"}, "color": "fb923c"},
 }
 const REL_KEYS := {"tech": {"ko": "기술 신뢰", "en": "Tech trust"}, "work": {"ko": "업무 신뢰", "en": "Work trust"},
 	"close": {"ko": "친밀도", "en": "Closeness"}, "agree": {"ko": "의견 일치", "en": "Alignment"}}

@@ -18,6 +18,7 @@ const Chapter5 := preload("res://tests/chapter5_test.gd")
 const Chapter6 := preload("res://tests/chapter6_test.gd")
 const Tickets := preload("res://tests/tickets_test.gd")
 const EvidenceQA := preload("res://tests/evidence_test.gd")
+const NpcPrQA := preload("res://tests/npc_pr_test.gd")
 const MainScene := preload("res://scenes/main.tscn")
 
 

@@ -115,6 +115,8 @@ const SOURCES := {
 	"c06_04": {"ko": "이 일은 우리 팀 건가요", "en": "Is this our team's ticket?"},
 	"c06_05": {"ko": "되돌릴 수 있는 이관", "en": "A reversible transfer"},
 	"c06_06": {"ko": "예전 동료에게 보내는 요청", "en": "A request across the table"},
+	"jw_shipping": {"ko": "지우의 배송비 PR", "en": "Jiwoo's shipping fee PR"},
+	"jw_boxes": {"ko": "지우의 상자 수 PR", "en": "Jiwoo's box count PR"},
 }
 
 

@@ -81,6 +81,8 @@
 
 ### 3.2 동료가 올리는 PR `scripts/services/npc_pr.gd`
 
+> 구현: `Story.npc_prs`. 미션은 `await Story.npc_prs.open("jw_shipping", mission_id)`로 PR을 열고 `npc_pr_resolved` 이벤트(`spec, mode, grade, learned, clean`)를 받는다. 처음 CI는 작성자 테스트만 돌고(초록), 플레이어가 답하면 `[CI]` 숨은 검사가 붙는다. 답은 세 가지다: 줄을 골라 댓글(버그 줄을 짚으면 맞게 고치고 `explained`, 못 짚으면 빗나간 수정이 숨은 검사에 걸려 다시 물어봄), 직접 고치기(그 브랜치에 push → `takeover`, 배운 것 없음), 함께 고치기(1시간, 이유를 설명하면 `explained`, 답만 주면 `takeover`). 확인 없이 LGTM하면 숨은 검사가 실패하고 Daniel이 돌려보낸다. 배운 교훈은 사람별로 저장되고, 같은 교훈을 `repeats`하는 다음 PR은 처음부터 맞게 와서 LGTM으로 병합하면 `independent`. 콘텐츠: `content/commerce-api/<lang>/npc/<spec>/`, 숨은 검사 `content/ci/<lang>/npc_<spec>/`, 생성기 `tools/gen_npc_pr_content.py`. 견본 PR 두 개(지우의 배송비 → 상자 수, 교훈 `partial_units`). 테스트: `-Suite npc_pr`.
+
 7장의 핵심. 지금 CodeHub은 플레이어 PR만 다룬다.
 
 - 콘텐츠 폴더에 `author`, `branch`, `diff`(파일 내용), `hidden_bug`(숨은 테스트), `needs`(설명이 필요한 지점)를 둔다.

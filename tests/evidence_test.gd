@@ -194,4 +194,10 @@ func _panel() -> void:
 func finish() -> void:
 	print("EVIDENCE_QA: %d checks, %d failures" % [_checks, _failures])
 	await get_tree().create_timer(0.1, true, false, true).timeout
+	# Notice sounds can still be playing; their playback would show up as a leak at exit.
+	Sfx.stop_all()
+	for player in Sfx._players + [Sfx._featured] + Sfx._score_players.values():
+		player.stream = null
+	# The audio thread drops stopped playbacks on its own schedule; give it real time.
+	await get_tree().create_timer(0.3, true, false, true).timeout
 	get_tree().quit(0 if _failures == 0 else 1)

@@ -187,6 +187,6 @@ func finish() -> void:
 	Sfx.stop_all()
 	for player in Sfx._players + [Sfx._featured] + Sfx._score_players.values():
 		player.stream = null
-	await get_tree().process_frame
-	await get_tree().process_frame
+	# The audio thread drops stopped playbacks on its own schedule; give it real time.
+	await get_tree().create_timer(0.3, true, false, true).timeout
 	get_tree().quit(0 if _failures == 0 else 1)

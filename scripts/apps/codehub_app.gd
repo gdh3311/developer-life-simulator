@@ -439,6 +439,8 @@ func _footer(p: Dictionary) -> Control:
 	if p["state"] != "open":
 		row.add_child(UITheme.label(Game.L("이 PR은 병합되었습니다.", "This PR was merged.") if p["state"] == "merged" else Game.L("닫힌 PR입니다.", "This PR is closed."), 13, UITheme.TEXT2))
 		return row
+	if p["author"] != "me" and String(p["flags"].get("npc_spec", "")) != "":
+		return _npc_footer(p, row)
 	if p["author"] != "me":
 		if not p["flags"].get("needs_my_comment", false):
 			row.add_child(UITheme.label(Game.L("코멘트를 남겼습니다. 승인과 병합은 %s 님이 합니다.", "You commented. %s will approve and merge.") % Game.npc_name(p["reviewer"]), 12, UITheme.MUTED))
@@ -464,6 +466,62 @@ func _footer(p: Dictionary) -> Control:
 		row.add_child(concern)
 		row.add_child(lgtm)
 		return row
+	return _merge_status(p, row)
+
+
+## A teammate's PR from Story.npc_prs: comment on lines, fix it yourself, or pair.
+func _npc_footer(p: Dictionary, row: HBoxContainer) -> Control:
+	var pid := int(p["id"])
+	var author := Game.npc_name(p["author"])
+	if not p["flags"].get("needs_my_comment", false):
+		var waiting := Game.L("페어링 중 — 대화 탭에서 %s 님에게 답하세요.", "Pairing — answer %s in the Conversation tab.") % author if p["flags"].get("pairing", false) \
+			else Game.L("답을 보냈습니다. [CI] 추가 검사가 통과하면 %s 님이 승인하고 병합합니다.", "Answer sent. %s approves and merges once the [CI] extra checks pass.") % Game.npc_name(p["reviewer"])
+		row.add_child(UITheme.wrap(waiting, 12, UITheme.MUTED))
+		return row
+	var v := UITheme.vbox(8)
+	v.add_child(UITheme.label(Game.L("%s 님의 PR에 어떻게 답할까요? 줄을 골라 댓글 · 직접 고치기 · 함께 고치기", "How will you answer %s? Comment on lines · fix it yourself · pair") % author, 12, UITheme.TEXT2))
+	row.add_child(UITheme.label(Game.L("선택 %d줄", "%d lines") % _picked.size(), 12, UITheme.WARN if _picked.size() > 0 else UITheme.MUTED))
+	var note := LineEdit.new()
+	note.placeholder_text = Game.L("이유와 확인 방법 (선택)", "Why, and how to check (optional)")
+	note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(note)
+	var running: bool = p["ci"]["state"] == "running"
+	var concern := UITheme.button(Game.L("댓글: 문제 있음", "Comment: problem"), "danger")
+	var lgtm := UITheme.button("LGTM", "ok")
+	concern.disabled = running
+	lgtm.disabled = running
+	concern.pressed.connect(func() -> void:
+		var lines := _picked.values()
+		_picked.clear()
+		CodeHub.submit_comments(pid, "concern", lines, note.text))
+	lgtm.pressed.connect(func() -> void:
+		var lines := _picked.values()
+		_picked.clear()
+		CodeHub.submit_comments(pid, "lgtm", lines, note.text))
+	row.add_child(concern)
+	row.add_child(lgtm)
+	v.add_child(row)
+	var other := UITheme.hbox(10)
+	var fix := UITheme.button(Game.L("직접 고치기", "Fix it myself"))
+	fix.tooltip_text = Game.L("브랜치에 직접 커밋합니다. 빠르지만 %s 님은 배우지 못합니다.", "Commit to the branch yourself. Fast, but %s learns nothing.") % author
+	fix.pressed.connect(func() -> void:
+		Story.npc_prs.takeover_hint(pid)
+		_tab = 0
+		_render_detail())
+	other.add_child(fix)
+	var pair := UITheme.button(Game.L("함께 고치기 (1시간)", "Pair on it (1 hour)"))
+	pair.tooltip_text = Game.L("시간이 들지만 이유를 설명할 수 있습니다.", "Takes time, but you can explain why.")
+	pair.disabled = running
+	pair.pressed.connect(func() -> void:
+		if Story.npc_prs.pair(pid):
+			_tab = 0
+			_render_detail())
+	other.add_child(pair)
+	v.add_child(other)
+	return v
+
+
+func _merge_status(p: Dictionary, row: HBoxContainer) -> Control:
 	var blockers := CodeHub.merge_blockers(p)
 	var ic := Icon.make("ring" if not blockers.is_empty() else "check", UITheme.MUTED if not blockers.is_empty() else UITheme.OK, 14)
 	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
