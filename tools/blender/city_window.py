@@ -1,8 +1,8 @@
 """The view out of the office window: a 3D city rendered for day, dusk and night.
 
 Run:  blender -b --factory-startup --python tools/blender/city_window.py -- <out_dir> <models_dir>
-Writes window_day.png, window_dusk.png, window_night.png (940x1120, the window at 2x) and city.glb.
-The game cross-fades the three by the in-game clock (scripts/room/room.gd).
+Writes city.glb and optional day/dusk/night fallback renders (940x1120).
+Append --model-only to rebuild the runtime scene without the fallback images.
 """
 import math
 import os
@@ -157,6 +157,7 @@ def build_city(rng):
     for m in mats:
         add_haze(m)
     tops = []
+    terraces = []
     objs = []
     # Rows of blocks receding from the window; taller toward the middle distance.
     for row in range(9):
@@ -172,6 +173,8 @@ def build_city(rng):
                 objs.append(box("t", w * 0.6, d * 0.6, h * 0.3, x + w / 2, y, h, m))
                 h *= 1.3
             tops.append((x + w / 2, y, h))
+            if row in (0, 1, 3, 4) and len(tops) % 3 == 0:
+                terraces.append((x + w / 2, y, h, w, d))
             x += w + rng.uniform(4, 12)
     ground = box("ground", 900, 900, 0.5, 0, 300, -0.5, emissive("ground", "#0b0d12", 0.0))
     # Streets: thin emissive strips between rows (warm streetlights at night).
@@ -191,6 +194,27 @@ def build_city(rng):
         o = bpy.context.object
         o.scale = (rng.uniform(90, 150), 40, rng.uniform(60, 110))
         o.data.materials.append(hill)
+    roof = emissive("roof", "#71808f", 0)
+    aluminum = emissive("equipment", "#b1b4af", 0)
+    for x, y, h, w, d in terraces:
+        box("setback roof", w * .87, d * .88, .42, x, y, h, roof)
+        box("plant room", w * .25, d * .30, 2.6, x + w * .18, y + d * .16, h + .42, aluminum)
+        box("hvac plinth", w * .21, d * .30, 1.05, x - w * .18, y - d * .09, h + .42, roof)
+        for offset in (-.075, .075):
+            box("vent", w * .055, d * .23, .35, x - w * .18 + w * offset, y - d * .09, h + 1.47, aluminum)
+    for x, y, h in sorted(tops, key=lambda t: -t[2])[:4]:
+        box("antenna mast", .53, .53, 12.0, x + 2, y, h, aluminum)
+        box("antenna array", 3.6, .28, .28, x + 2, y, h + 9, aluminum)
+    trees = emissive("trees", "#294f54", 0)
+    for x in range(-130, 135, 11):
+        y = 45 + rng.uniform(-2.0, 2.0)
+        height = rng.uniform(3.8, 6.0)
+        box("trunk", .55, .55, height, x, y, 0, roof)
+        for dx, spread in ((-.72, 1.7), (.44, 1.95)):
+            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=spread, location=(x + dx, y, height))
+            canopy = bpy.context.object
+            canopy.scale.z = 1.32
+            canopy.data.materials.append(trees)
     return mats, street, hill
 
 
@@ -247,6 +271,8 @@ def main():
     mats, street, hill = build_city(rng)
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.export_scene.gltf(filepath=os.path.join(MODELS, "city.glb"), export_format="GLB", use_selection=True)
+    if "--model-only" in argv:
+        return
     bpy.ops.object.camera_add(location=(0, -40, 62), rotation=(math.radians(84), 0, 0))
     cam = bpy.context.object
     cam.rotation_euler = (math.radians(86), 0, 0)

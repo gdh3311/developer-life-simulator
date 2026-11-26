@@ -206,18 +206,35 @@ KEY_ROWS = [  # key widths in units (1u = 19 mm)
 ]
 
 
+def lettering(text, size, location, material):
+    font = bpy.data.curves.new("legend", "FONT")
+    font.body = text
+    font.align_x = "CENTER"
+    font.align_y = "CENTER"
+    font.size = size
+    obj = bpy.data.objects.new("legend " + text, font)
+    bpy.context.collection.objects.link(obj)
+    obj.location = location
+    font.materials.append(material)
+    return obj
+
+
 def keyboard(item_id, case_col, key_col, mod_col, rgb=False, retro=False, legend=None):
     s = reset()
     u = 0.019
     width = 15 * u + 0.02
     depth = 5 * u + 0.03
     case = cube("case", (width, depth, 0.022 if not retro else 0.03), (0, 0, 0.011 if not retro else 0.015),
-                mat("case", case_col, 0.55 if not retro else 0.7, 0.35 if case_col in ("#9aa3b2",) else 0.0), bev=0.004)
+                mat("case", case_col, 0.38 if legend else 0.55 if not retro else 0.7, 0.42 if legend else 0.0), bev=0.004)
     # Front-to-back tilt like real keyboards.
     parts = [case]
     key_mat = mat("keys", key_col, 0.38 if not retro else 0.6, coat=0.2 if not retro else 0.0)
     mod_mat = mat("mods", mod_col, 0.45 if not retro else 0.65)
     hue_mats = {}
+    legends = ["ESC 1 2 3 4 5 6 7 8 9 0 - + DEL", "TAB Q W E R T Y U I O P [ ] RET",
+               "CAP A S D F G H J K L ; ' ENTER", "SHIFT Z X C V B N M , . / SHIFT",
+               "CTRL WIN ALT SPACE ALT FN MENU CTRL"]
+    ink = mat("legend ink", legend, 0.78) if legend else None
     top = 0.022 if not retro else 0.03
     y0 = depth / 2 - 0.015 - u / 2
     for r, row in enumerate(KEY_ROWS):
@@ -234,14 +251,19 @@ def keyboard(item_id, case_col, key_col, mod_col, rgb=False, retro=False, legend
                     import colorsys
                     rr, gg, bb = colorsys.hsv_to_rgb(k / 12, 0.85, 1.0)
                     hx = "#%02x%02x%02x" % (int(rr * 255), int(gg * 255), int(bb * 255))
-                    hue_mats[k] = mat("rgb%d" % k, "#20232b", 0.35, emit=hx, emit_strength=2.2)
+                    hue_mats[k] = mat("rgb%d" % k, "#20232b", 0.48, emit=hx, emit_strength=0.32)
                 material = hue_mats[k]
             h = 0.011 if not retro else 0.016
             cap = keycap("k%d_%d" % (r, i), w - 0.0022, u - 0.0022, h, (cx, y0 - r * u, top + h / 2 + 0.001), material)
             parts.append(cap)
+            if ink is not None:
+                label = legends[r].split()[i]
+                if label != "SPACE":
+                    parts.append(lettering(label, 0.0045 if len(label) == 1 else 0.0032,
+                                           (cx, y0 - r * u, top + h + 0.00115), ink))
             x += w
     if rgb:
-        under = cube("glow", (width - 0.012, depth - 0.012, 0.002), (0, 0, top + 0.0005), mat("under", "#111111", 0.5, emit="#7c3aed", emit_strength=1.5))
+        under = cube("glow", (width - 0.012, depth - 0.012, 0.002), (0, 0, top + 0.0005), mat("under", "#111111", 0.5, emit="#7c3aed", emit_strength=0.62))
         parts.append(under)
     if retro:
         badge = cube("badge", (0.05, 0.008, 0.002), (width / 2 - 0.05, -depth / 2 + 0.008, 0.031), mat("badge", "#7a5c3a", 0.4, 0.6))
@@ -709,6 +731,83 @@ def decor_rocket():
 
 # --- desk mats ------------------------------------------------------------------------------------------------
 
+def decor_task_lamp():
+    s = reset()
+    paint = mat("ochre powder coat", "#bd693c", 0.46, 0.12)
+    steel = mat("brushed hardware", "#b79a73", 0.4, 0.65)
+    diffuser = mat("opal diffuser", "#f5e5cc", 0.4, emit="#ffc18c", emit_strength=0.45)
+    parts = [cylinder("weighted foot", 0.041, 0.009, (0, 0, 0.0045), paint),
+             cylinder("stem", 0.006, 0.111, (0, 0, 0.061), steel),
+             cylinder("shade", 0.055, 0.043, (0, 0, 0.136), paint, verts=64, r2=0.030),
+             cylinder("glass diffuser", 0.052, 0.003, (0, 0, 0.1145), diffuser, verts=64),
+             cylinder("switch", 0.004, 0.004, (0.025, -0.023, 0.011), steel, verts=20)]
+    decor_finish(s, "decor_task_lamp", parts, elevation=22)
+
+
+def decor_film_camera():
+    s = reset()
+    metal = mat("brushed silver", "#c1c1ba", 0.45, 0.54)
+    leather = mat("olive leatherette", "#32382d", 0.92)
+    dark = mat("lens barrel", "#22272b", 0.48, 0.35)
+    glass = mat("coated glass", "#305766", 0.12, 0.35, coat=0.8)
+    parts = [cube("cast body", (0.125, 0.035, 0.070), (0, 0, 0.035), metal, bev=0.005),
+             cube("grip panels", (0.127, 0.036, 0.041), (0, 0, 0.033), leather, bev=0.004),
+             cube("viewfinder", (0.026, 0.002, 0.011), (-0.038, -0.0185, 0.057), glass, bev=0.002),
+             cylinder("shutter", 0.010, 0.005, (0.044, 0, 0.072), dark, verts=32)]
+    for radius, depth, y, material in [(0.026, 0.012, -0.021, metal), (0.022, 0.024, -0.034, dark),
+                                       (0.020, 0.008, -0.045, metal), (0.017, 0.004, -0.050, glass)]:
+        ring = cylinder("lens assembly", radius, depth, (0.009, y, 0.032), material, verts=48)
+        ring.rotation_euler.x = math.pi / 2
+        parts.append(ring)
+    decor_finish(s, "decor_film_camera", parts, yaw=-13, elevation=22)
+
+
+def decor_notebook():
+    s = reset()
+    cloth = mat("linen cover", "#27666c", 0.86)
+    paper = mat("uncoated paper", "#d9c5a4", 0.9)
+    ink = mat("gold foil", "#d4ac66", 0.44, 0.45)
+    black = mat("graphite barrel", "#252a2c", 0.42, 0.24)
+    parts = [cube("pages", (0.136, 0.108, 0.015), (0.001, 0, 0.010), paper, bev=0.003)]
+    for height in (0.002, 0.019):
+        parts.append(cube("cloth cover", (0.142, 0.117, 0.004), (0, 0, height), cloth, bev=0.002))
+    parts.append(cube("cloth spine", (0.009, 0.116, 0.021), (-0.067, 0, 0.011), cloth, bev=0.002))
+    parts.append(cube("elastic strap", (0.008, 0.118, 0.0018), (0.045, 0, 0.022), black, bev=0.001))
+    parts.append(lettering("FIELD NOTES", 0.012, (-0.010, 0.019, 0.0212), ink))
+    pen = cylinder("pen", 0.0045, 0.112, (0.046, 0.0, 0.028), black, verts=24)
+    pen.rotation_euler = (math.pi / 2, 0, -0.25)
+    parts.append(pen)
+    decor_finish(s, "decor_notebook", parts, yaw=-22, elevation=30)
+
+
+def scene_work_lamp():
+    s = reset()
+    enamel = mat("sage enamel", "#4d5a55", 0.39, 0.31)
+    joint = mat("brushed joint pins", "#a2a09a", 0.4, 0.7)
+    grip = mat("rubber", "#222724", 0.89)
+    diffuser = mat("warm reflector", "#e4bd87", 0.42, emit="#ffd1a2", emit_strength=0.37)
+    parts = [cylinder("rubber base", 0.062, 0.007, (0, 0, 0.0035), grip),
+             cylinder("enamel base", 0.060, 0.014, (0, 0, 0.014), enamel),
+             cylinder("swivel collar", 0.016, 0.026, (0, 0, 0.032), joint)]
+    points = [Vector((0, 0, 0.04)), Vector((0.043, 0.027, 0.185)), Vector((-0.063, -0.006, 0.293))]
+    for start, end in zip(points, points[1:]):
+        axis = end - start
+        for shift in (-0.009, 0.009):
+            arm = cylinder("articulated arm", 0.0042, axis.length, (start + end) / 2 + Vector((0, shift, 0)), enamel, verts=20)
+            arm.rotation_euler = axis.to_track_quat("Z", "Y").to_euler()
+            parts.append(arm)
+        pin = cylinder("pivot pin", 0.010, 0.029, end, joint, verts=24)
+        pin.rotation_euler.x = math.pi / 2
+        parts.append(pin)
+    center = points[-1] + Vector((-0.031, -0.014, -0.023))
+    normal = Vector((0.46, 0.13, 0.88)).normalized()
+    shade = cylinder("metal shade", 0.064, 0.060, center, enamel, verts=64, r2=0.019)
+    glass = cylinder("reflector", 0.060, 0.003, center - normal * 0.030, diffuser, verts=64)
+    for part in (shade, glass):
+        part.rotation_euler = normal.to_track_quat("Z", "Y").to_euler()
+        parts.append(part)
+    decor_finish(s, "scene_work_lamp", parts, yaw=-12, elevation=20)
+
 def desk_mat(item_id, kind):
     s = reset()
     W, D = 0.54, 0.24
@@ -751,6 +850,7 @@ BUILDERS = {
     "kb_white": lambda: keyboard("kb_white", "#d9dde3", "#f4f5f7", "#c9ced6"),
     "kb_rgb": lambda: keyboard("kb_rgb", "#101114", "#1a1b20", "#15161a", rgb=True),
     "kb_retro": lambda: keyboard("kb_retro", "#d8cdb4", "#e9e0c9", "#8f8576", retro=True),
+    "kb_moss": lambda: keyboard("kb_moss", "#274039", "#e2dcc3", "#83a084", legend="#253332"),
     "mouse_basic": lambda: mouse("mouse_basic", "#08090b", "#3a3d45"),
     "mouse_white": lambda: mouse("mouse_white", "#eceef2", "#c9ced6"),
     "mouse_gaming": lambda: mouse("mouse_gaming", "#060708", "#30333a", accent="#22d3ee"),
@@ -773,6 +873,10 @@ BUILDERS = {
     "decor_bonsai": decor_bonsai,
     "decor_snowglobe": decor_snowglobe,
     "decor_rocket": decor_rocket,
+    "decor_task_lamp": decor_task_lamp,
+    "decor_film_camera": decor_film_camera,
+    "decor_notebook": decor_notebook,
+    "scene_work_lamp": scene_work_lamp,
     "mat_navy": lambda: desk_mat("mat_navy", "navy"),
     "mat_pixel": lambda: desk_mat("mat_pixel", "pixel"),
     "mat_cork": lambda: desk_mat("mat_cork", "cork"),

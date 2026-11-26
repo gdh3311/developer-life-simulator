@@ -146,7 +146,7 @@ static func decor_items() -> Array:
 	return items_for("decor")
 
 
-## Placed toys: [{id, x, y}] with (x, y) the base centre in room coordinates.
+## Placed props: [{id, x, y, angle}] with a room-space base and an optional yaw for older saves.
 static func placed() -> Array:
 	var d := _state()
 	if typeof(d.get("decor")) != TYPE_ARRAY:
@@ -162,20 +162,21 @@ static func clamp_spot(spot: Vector2) -> Vector2:
 	return Vector2(clampf(spot.x, DECOR_AREA.position.x, DECOR_AREA.end.x), clampf(spot.y, DECOR_AREA.position.y, DECOR_AREA.end.y))
 
 
-static func place(id: String, spot: Vector2) -> bool:
+static func place(id: String, spot: Vector2, angle: float = 0.0) -> bool:
 	var it := item(id)
 	if it.is_empty() or it["slot"] != "decor" or not unlocked(it):
 		return false
-	spot = clamp_spot(spot)
+	spot = clamp_spot(spot).snapped(Vector2(0.25, 0.25))
 	for p in placed():
 		if p["id"] == id:
 			p["x"] = spot.x
 			p["y"] = spot.y
+			p["angle"] = wrapf(angle, -180.0, 180.0)
 			_changed("decor", id)
 			return true
 	if placed().size() >= MAX_DECOR:
 		return false
-	placed().append({"id": id, "x": spot.x, "y": spot.y})
+	placed().append({"id": id, "x": spot.x, "y": spot.y, "angle": wrapf(angle, -180.0, 180.0)})
 	_changed("decor", id)
 	return true
 
@@ -183,6 +184,26 @@ static func place(id: String, spot: Vector2) -> bool:
 static func remove(id: String) -> void:
 	_state()["decor"] = placed().filter(func(p: Dictionary) -> bool: return p["id"] != id)
 	_changed("decor", id)
+
+
+static func lamp_on() -> bool:
+	return bool(_state().get("lamp_on", true))
+
+
+static func set_lamp(on: bool) -> void:
+	_state()["lamp_on"] = on
+	_changed("decor", "decor_task_lamp")
+
+
+## Swap a matching set in one save, respecting its existing unlocks.
+static func equip_set(items: Dictionary) -> bool:
+	for slot in items:
+		var candidate := item(items[slot])
+		if candidate.is_empty() or candidate["slot"] != slot or not unlocked(candidate):
+			return false
+	_state().merge(items, true)
+	_changed("set", "")
+	return true
 
 
 static func _changed(slot: String, id: String) -> void:

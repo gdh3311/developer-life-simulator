@@ -225,6 +225,7 @@ const PEOPLE := {
 	"sophie": ["Sophie Lee", "sophie@nexora.dev"],
 	"mina": ["Mina Choi", "mina@nexora.dev"],
 	"alex": ["Alex Kim", "alex@nexora.dev"],
+	"raon": ["Raon Lim", "raon@brightloop.test"],
 	"bot": ["CodeHub", "codehub@nexora.dev"],
 }
 

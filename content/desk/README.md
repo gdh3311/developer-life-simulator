@@ -1,6 +1,8 @@
 # Desk items
 
-Built-in items (keyboard, mouse, mug, plant) are 3D models built in Blender by `tools/blender/desk_models.py` and rendered to transparent PNGs at twice their on-desk size. The `.glb` models are kept in `content/models/` (ignored by Godot) so they can be reused or edited. The window view is a 3D city rendered for day, dusk and night by `tools/blender/city_window.py` into `content/room/`.
+Godot renders the wooden worktop, mats, monitor stands and Blender props in one perspective view. The window, monitor and mushroom lamp illuminate the same 3D surfaces. The catalogue uses transparent PNG thumbnails, and custom PNG/SVG props keep their uploaded images.
+
+The window uses `content/models/room/city.glb` and `shaders/city_facade.gdshader`. The shader shades façades and lights office windows based on the game clock. The Blender day, dusk and night renders are available as a fallback.
 
 Rebuild everything:
 
@@ -10,17 +12,23 @@ blender -b --factory-startup --python tools/blender/city_window.py -- build/city
 python tools/blender/finish_desk_assets.py
 ```
 
+To rebuild a specific model and its thumbnail, pass its item ID after the directories to `desk_models.py`, then pass the same ID to `finish_desk_assets.py`.
+
 ## Decorating mode
 
-The **꾸미기 / Decor** button next to F2 opens decorating mode over the desk view:
+Open **Dashboard → My desk → Arrange desk**, or choose **Arrange my desk** in Shoply. For monitor zoom, use the workstation's view control or press **F2**.
 
-- Drag a toy from the tray onto the desk, drag it around, or drag it off the desk (or click it in the tray) to put it away. Up to six toys fit.
-- Click the keyboard, mouse, mug or plant to swap it for the next unlocked one; **Change mat** flips through desk mats.
-- Locked toys show as silhouettes; hover for what unlocks them. A notice pops up when something you did unlocks a new one.
+- Drag a prop onto the desk, move it with the mouse, or drag it off the desk to put it away. Up to six props fit.
+- Select a prop and use **Q / E** or the onscreen arrows to rotate it by 15°. Press **Esc** during a drag to cancel the move.
+- Choose a keyboard, mouse, mug, plant, or mat from its category. Walnut, White Studio, and Moss are matching equipment sets.
+- Place the mushroom lamp to control its light. The game saves equipment, prop positions and rotation, and the lamp setting.
+- Locked props show as silhouettes with a tooltip that says how to unlock them.
 
 | Toy | Unlocks with |
 |---|---|
 | Pen cup, alarm clock | free |
+| Mushroom lamp, field notebook | free |
+| Film camera | Junior |
 | Debugging duck | your first small ticket |
 | Toy robot | delegating to AICode 3 times |
 | Lucky cat | achievement "A customer's evening" |

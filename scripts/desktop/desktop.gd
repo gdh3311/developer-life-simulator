@@ -55,6 +55,7 @@ var _walkby_active := false
 var _highlight := ""
 var _pulse := 0.0
 var _day_transitioning := false
+var _wallpaper_logo: Label
 
 
 func _ready() -> void:
@@ -78,7 +79,9 @@ func _ready() -> void:
 	add_child(_alert)
 	_build_boot_screen()
 
-	Game.time_changed.connect(func(_d: int, _m: int) -> void: _clock.text = Game.clock_text())
+	Game.time_changed.connect(func(_d: int, _m: int) -> void:
+		_clock.text = Game.clock_text()
+		_wallpaper_logo.text = Game.employer_name())
 	Game.toast.connect(notify)
 	Game.relation_changed.connect(_on_relation)
 	Game.chat_added.connect(func(_m: Dictionary) -> void: _update_badges())
@@ -844,7 +847,10 @@ func _advance_workday() -> void:
 
 
 func _show_ending() -> void:
-	if Game.chapter() >= 5:
+	if Game.chapter() == 6:
+		_show_chapter6_ending()
+		return
+	if Game.chapter() == 5:
 		_show_chapter5_ending()
 		return
 	if Game.chapter() == 4:
@@ -1011,7 +1017,7 @@ func _show_chapter5_ending() -> void:
 	for a in Story.arcs.all():
 		lines.append(UITheme.label("%s  ·  %s" % [Game.tx(a.title), a.summary()], 13, UITheme.MUTED))
 	lines.append(UITheme.label(Game.L("커밋 %d · PR %d · CI 통과 %d / 실패 %d · 리뷰 %d   ·   팀 평균 신뢰도 %d점   ·   잔액 %s", "Commits %d · PRs %d · CI %d green / %d red · Reviews %d   ·   Avg. team trust %d   ·   Balance %s") % [Game.stat("commits"), Game.stat("prs"), Game.stat("ci_pass"), Game.stat("ci_fail"), Game.stat("reviews"), roundi(Game.avg_trust()), Game.won(Game.money())], 12, UITheme.MUTED))
-	lines.append(UITheme.label(Game.L("다음: 챕터 6 같은 업계 다른 책상 (%s) — 개발 중", "Next: Chapter 6 Same industry, different desk (%s) — in development") % ("Brightloop" if employer == "brightloop" else "NEXORA"), 13, UITheme.WARN))
+	lines.append(UITheme.label(Game.L("다음: 챕터 6 같은 업계 다른 책상 (%s)", "Next: Chapter 6 Same industry, different desk (%s)") % ("Brightloop" if employer == "brightloop" else "NEXORA"), 13, UITheme.WARN))
 	for lab in lines:
 		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(lab)
@@ -1025,6 +1031,39 @@ func _show_chapter5_ending() -> void:
 		_day_transitioning = false
 		_end_day_btn.visible = true)
 	v.add_child(btn)
+
+
+func _show_chapter6_ending() -> void:
+	UITheme.clear(_overlay)
+	(_overlay as ColorRect).color = Color(0.02, 0.03, 0.05, 0.96)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.add_child(center)
+	var v := UITheme.vbox(12)
+	center.add_child(v)
+	var flags: Dictionary = Game.state["flags"]
+	var moved: bool = flags.get("employer", "nexora") == "brightloop"
+	var friday: bool = flags.get("c06_pilot_window") == "friday"
+	for line in [
+		UITheme.label("CHAPTER 6  —  " + Game.L("같은 업계 다른 책상", "SAME INDUSTRY, DIFFERENT DESK"), 13, UITheme.ACCENT),
+		UITheme.bold(Game.L("같은 주문을, 이제 다른 회사에서 본다", "The same order, across two desks"), 24),
+		UITheme.label(Game.L("Brightloop · 인수 어댑터", "Brightloop · Receiving adapter") if moved else Game.L("NEXORA · 내보내기 어댑터", "NEXORA · Export adapter"), 14, UITheme.TEXT2),
+		UITheme.label(Game.L("판매자별 주문 대조 완료 · 전환 및 원복 누락 0건", "Seller orders reconciled · zero missing at cutover and rollback"), 14, UITheme.OK),
+		UITheme.label(Game.L("금요일 파일럿 · AUR-01만 시작", "Friday pilot · AUR-01 only") if friday else Game.L("월요일 파일럿 · 판매자 확인 후 시작", "Monday pilot · seller sign-off first"), 13, UITheme.TEXT2),
+		UITheme.label(_payday_line(), 13, UITheme.MUTED),
+	]:
+		line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(line)
+	var receipt := UITheme.button(Game.L("이관 기록 열기", "Open transfer record"), "primary")
+	receipt.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	receipt.custom_minimum_size = Vector2(240, 40)
+	receipt.pressed.connect(func() -> void:
+		_overlay.queue_free()
+		_overlay = null
+		_day_transitioning = false
+		_end_day_btn.visible = true
+		open_resource("browser", "aurora"))
+	v.add_child(receipt)
 
 
 func _show_chapter4_ending() -> void:
@@ -1193,10 +1232,22 @@ func _build_wallpaper() -> void:
 		br.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(br)
 	var logo := UITheme.bold("NEXORA", 88, Color(1, 1, 1, 0.045))
+	_wallpaper_logo = logo
 	logo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	logo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	logo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	add_child(logo)
+
+
+signal focus_view_requested
+
+var _view_action: Button
+var arranging_desk := false
+
+
+func set_focus_view(closer: bool) -> void:
+	_view_action.text = Game.L("책상 보기", "Desk view") if closer else Game.L("가까이 보기", "Look closer")
+	_view_action.tooltip_text = _view_action.text + " (F2)"
 
 
 func _build_topbar() -> void:
@@ -1246,6 +1297,12 @@ func _build_topbar() -> void:
 	row.add_child(wifi)
 	_clock = UITheme.label(Game.clock_text(), 13, UITheme.TEXT, true)
 	row.add_child(_clock)
+	_view_action = UITheme.button("")
+	_view_action.add_theme_font_size_override("font_size", 12)
+	_view_action.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_view_action.pressed.connect(func() -> void: focus_view_requested.emit())
+	row.add_child(_view_action)
+	set_focus_view(false)
 
 
 func _build_dock() -> void:

@@ -286,6 +286,20 @@
       }
     },
     {
+      "id": "kb_moss",
+      "slot": "keyboard",
+      "name": {
+        "ko": "모스 알루미늄 키보드",
+        "en": "Moss aluminium keyboard"
+      },
+      "file": "res://content/desk/kb_moss.png",
+      "size": [
+        700,
+        161
+      ],
+      "unlock": {}
+    },
+    {
       "id": "mat_none",
       "slot": "mat",
       "name": {
@@ -386,6 +400,50 @@
       "size": [
         67,
         78
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "decor_task_lamp",
+      "slot": "decor",
+      "name": {
+        "ko": "머시룸 조명",
+        "en": "Mushroom lamp"
+      },
+      "file": "res://content/desk/decor_task_lamp.png",
+      "size": [
+        103,
+        158
+      ],
+      "unlock": {}
+    },
+    {
+      "id": "decor_film_camera",
+      "slot": "decor",
+      "name": {
+        "ko": "필름 카메라",
+        "en": "Film camera"
+      },
+      "file": "res://content/desk/decor_film_camera.png",
+      "size": [
+        112,
+        72
+      ],
+      "unlock": {
+        "rank": 1
+      }
+    },
+    {
+      "id": "decor_notebook",
+      "slot": "decor",
+      "name": {
+        "ko": "작업 노트",
+        "en": "Field notebook"
+      },
+      "file": "res://content/desk/decor_notebook.png",
+      "size": [
+        90,
+        49
       ],
       "unlock": {}
     },

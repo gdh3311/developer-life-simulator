@@ -52,7 +52,10 @@ func _run() -> void:
 	check(_main._side == null, "an intern has one monitor")
 	var shown: float = _main.SCREEN.x * _main._rig.scale.x
 	check(shown >= 1250.0 and shown <= 1400.0, "the main monitor leaves room for the desk and surroundings")
-	check(_main._room._desk_surface != null, "the wood surface is available in the real desk scene")
+	var worktop: Array[Node] = _main._room._models.find_children("*", "MeshInstance3D", false, false)
+	check(worktop.any(func(piece: MeshInstance3D) -> bool:
+		return piece.mesh is PlaneMesh and piece.material_override.albedo_texture == _main._room._models.WALNUT),
+		"the perspective worktop uses the walnut material")
 	await capture("desk_intern")
 
 	check((await Workspace.prepare())["ok"], "the test desk mounts its isolated company repository")
@@ -95,9 +98,10 @@ func _run() -> void:
 	check(visible_area.has_point(close_transform * frame.position) and visible_area.has_point(close_transform * frame.end)
 		and desk_edge.y < _main.VIEW.y - 60.0, "the monitor frame and a strip of the desk stay visible when zoomed")
 	await capture("desk_closeup")
-	click_at(_main._focus_button.get_global_rect().get_center())
+	var view_action: Control = _main._desktop._view_action
+	click_at(close_transform * (screen_origin + view_action.get_global_rect().get_center()))
 	await pause(0.45)
-	check(_main.view_mode() == "desk", "the physical bezel button returns to the seated view")
+	check(_main.view_mode() == "desk", "the workstation view control returns to the seated view")
 
 	# A loaded save replaces the state and emits time_changed.
 	Game.reset_state()

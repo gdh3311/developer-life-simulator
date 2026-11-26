@@ -6,6 +6,21 @@
 
 개발 업무는 실제 소스 코드, 테스트, Git, 리뷰와 배포로 진행한다. Packet Run과 달빛상점은 개발 업무에서 다루는 제품이다. 플레이어는 Relay에서 Packet Run을 플레이하거나 상점의 주문을 눌러 배포한 결과를 확인할 수 있다.
 
+## Steam 리뷰와 콘텐츠 확장
+
+2026-11-25에 유사작의 공식 Steam 소개, 유용도순 커뮤니티 리뷰와 추천·비추천 리뷰를 읽었다. 발췌에서 발견한 정성적 신호이며, 리뷰 작성자와 플랫폼의 노출 순서에 영향을 받는다. 구매자 전체의 선호 비율이나 이 게임의 적정 플레이 시간을 추정하기에는 별도의 플레이테스트가 필요하다.
+
+| 레퍼런스 | 리뷰와 게임에서 살펴본 점 | 이 게임에 적용한 방식 |
+|---|---|---|
+| The Operator | 데스크톱에서 단서를 직접 연결하는 몰입감과 인물 관계가 호평받았다. 유용도순 리뷰에서 짧은 분량, 선택의 낮은 영향, 추가 업무에 대한 요구도 보였다. [플레이어 리뷰](https://steamcommunity.com/app/1771980/reviews/?browsefilter=toprated) | 챕터 5의 직장 선택이 챕터 6의 동료, 편집 파일, 테스트와 검토자를 바꾼다. |
+| Tech Support: Error Unknown | 여러 창의 대화와 실제 지원 업무를 닮은 흐름은 호평받았다. 비슷한 티켓을 반복하거나 엔딩을 보려고 전체를 다시 해야 한다는 불만도 있었다. [플레이어 리뷰](https://steamcommunity.com/app/781480/reviews/?browsefilter=toprated), [Steam 페이지의 리뷰](https://store.steampowered.com/app/781480/Tech_Support_Error_Unknown/?curator_clanid=4777282&l=english) | 대화, 코드 수정, 표본 대조, 담당 합의, 원복 검증이 같은 사건을 다룬다. 리허설이 실패하면 해당 실험부터 다시 할 수 있다. |
+| The Farmer Was Replaced | 코드로 눈에 보이는 시스템을 움직이는 자유와 점진적 도입이 호평을 받았고, 프로그래밍을 처음 접하는 플레이어 중에는 설명과 예시를 더 원하는 사람도 있었다. [Steam 페이지의 리뷰](https://store.steampowered.com/app/2060160/The_Farmer_Was_Replaced/?curator_clanid=44311783&l=english), [플레이어 리뷰](https://steamcommunity.com/app/2060160/reviews/?browsefilter=toprated) | Relay에서 주문과 계약을 먼저 볼 수 있다. 직접 수정, 업무별 힌트, 적용 가능한 AICode 초안을 모두 제공한다. 코드의 판정은 실행 결과에 따른다. |
+| Comet 64 · EXAPUNKS | Comet 64에는 코드 과제와 서사의 연결이 약하다는 지적이 있었다. EXAPUNKS는 여러 해법을 허용하는 설계와 업무 문서를 읽는 경험을 비교할 수 있는 레퍼런스다. [Comet 64 리뷰](https://store.steampowered.com/app/1397290/Comet_64/?curator_clanid=31790204), [EXAPUNKS](https://store.steampowered.com/app/716490/EXAPUNKS/) | 주문이 늦게 들어오고 되돌아가는 상황을 계약, 테스트, 리허설에서 이어서 다룬다. 리허설은 단계별 주문 기록과 누락 위치를 보여준다. |
+
+플레이 중 느끼는 자율성과 유능감이 게임의 재미, 선호도와 연관된다는 실험 연구를 참고했다. 이 게임에서는 역할을 고른 결과가 다른 업무로 이어지는지, 테스트와 주문 기록만 보고 스스로 다음 행동을 정할 수 있는지로 구체화했다. [Ryan, Rigby & Przybylski, 2006](https://selfdeterminationtheory.org/wp-content/uploads/2020/10/2006_RyanRigbyPrzybylski_MandE.pdf)
+
+외부 플레이테스트에서는 코딩 경험 유무별로 첫 PR까지 걸린 시간, 막힌 앱과 행동, 스스로 이해했다고 설명할 수 있는 업무 결과를 기록한다. 챕터 5~6에서는 이직했을 때 실제로 달라진 일을 기억하는지, 리허설에서 실패한 이유를 표본만 보고 찾는지를 확인한다. 다음 볼륨은 파일럿 일정이 후배와 함께 처리할 실제 고객 요청을 바꾸는 챕터 7, 그리고 달빛상점이나 Packet Run의 출시 뒤 사용자 제보가 다음 수정으로 이어지는 선택 업무에 우선 배정한다.
+
 ## 이번에 구현한 변화
 
 TaskBoard에 업무 보드와 조사 노트를 나눴다. 이름 버그, 닉네임 회귀, 쿠폰 리뷰, 배송비 충돌, 로그인 장애, 쿠폰 핫픽스의 여섯 업무에 각각 단서와 세 가지 원인 가설이 있다. 단서는 실제 정책 열람, 파일 읽기, 실패 테스트, 관련 Git 기록, PR diff, 장애 로그와 충돌 결과에서 쌓인다.

@@ -122,5 +122,21 @@
   "mat_none": [
     2,
     2
+  ],
+  "decor_film_camera": [
+    112,
+    72
+  ],
+  "decor_notebook": [
+    90,
+    49
+  ],
+  "decor_task_lamp": [
+    103,
+    158
+  ],
+  "kb_moss": [
+    700,
+    161
   ]
 }

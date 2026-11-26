@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Godot,
     [switch]$Screenshots,
     [switch]$EngineVerbose,
-    [ValidateSet('gameplay', 'chapter', 'chapter2', 'chapter3', 'recovery', 'desk', 'browser', 'events', 'arcade', 'desk_assets', 'studio', 'career', 'chapter4', 'chapter4_edge', 'chapter5', 'tickets', 'evidence')][string]$Suite = 'gameplay',
+    [ValidateSet('gameplay', 'chapter', 'chapter2', 'chapter3', 'recovery', 'desk', 'browser', 'events', 'arcade', 'desk_assets', 'studio', 'career', 'chapter4', 'chapter4_edge', 'chapter5', 'chapter6', 'tickets', 'evidence')][string]$Suite = 'gameplay',
     [ValidateSet('prevent', 'recover', 'resume')][string]$Profile = 'prevent'
 )
 
@@ -23,6 +23,7 @@ if ($Suite -eq 'desk_assets') { $outputPath = Join-Path $workspacePath 'build\de
 if ($Suite -eq 'studio') { $outputPath = Join-Path $workspacePath 'build\studio-qa' }
 if ($Suite -eq 'career') { $outputPath = Join-Path $workspacePath 'build\career-qa' }
 if ($Suite -eq 'chapter5') { $outputPath = Join-Path $workspacePath ('build\chapter5-qa\' + $Profile) }
+if ($Suite -eq 'chapter6') { $outputPath = Join-Path $workspacePath ('build\chapter6-qa\' + $Profile) }
 if ($Suite -eq 'chapter4_edge') { $outputPath = Join-Path $workspacePath 'build\chapter4-qa\edge' }
 if ($Suite -eq 'browser') { $outputPath = Join-Path $workspacePath 'build\browser-qa' }
 if ($Suite -eq 'arcade') { $outputPath = Join-Path $workspacePath 'build\arcade-qa' }
@@ -57,7 +58,7 @@ try {
         if ($EngineVerbose) { $runArgs += '--verbose' }
         $userArgs = @()
         if ($Screenshots) { $userArgs += '--screenshots' } else { $runArgs = @('--headless') + $runArgs }
-        if ($Suite -in @('chapter', 'chapter2', 'chapter3', 'chapter4', 'chapter5')) { $userArgs += @('--profile', $Profile) }
+        if ($Suite -in @('chapter', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6')) { $userArgs += @('--profile', $Profile) }
         if ($stage) { $userArgs += @('--stage', $stage) }
         if ($userArgs.Count -gt 0) { $runArgs += @('--') + $userArgs }
         $logName = if ($stage) { 'tests_' + $stage + '.log' } else { 'tests.log' }

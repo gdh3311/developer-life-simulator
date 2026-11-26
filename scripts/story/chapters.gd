@@ -7,10 +7,13 @@ const DATA := {
 	3: {"title": {"ko": "처음부터 끝까지", "en": "From start to finish"}, "period": {"ko": "네 번째 달", "en": "Month four"}, "first_day": 8, "last_day": 10, "planned": 8, "complete": true},
 	4: {"title": {"ko": "오래된 결정", "en": "An old decision"}, "period": {"ko": "일곱 번째 달", "en": "Month seven"}, "first_day": 11, "last_day": 13, "planned": 8, "complete": true},
 	5: {"title": {"ko": "사람들이 몰려오는 날", "en": "The day everyone shows up"}, "period": {"ko": "열 번째 달", "en": "Month ten"}, "first_day": 14, "last_day": 16, "planned": 8, "complete": true},
+	6: {"title": {"ko": "같은 업계 다른 책상", "en": "Same industry, different desk"}, "period": {"ko": "열한 번째 달", "en": "Month eleven"}, "first_day": 17, "last_day": 18, "planned": 6, "complete": true},
 }
 
 
 static func for_day(day: int) -> int:
+	if day >= 17:
+		return 6
 	if day >= 14:
 		return 5
 	if day >= 11:

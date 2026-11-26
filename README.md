@@ -104,6 +104,21 @@
 
 스토리라인: Brightloop 사무실 방문(14일 저녁, 오퍼에 지원·통근 정보가 채워짐) → 공식 오퍼, LEGACY-17 이관 규칙 검토(15일 점심). Hana가 SRE로 돌아옵니다.
 
+## Chapter 6 · 같은 업계 다른 책상 (2일, 6개 업무)
+
+챕터 5 결과 화면에서 시작합니다. **NEXORA 잔류** 경로에서는 판매자 데이터를 공용 형식으로 내보냅니다. **Brightloop 이직** 경로에서는 공용 데이터를 내부 계정에 가져옵니다. 두 경로에서 연락하는 동료와 수정하는 TypeScript 파일, AICode 초안과 추가 CI가 달라집니다.
+
+| 업무 | 플레이 |
+|---|---|
+| AUR-071 달라진 출입증 | TeamChat에서 새 역할 확인, 이전에 정한 인수자 소식 듣기 |
+| AUR-072 내보내는 사람, 받는 사람 | 어댑터 수정, 로컬 테스트, PR과 추가 CI. AICode 초안은 정해진 케이스를 놓침 |
+| AUR-073 숫자는 같은데 사람이 다르다 | Relay에서 같은 주문 번호를 쓰는 판매자 두 곳의 계정 대조 |
+| AUR-074 이 일은 우리 팀 건가요 | Docs에 양쪽 매핑 담당과 전환 보류 기준 기록 |
+| AUR-075 되돌릴 수 있는 이관 | 주문이 계속 들어오는 동안 전환과 원복을 연습하고 누락된 주문을 확인 |
+| AUR-076 예전 동료에게 보내는 요청 | 한 곳만 여는 금요일 파일럿 또는 판매자 확인 후 월요일 시작을 정하고 결과 기록 |
+
+Relay의 **transfer.aurora.test**에서는 이관 계약, 주문 표본, 리허설 결과와 합의한 일정을 볼 수 있습니다. 진행 중인 리허설도 저장됩니다.
+
 ## 실행
 필요한 것: [Godot 4.7](https://godotengine.org/download), Git, Node.js 22.6 이상 (출시 버전에서는 게임에 포함할 예정)
 
@@ -111,7 +126,8 @@
 2. F5로 실행 → 언어와 이름을 고르고 입사.
 
 조작
-- **F2** 또는 모니터 아래의 **F2 버튼**으로 책상 보기와 가까이 보기를 전환 · 창 제목 표시줄 드래그/더블클릭 · `–` 최소화
+- **F2** 또는 업무용 컴퓨터 상단의 시점 전환으로 책상 보기와 가까이 보기를 전환 · 창 제목 표시줄 드래그/더블클릭 · `–` 최소화
+- **Dashboard → 내 책상 → 배치 미리보기** 또는 **Shoply → 내 책상 배치**에서 장비와 소품을 바꿀 수 있습니다.
 - **Ctrl+1~0** 독 앱 열기 · **Ctrl+W** 창 닫기 · **Ctrl+M** 최소화 · 독 아이콘을 다시 누르면 최소화/복원
 - Terminal: **Tab** 자동 완성(명령·git 하위 명령·브랜치·경로), ↑/↓ 기록, **Ctrl+L** 지우기, **Ctrl+C** 입력 취소
 - DevIDE: **Ctrl+S** 저장, **Ctrl+F** 찾기
@@ -129,7 +145,7 @@
 ## 구조
 ```
 scripts/main.gd                 방 + 모니터 + 2배 해상도 화면 + 연출
-scripts/room/room.gd            벡터 사무실 (시간대별 창밖, 구매 아이템 표시)
+scripts/room/room.gd            책상 시점과 조명, 실시간 3D 소품·창밖 도시, 꾸미기
 scripts/desktop/                게임 속 OS: 데스크톱(튜토리얼 가이드, 딴짓 감시), 창, DevIDE, Terminal
 scripts/apps/                   CodeHub, TeamChat, TaskBoard, Request Lab, Wiki, Monitor, AICode, Browser, Dashboard
 scripts/services/request_lab.gd 실제 TypeScript 요청 함수를 실행하는 가상 조건 실험      (autoload: RequestLab)
@@ -153,7 +169,7 @@ content/ci/{ko,en}/             미션별 숨겨진 [CI] 검증 테스트
 
 게임성: [플레이 흐름과 후속 설계](docs/GAMEPLAY.md). 조사 노트와 실패 감점 조정은 구현되어 있으며, 업무 전략·성장 도구·난이도 프로필은 후속 계획입니다.
 
-장편 본편 기획: [전체 시나리오](docs/SCENARIO.md) · [96개 업무와 48개 선택 사건](docs/SCENARIO_MISSIONS.md) · [인물·분기·엔딩](docs/SCENARIO_CHARACTERS.md) · [챕터 2 대본](docs/SCENARIO_CHAPTER_02.md) · [챕터 3 대본](docs/SCENARIO_CHAPTER_03.md) · [챕터 4 대본](docs/SCENARIO_CHAPTER_04.md) · [챕터 5 대본](docs/SCENARIO_CHAPTER_05.md) · [제작 기준](docs/SCENARIO_PRODUCTION.md) · [멀티 스토리라인·이벤트 설계](docs/STORYLINES.md). 현재 구현 범위는 위의 Chapter 1~5와 스토리라인 2개입니다.
+장편 본편 기획: [전체 시나리오](docs/SCENARIO.md) · [96개 업무와 48개 선택 사건](docs/SCENARIO_MISSIONS.md) · [인물·분기·엔딩](docs/SCENARIO_CHARACTERS.md) · [챕터 2 대본](docs/SCENARIO_CHAPTER_02.md) · [챕터 3 대본](docs/SCENARIO_CHAPTER_03.md) · [챕터 4 대본](docs/SCENARIO_CHAPTER_04.md) · [챕터 5 대본](docs/SCENARIO_CHAPTER_05.md) · [제작 기준](docs/SCENARIO_PRODUCTION.md) · [멀티 스토리라인·이벤트 설계](docs/STORYLINES.md). 현재 빌드에서는 위의 1~6장과 스토리라인 2개를 플레이할 수 있습니다.
 
 1. ~~기술 검증~~ ✅  2. ~~Vertical Slice~~ ✅  3. ~~Chapter 1 확장 (인턴 4일, 튜토리얼, 한/영)~~ ✅
-4. ~~Chapter 2·3 구현, 스토리라인 엔진~~ → 이벤트 카드 엔진, 나머지 스토리라인, Chapter 4, Node·Git 런타임 번들, 플레이어 코드 OS 수준 격리
+4. ~~Chapter 2~6, 스토리라인과 이벤트 카드 엔진~~  5. 이후 챕터, Node·Git 런타임 번들, 플레이어 코드 OS 수준 격리

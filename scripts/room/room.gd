@@ -4,28 +4,33 @@ extends Control
 
 const VIEW := Vector2(1920, 1080)
 const DeskItems := preload("res://scripts/room/desk_items.gd")
-const DESK_SURFACE := "res://content/desk/walnut-surface.png"
+const DeskModels := preload("res://scripts/room/desk_models.gd")
+const CityView := preload("res://scripts/room/city_view.gd")
+const MODEL_SLOTS := ["plant", "mug", "keyboard", "mouse"]
 
 var monitor_rect := Rect2()   # outer frame of the monitor (set by main)
 var screen_glow := 0.0        # 0..1, monitor light on the desk/wall
 var time_override := -1.0     # minutes; set during day transitions
 var tier := 0                 # workstation tier (0 intern, 1 side monitor, 2 desk mat + nameplate)
-var side_rect := Rect2()      # outer frame of the side monitor (tier 1+)
 var _buildings: Array = []    # [x, w, h, lit windows seed]
 var _rng := RandomNumberGenerator.new()
-var _desk_surface: Texture2D
 var _views := {}              # window_day/dusk/night renders of the 3D city (tools/blender/city_window.py)
 var highlight := ""           # toy being dragged in decorating mode (drawn with a glow)
+var _models: SubViewport
+var _city: SubViewport
+var _preview := {}
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	size = VIEW
-	if ResourceLoader.exists(DESK_SURFACE, "Texture2D"):
-		_desk_surface = load(DESK_SURFACE)
+	_models = DeskModels.new()
+	add_child(_models)
+	_city = CityView.new()
+	add_child(_city)
 	for v in ["day", "dusk", "night"]:
 		var path := "res://content/room/window_%s.png" % v
-		if ResourceLoader.exists(path, "Texture2D"):
+		if not _city.available and ResourceLoader.exists(path, "Texture2D"):
 			_views[v] = load(path)
 	_rng.seed = 7
 	var x := 0.0
@@ -33,18 +38,57 @@ func _ready() -> void:
 		var w := _rng.randf_range(34, 80)
 		_buildings.append([x, w, _rng.randf_range(120, 420), _rng.randi()])
 		x += w + _rng.randf_range(2, 10)
-	Game.time_changed.connect(func(_d: int, _m: int) -> void: queue_redraw())
+	Game.time_changed.connect(func(_d: int, _m: int) -> void: refresh_props())
 	Game.event.connect(func(kind: String, d: Dictionary) -> void:
 		if kind == "purchase":
 			# A new keyboard goes straight onto the desk.
-			if String(d.get("id", "")) == "keyboard_rgb":
+			if String(d.get("item", d.get("id", ""))) == "keyboard_rgb":
 				DeskItems.equip("keyboard", "kb_rgb")
-			queue_redraw()
+			refresh_props()
 		elif kind == "desk_changed":
-			queue_redraw()
+			refresh_props()
 		if kind in ["ticket_done", "achievement", "pr_merged", "purchase", "promoted", "skill_up", "ai_used", "form_submitted", "arc_stage"]:
 			_announce_new_items())
-	Game.state_reset.connect(queue_redraw)
+	Game.state_reset.connect(refresh_props)
+	refresh_props()
+
+
+func refresh_props() -> void:
+	_models.sync(MODEL_SLOTS, placements(), tier)
+	queue_redraw()
+
+
+func set_preview(placement: Dictionary) -> void:
+	_preview = placement
+	refresh_props()
+
+
+func placements() -> Array:
+	if _preview.is_empty():
+		return DeskItems.placed()
+	var current := DeskItems.placed().filter(func(p: Dictionary) -> bool: return p["id"] != _preview["id"])
+	current.append(_preview)
+	return current
+
+
+func set_camera_depth(closer: bool) -> void:
+	_city.lean(closer)
+
+
+func prop_bounds(key: String, fallback: Rect2) -> Rect2:
+	return _models.bounds_for(key, fallback)
+
+
+func layout_point(pixel: Vector2) -> Vector2:
+	return _models.layout_point(pixel)
+
+
+func canvas_point(layout: Vector2) -> Vector2:
+	return _models.canvas_point(layout)
+
+
+func pick_prop(pixel: Vector2, keys: Array) -> String:
+	return _models.pick(pixel, keys)
 
 
 ## "New desk toy!" — tell the player when something they did unlocked a mat or a toy.
@@ -53,7 +97,7 @@ func _announce_new_items() -> void:
 		if it["slot"] in ["decor", "mat"] and it["id"] != "mat_none":
 			Sfx.play("promote", 1.3, -8.0)
 			Game.notify("dashboard", Game.L("🎁 새 책상 소품", "🎁 New desk item"),
-				Game.L("%s — F2로 책상을 보고 [꾸미기]", "%s — press F2 for the desk, then [Decor]") % Game.tx(it["name"]))
+				Game.L("%s · Dashboard의 내 책상에서 배치하세요.", "%s · Arrange it under My desk in Dashboard.") % Game.tx(it["name"]))
 
 
 func _owns(item: String) -> bool:
@@ -78,7 +122,7 @@ func _daylight() -> float:
 
 func _sunset() -> float:
 	var h := _now() / 60.0
-	return clampf(1.0 - absf(h - 18.0) / 1.5, 0.0, 1.0)
+	return clampf(1.0 - absf(h - 18.45) / 1.65, 0.0, 1.0)
 
 
 func _draw() -> void:
@@ -92,44 +136,33 @@ func _draw() -> void:
 	for i in range(-6, 30):
 		draw_line(Vector2(i * 96, -400), Vector2(i * 96, 960), Color(1, 1, 1, 0.012), 2.0)
 
-	_draw_window(Rect2(70, 90, 470, 560), day, dusk)
+	_draw_window(Rect2(34, 90, 506, 560), day, dusk)
 	_draw_shelf(Rect2(1420, 210, 360, 14))
 	_draw_poster(Rect2(1500, 380, 170, 230))
 
-	# Desk
+	# Monitor spill on the wall. The worktop and its lighting are in the desk viewport.
 	var desk_y := 900.0
-	var desktop := Rect2(-400, desk_y, VIEW.x + 800, 600)
-	_vgradient(desktop, Color("3d2c20"), Color("1a130e"))
-	if _desk_surface != null:
-		var material := Color("9a7a67").lerp(Color("d3b9a4"), day)
-		draw_texture_rect(_desk_surface, desktop, false, Color(material, 0.88))
-		_vgradient(desktop, Color(0, 0, 0, 0.04), Color(0, 0, 0, 0.63))
-	draw_rect(Rect2(-400, desk_y, VIEW.x + 800, 4), Color("5a4331"))
-	draw_rect(Rect2(-400, desk_y + 4, VIEW.x + 800, 2), Color(0, 0, 0, 0.35))
-
-	# Monitor light pooling on the desk
 	if screen_glow > 0.0:
-		_radial(Vector2(VIEW.x / 2.0, desk_y + 10), Vector2(760, 120), Color(0.45, 0.6, 1.0, 0.16 * screen_glow))
 		_radial(Vector2(VIEW.x / 2.0, 470), Vector2(1050, 620), Color(0.4, 0.55, 1.0, 0.07 * screen_glow))
+	_models.lighting(day, dusk, screen_glow)
+	draw_texture_rect(_models.get_texture(), DeskModels.AREA, false)
 
 	if _owns("neon"):
 		_draw_neon(Vector2(1700, 120))
 	if _owns("plant_big"):
 		_draw_monstera(Vector2(1830, 1000))
-	if tier < 1:
+	if tier < 1 and not _models.visible_model("work_lamp"):
 		_draw_lamp(Vector2(1640, desk_y), day)
 	var mat_item := DeskItems.equipped("mat")
-	if not mat_item.is_empty() and mat_item["id"] != "mat_none":
+	if not _models.visible_model("mat") and not mat_item.is_empty() and mat_item["id"] != "mat_none":
 		_draw_slot("mat", func() -> void: pass)
-	elif tier >= 2:
-		_draw_desk_mat(desk_y)
 	if _owns("coffee_machine"):
 		_draw_coffee_machine(Vector2(560, desk_y))
 	if _owns("figure"):
 		_draw_figure(Vector2(1380, desk_y))
 	if _owns("headphones"):
 		_draw_headphones(Vector2(1500, desk_y))
-	# Slot items and placed toys, back to front, so a toy behind the keyboard really sits behind it.
+	# Custom PNG/SVG items and missing model fallbacks retain their original footprint.
 	var layers: Array = []
 	var fallbacks := {
 		"plant": func() -> void: _draw_plant(Vector2(250, desk_y)),
@@ -138,12 +171,13 @@ func _draw() -> void:
 		"mouse": func() -> void: _draw_mouse(Vector2(VIEW.x / 2.0 + 470, desk_y + 70)),
 	}
 	for slot in fallbacks:
-		var it := DeskItems.equipped(slot)
-		var bottom := DeskItems.rect_for(it).end.y if not it.is_empty() else desk_y
-		layers.append([bottom, slot, null])
-	for p in DeskItems.placed():
+		if not _models.visible_model(slot):
+			var it := DeskItems.equipped(slot)
+			var bottom := DeskItems.rect_for(it).end.y if not it.is_empty() else desk_y
+			layers.append([bottom, slot, null])
+	for p in placements():
 		var it := DeskItems.item(String(p["id"]))
-		if not it.is_empty() and DeskItems.unlocked(it):
+		if not it.is_empty() and DeskItems.unlocked(it) and not _models.visible_model(it["id"]):
 			layers.append([float(p["y"]), "", p])
 	layers.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 	for layer in layers:
@@ -151,14 +185,12 @@ func _draw() -> void:
 			_draw_slot(layer[1], fallbacks[layer[1]])
 		else:
 			_draw_decor(layer[2])
-	if tier >= 2:
-		_draw_nameplate(Vector2(1665, desk_y + 128))
-	if tier >= 1 and side_rect.size != Vector2.ZERO:
-		_draw_side_stand(day)
 	if monitor_rect.size != Vector2.ZERO:
-		_draw_stand()
 		if _owns("light_bar"):
 			_draw_light_bar()
+	if highlight != "" and _models.visible_model(highlight):
+		var bounds := prop_bounds(highlight, Rect2())
+		draw_line(bounds.end - Vector2(bounds.size.x, 0), bounds.end, Color("cdb280"), 1.5, true)
 
 
 func _draw_window(r: Rect2, day: float, dusk: float) -> void:
@@ -171,6 +203,11 @@ func _draw_window(r: Rect2, day: float, dusk: float) -> void:
 	var top := night_top.lerp(day_top, day).lerp(dusk_top, dusk * 0.8)
 	var bottom := night_bottom.lerp(day_bottom, day).lerp(dusk_bottom, dusk * 0.85)
 	_vgradient(r, top, bottom)
+	if _city.available:
+		_city.light(day, dusk)
+		draw_texture_rect(_city.get_texture(), r, false)
+		_draw_window_frame(r, day, dusk)
+		return
 
 	# The 3D city rendered for night, day and dusk, cross-faded by the clock.
 	if _views.size() == 3:
@@ -213,9 +250,11 @@ func _draw_window_frame(r: Rect2, day: float, dusk: float) -> void:
 		r.position + Vector2(r.size.x * 0.35, r.size.y), r.position + Vector2(r.size.x * 0.15, r.size.y)]), Color(1, 1, 1, 0.035))
 	var y := r.position.y + 8
 	while y < r.position.y + r.size.y * 0.38:
-		draw_rect(Rect2(r.position.x, y, r.size.x, 5), Color(0.85, 0.85, 0.8, 0.16))
+		draw_rect(Rect2(r.position.x, y, r.size.x, 3), Color(0.85, 0.85, 0.8, 0.10))
 		y += 14
 	draw_rect(r, Color("2a2f3a"), false, 10.0)
+	draw_rect(r.grow(6), Color("141821"), false, 4.0)
+	draw_line(r.position + Vector2(2, 3), Vector2(r.end.x - 2, r.position.y + 3), Color("495266"), 2.0)
 	draw_rect(Rect2(r.position.x + r.size.x / 2.0 - 4, r.position.y, 8, r.size.y), Color("2a2f3a"))
 	draw_rect(Rect2(r.position.x - 18, r.end.y + 4, r.size.x + 36, 14), Color("323846"))
 	# Daylight spill on the wall
@@ -267,10 +306,13 @@ func _draw_slot(slot: String, fallback: Callable) -> void:
 	if tex == null:
 		fallback.call()
 		return
-	var r := DeskItems.rect_for(it)
+	var live: bool = _models.visible_model(slot)
+	var r: Rect2 = prop_bounds(slot, DeskItems.rect_for(it))
 	# Soft contact shadow so rendered items sit on the desk instead of floating over it.
 	var foot := Vector2(r.get_center().x, r.end.y - r.size.y * (0.08 if slot in ["keyboard", "mouse"] else 0.03))
 	_radial(foot, Vector2(r.size.x * 0.55, maxf(10.0, r.size.y * 0.12)), Color(0, 0, 0, 0.42))
+	if live:
+		return
 	# Renders are lit like a bright room; dim them a little with the evening.
 	var shade := lerpf(0.78, 1.0, _daylight())
 	draw_texture_rect(tex, r, false, Color(shade, shade * 0.99, shade * 1.02))
@@ -282,10 +324,13 @@ func _draw_decor(p: Dictionary) -> void:
 	var tex := DeskItems.texture(it)
 	if tex == null:
 		return
-	var r := DeskItems.decor_rect(it, Vector2(float(p["x"]), float(p["y"])))
+	var id: String = p["id"]
+	var r := prop_bounds(id, DeskItems.decor_rect(it, Vector2(float(p["x"]), float(p["y"]))))
 	if String(p["id"]) == highlight:
 		_radial(Vector2(r.get_center().x, r.end.y - 4), Vector2(r.size.x * 0.9, 18), Color(1.0, 0.85, 0.4, 0.35))
 	_radial(Vector2(r.get_center().x, r.end.y - 3), Vector2(r.size.x * 0.55, maxf(8.0, r.size.y * 0.1)), Color(0, 0, 0, 0.45))
+	if _models.visible_model(id):
+		return
 	var shade := lerpf(0.78, 1.0, _daylight())
 	draw_texture_rect(tex, r, false, Color(shade, shade * 0.99, shade * 1.02))
 
@@ -338,37 +383,6 @@ func _draw_mouse(c: Vector2) -> void:
 	draw_circle(c, 18, Color("1f2229"))
 	draw_rect(Rect2(c.x - 18, c.y - 4, 36, 22), Color("1f2229"))
 	draw_line(c + Vector2(0, -16), c + Vector2(0, -2), Color("2e323c"), 2.0)
-
-
-func _draw_stand() -> void:
-	var cx := monitor_rect.get_center().x
-	var y := monitor_rect.end.y
-	draw_colored_polygon(PackedVector2Array([Vector2(cx - 40, y - 4), Vector2(cx + 40, y - 4), Vector2(cx + 50, 900 - 10), Vector2(cx - 50, 900 - 10)]), Color("20232b"))
-	draw_rect(Rect2(cx - 160, 888, 320, 14), Color("272b34"))
-	draw_rect(Rect2(cx - 160, 888, 320, 3), Color("353a46"))
-
-
-func _draw_side_stand(day: float) -> void:
-	var cx := side_rect.get_center().x
-	var y := side_rect.end.y
-	draw_colored_polygon(PackedVector2Array([Vector2(cx - 18, y - 4), Vector2(cx + 18, y - 4), Vector2(cx + 26, 900 - 8), Vector2(cx - 26, 900 - 8)]), Color("20232b"))
-	draw_rect(Rect2(cx - 90, 890, 180, 12), Color("272b34"))
-	draw_rect(Rect2(cx - 90, 890, 180, 3), Color("353a46"))
-	if screen_glow > 0.0:
-		_radial(Vector2(cx, 905), Vector2(220, 50), Color(0.45, 0.6, 1.0, 0.12 * screen_glow))
-
-
-func _draw_desk_mat(desk_y: float) -> void:
-	var r := Rect2(VIEW.x / 2.0 - 620, desk_y + 18, 1240, 150)
-	draw_rect(r, Color("1c2433"))
-	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 3), Color("23262e"))
-
-
-func _draw_nameplate(base: Vector2) -> void:
-	var font := get_theme_default_font()
-	draw_colored_polygon(PackedVector2Array([base + Vector2(-90, 0), base + Vector2(90, 0), base + Vector2(80, -44), base + Vector2(-80, -44)]), Color("2c2a26"))
-	draw_rect(Rect2(base.x - 74, base.y - 38, 148, 30), Color("c9a86a"))
-	draw_string(font, base + Vector2(-68, -17), Game.pname(), HORIZONTAL_ALIGNMENT_CENTER, 136, 15, Color("2c2a26"))
 
 
 func _draw_neon(p: Vector2) -> void:

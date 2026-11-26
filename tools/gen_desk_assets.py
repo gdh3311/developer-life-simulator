@@ -23,6 +23,7 @@ SLOTS = {
 # Decor isn't a slot: you place up to MAX_DECOR of them anywhere on the desk in decorating mode.
 # unlock: owned (shop) · rank · story (mission done) · achievement · tickets (small tickets done) · stat [key, n]
 RENDER_ONLY = [
+    ("kb_moss", "keyboard", {"ko": "모스 알루미늄 키보드", "en": "Moss aluminium keyboard"}, {}),
     ("mat_none", "mat", {"ko": "매트 없음", "en": "No mat"}, {}),
     ("mat_navy", "mat", {"ko": "네이비 펠트", "en": "Navy felt"}, {}),
     ("mat_cork", "mat", {"ko": "코르크", "en": "Cork"}, {"rank": 1}),
@@ -30,6 +31,9 @@ RENDER_ONLY = [
     ("mat_rgb", "mat", {"ko": "RGB 매트", "en": "RGB mat"}, {"owned": "keyboard_rgb"}),
     ("decor_pen_cup", "decor", {"ko": "펜꽂이", "en": "Pen cup"}, {}),
     ("decor_clock", "decor", {"ko": "자명종", "en": "Alarm clock"}, {}),
+    ("decor_task_lamp", "decor", {"ko": "머시룸 조명", "en": "Mushroom lamp"}, {}),
+    ("decor_film_camera", "decor", {"ko": "필름 카메라", "en": "Film camera"}, {"rank": 1}),
+    ("decor_notebook", "decor", {"ko": "작업 노트", "en": "Field notebook"}, {}),
     ("decor_duck", "decor", {"ko": "디버깅 고무 오리", "en": "Debugging duck"}, {"tickets": 1}),
     ("decor_robot", "decor", {"ko": "장난감 로봇", "en": "Toy robot"}, {"stat": ["ai_used", 3]}),
     ("decor_lucky_cat", "decor", {"ko": "복고양이", "en": "Lucky cat"}, {"achievement": "moonlight"}),

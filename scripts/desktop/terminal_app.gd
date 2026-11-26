@@ -62,7 +62,7 @@ func _ready() -> void:
 
 
 func _update_prompt() -> void:
-	_prompt.text = "newhire@nexora:~/commerce-api (%s)$" % Workspace.branch
+	_prompt.text = "newhire@%s:~/commerce-api (%s)$" % [Game.employer_name().to_lower(), Workspace.branch]
 
 
 func _print(bbcode: String) -> void:
@@ -205,7 +205,7 @@ func _execute(argv: PackedStringArray) -> void:
 		"pwd":
 			_print(Workspace.V_REPO)
 		"whoami":
-			_print("newhire  (%s · %s · NEXORA)" % [Game.pname(), Game.rank_name()])
+			_print("newhire  (%s · %s · %s)" % [Game.pname(), Game.rank_name(), Game.employer_name()])
 		"cd":
 			_print("[color=#7c8698]%s[/color]" % Game.L("이 터미널은 ~/commerce-api 저장소에서 동작합니다.", "This terminal works inside the ~/commerce-api repository."))
 		"ls":

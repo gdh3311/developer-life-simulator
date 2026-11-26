@@ -37,6 +37,7 @@ const NPCS := {
 	"hana": {"name": "Hana Yoon", "role": {"ko": "전 결제팀 개발자", "en": "Former Payments Engineer"}, "color": "f0abfc"},
 	"seojin": {"name": {"ko": "서진", "en": "Seojin"}, "role": {"ko": "달빛상점 대표", "en": "Owner, Moonlight"}, "color": "f4c95d"},
 	"recruiter": {"name": "Jamie Seo", "role": {"ko": "테크 리크루터 · Brightloop", "en": "Tech Recruiter · Brightloop"}, "color": "38bdf8"},
+	"raon": {"name": "Raon Lim", "role": {"ko": "인수팀 엔지니어 · Brightloop", "en": "Receiving Team Engineer · Brightloop"}, "color": "a78bfa"},
 }
 const REL_KEYS := {"tech": {"ko": "기술 신뢰", "en": "Tech trust"}, "work": {"ko": "업무 신뢰", "en": "Work trust"},
 	"close": {"ko": "친밀도", "en": "Closeness"}, "agree": {"ko": "의견 일치", "en": "Alignment"}}
@@ -234,6 +235,10 @@ func clock_text() -> String:
 
 func chapter() -> int:
 	return Chapters.for_day(day())
+
+
+func employer_name() -> String:
+	return "Brightloop" if chapter() >= 6 and state["flags"].get("employer") == "brightloop" else "NEXORA"
 
 
 func date_text() -> String:

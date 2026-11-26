@@ -6,7 +6,8 @@ const ARCADE := "res://content/web/art/packet-run-sprites.png"
 const MOONLIGHT := "res://content/web/art/moonlight-products.png"
 const WEB_ORDER := ["relay", "portal", "connectly", "news", "video", "lounge", "shop", "arcade", "moonlight"]
 ## Sites added after the 3×3 icon sheet was painted use their own image file.
-const WEB_EXTRA := {"atlas": "res://content/web/art/site-atlas.svg", "campaign": "res://content/web/art/site-campaign.svg"}
+const WEB_EXTRA := {"atlas": "res://content/web/art/site-atlas.svg", "campaign": "res://content/web/art/site-campaign.svg",
+	"aurora": "res://content/web/art/site-aurora.svg"}
 const ARCADE_ORDER := ["courier", "packet", "barrier", "exit_locked", "exit_open", "floor"]
 const PRODUCT_ORDER := ["tea", "cup", "cookie", "candle", "jam", "hero"]
 

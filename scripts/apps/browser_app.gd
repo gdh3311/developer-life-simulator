@@ -31,6 +31,7 @@ const SITES := [
 	{"id": "moonlight", "name": "Moonlight", "url": "moonlight.shop", "fun": false, "color": "f4c95d"},
 	{"id": "atlas", "name": "ATLAS", "url": "atlas.nexora.test", "fun": false, "color": "7dd3fc"},
 	{"id": "campaign", "name": "Campaign", "url": "campaign.nexora.test", "fun": false, "color": "fb7185"},
+	{"id": "aurora", "name": "Aurora", "url": "transfer.aurora.test", "fun": false, "color": "c4b5fd"},
 ]
 
 const ITEMS := [
@@ -190,6 +191,8 @@ func current_site() -> Dictionary:
 
 ## True while a fun site is on screen (used by the boss walk-by check).
 func is_slacking() -> bool:
+	if desktop != null and desktop.arranging_desk:
+		return false
 	if _site == "video" and not _clip.is_empty():
 		return _clip["fun"]
 	return current_site()["fun"]
@@ -370,11 +373,13 @@ func _toolbar_arrow(glyph: String, tooltip: String) -> Button:
 
 ## Internal tools join the bookmarks once the team has them (ATLAS from Chapter 4).
 static func bookmarked(site: Dictionary) -> bool:
-	# One internal-tool slot: ATLAS in Chapter 4, the campaign console from Chapter 5 (both stay reachable by URL).
+	# The current internal tool occupies one slot. Earlier tools stay reachable by URL.
+	if site["id"] == "aurora":
+		return Game.chapter() >= 6
 	if site["id"] == "campaign":
-		return Game.chapter() >= 5 or Game.state["story"].has("c05_01")
+		return not bookmarked({"id": "aurora"}) and (Game.chapter() >= 5 or Game.state["story"].has("c05_01"))
 	if site["id"] == "atlas":
-		return (Game.chapter() >= 4 or Game.state["story"].has("c04_03")) and not bookmarked({"id": "campaign"})
+		return not bookmarked({"id": "aurora"}) and not bookmarked({"id": "campaign"}) and (Game.chapter() >= 4 or Game.state["story"].has("c04_03"))
 	return true
 
 
@@ -439,6 +444,8 @@ func _render() -> void:
 			_body.add_child(preload("res://scripts/apps/atlas_view.gd").new())
 		"campaign":
 			_body.add_child(preload("res://scripts/apps/campaign_view.gd").new())
+		"aurora":
+			_body.add_child(preload("res://scripts/apps/aurora_view.gd").new())
 
 
 func _site_button_style(fill: Color, edge: Color) -> StyleBoxFlat:
@@ -766,6 +773,10 @@ func _lounge() -> void:
 
 func _shop() -> void:
 	_header("Shoply", Game.L("데스크 셋업 · 잔액 %s", "Desk essentials · Balance %s") % Game.won(Game.money()), Color("7cc5ae"))
+	var arrange := UITheme.button(Game.L("내 책상 배치", "Arrange my desk"))
+	arrange.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	arrange.pressed.connect(func() -> void: Game.emit_event("desk_studio_requested"))
+	_body.add_child(arrange)
 	_body.add_child(_photo(3, 158))
 	var grid := _new_tile_grid()
 	for it in ITEMS:
@@ -789,7 +800,7 @@ func _shop() -> void:
 				Game.state["owned"][iid] = true
 				Game.inc_stat("purchases")
 				Game.emit_event("purchase", {"item": iid})
-				Game.notify("browser", "Shoply", Game.L("주문 완료! 책상에 배송됐어요. (F2로 방을 둘러보세요)", "Order complete! It's on your desk now. (Press F2 to look around)"))
+				Game.notify("browser", "Shoply", Game.L("책상에 배송됐어요. Shoply의 ‘내 책상 배치’에서 확인할 수 있어요.", "Delivered. See it in Shoply under Arrange my desk."))
 				_queue_refresh())
 		v.add_child(b)
 		card.add_child(v)

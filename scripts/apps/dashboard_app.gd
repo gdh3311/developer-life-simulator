@@ -6,6 +6,7 @@ const Icon := preload("res://scripts/ui/icon.gd")
 const DeskItems := preload("res://scripts/room/desk_items.gd")
 
 var _root: VBoxContainer
+var _desk_section: Control
 var _confirm := false
 
 
@@ -33,7 +34,7 @@ func _render() -> void:
 	pr.add_child(UITheme.avatar("me", 52))
 	var pv := UITheme.vbox(2)
 	pv.add_child(UITheme.bold(Game.pname(), 18))
-	pv.add_child(UITheme.label("%s · Backend · NEXORA" % Game.rank_name(), 13, UITheme.TEXT2))
+	pv.add_child(UITheme.label("%s · Backend · %s" % [Game.rank_name(), Game.employer_name()], 13, UITheme.TEXT2))
 	pv.add_child(UITheme.label("%s · %s   ·   %s %d%%   ·   %s" % [Game.date_text(), Game.clock_text(), Game.L("컨디션", "Energy"), Game.condition(), Game.won(Game.money())], 12, UITheme.MUTED))
 	pr.add_child(pv)
 	pr.add_child(UITheme.spacer())
@@ -48,6 +49,10 @@ func _render() -> void:
 	pr.add_child(prog)
 	prof.add_child(pr)
 	_root.add_child(prof)
+	var desk_link := UITheme.button(Game.L("내 책상", "My desk"))
+	desk_link.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	desk_link.pressed.connect(func() -> void: ensure_control_visible(_desk_section))
+	_root.add_child(desk_link)
 	_root.add_child(preload("res://scripts/apps/career_panel.gd").dashboard())
 	var record: Control = preload("res://scripts/apps/evidence_panel.gd").dashboard()
 	if record != null:
@@ -133,7 +138,8 @@ func _render() -> void:
 			UITheme.TEXT if st != "locked" else UITheme.MUTED))
 		_root.add_child(row)
 
-	_root.add_child(_desk_panel())
+	_desk_section = _desk_panel()
+	_root.add_child(_desk_section)
 
 	# Settings
 	_root.add_child(UITheme.label(Game.L("설정", "Settings"), 12, UITheme.MUTED))
@@ -216,6 +222,9 @@ func _desk_panel() -> Control:
 		Game.emit_event("desk_changed", {})
 		_render())
 	head.add_child(reload)
+	var decorate := UITheme.button(Game.L("배치 미리보기", "Arrange desk"), "primary")
+	decorate.pressed.connect(func() -> void: Game.emit_event("desk_studio_requested"))
+	head.add_child(decorate)
 	v.add_child(head)
 	for slot in DeskItems.slots():
 		var row := HFlowContainer.new()

@@ -31,7 +31,6 @@ var _desktop: Control
 var _view := "desk"
 var _screen_powered := false
 var _camera_motion: Tween
-var _focus_button: Button
 var _side: Control             # side monitor rig (null below tier 1)
 var _tier := -1
 var _visitor: Control          # a teammate standing beside the desk (event cards)
@@ -65,7 +64,9 @@ func _ready() -> void:
 		if kind == "promoted":
 			_update_workstation(false)
 		elif kind in ["event_card", "event_resolved"]:
-			_update_visitor())
+			_update_visitor()
+		elif kind == "desk_studio_requested" and _screen_powered:
+			open_studio())
 	_visitor = _make_visitor()
 	_rig.add_child(_visitor)
 	_add_vignette()
@@ -84,7 +85,8 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key != null and key.pressed and not key.echo and key.keycode == KEY_F2:
-		_toggle_view()
+		if not is_instance_valid(_studio):
+			_toggle_view()
 		get_viewport().set_input_as_handled()
 
 
@@ -126,26 +128,6 @@ func _build_monitor() -> void:
 	_led.size = Vector2(12, 3)
 	_led.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_rig.add_child(_led)
-	_focus_button = Button.new()
-	_focus_button.text = "F2"
-	_focus_button.position = frame_pos + Vector2(frame_size.x - 102.0, frame_size.y - 27.0)
-	_focus_button.size = Vector2(39, 23)
-	_focus_button.focus_mode = Control.FOCUS_NONE
-	_focus_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	_focus_button.add_theme_font_size_override("font_size", 11)
-	_focus_button.add_theme_color_override("font_color", Color("a0adbb"))
-	_focus_button.add_theme_stylebox_override("normal", UITheme.box(Color("1e232a"), 4, Color("303944"), 3))
-	_focus_button.add_theme_stylebox_override("hover", UITheme.box(Color("303a45"), 4, Color("56697b"), 3))
-	_focus_button.add_theme_stylebox_override("pressed", UITheme.box(Color("344c52"), 4, Color("7b9da4"), 3))
-	_focus_button.pressed.connect(_toggle_view)
-	_rig.add_child(_focus_button)
-	var decorate := _focus_button.duplicate(Node.DUPLICATE_GROUPS | Node.DUPLICATE_SCRIPTS) as Button  # styles, not the F2 signal
-	decorate.text = Game.L("꾸미기", "Decor")
-	decorate.tooltip_text = Game.L("책상 꾸미기", "Decorate the desk")
-	decorate.size = Vector2(52, 23)
-	decorate.position = _focus_button.position - Vector2(58.0, 0.0)
-	decorate.pressed.connect(open_studio)
-	_rig.add_child(decorate)
 
 	# Screen: SubViewport rendered at 2x, displayed at 1x for crisp text and shapes.
 	var screen_pos := frame_pos + Vector2(BEZEL, BEZEL)
@@ -165,7 +147,7 @@ func _build_monitor() -> void:
 	_desktop = Desktop.new()
 	_desktop.theme = theme
 	_desktop.size = SCREEN
-	_desktop.booted.connect(_update_focus_tooltip)
+	_desktop.focus_view_requested.connect(_toggle_view)
 	vp.add_child(_desktop)
 
 	var fx := ColorRect.new()
@@ -193,7 +175,7 @@ func _build_props() -> void:
 	var steam := CPUParticles2D.new()
 	var position_steam := func() -> void:
 		var mug := DeskItems.equipped("mug")
-		var bounds := DeskItems.rect_for(mug) if not mug.is_empty() else Rect2(372, 830, 96, 70)
+		var bounds: Rect2 = _room.prop_bounds("mug", DeskItems.rect_for(mug)) if not mug.is_empty() else Rect2(372, 830, 96, 70)
 		steam.position = Vector2(bounds.position.x + bounds.size.x * 0.44, bounds.position.y + 8.0)
 	position_steam.call()
 	Game.state_reset.connect(position_steam)
@@ -356,19 +338,24 @@ func morning_transition() -> void:
 var _studio: Control
 
 
-## 🎨 Decorating mode: step back to the desk view and open the toy tray over it.
+## Open a placement preview from the in-game apps.
 func open_studio() -> Control:
 	if _studio != null and is_instance_valid(_studio):
 		return _studio
-	if _view != "desk":
-		_apply_view("desk")
+	var previous_view := _view
 	_studio = preload("res://scripts/room/desk_studio.gd").new()
+	_desktop.arranging_desk = true
 	_studio.room = _room
 	var layer := CanvasLayer.new()   # its own layer, sized to the window, above the desk and the monitor
 	layer.layer = 40
 	add_child(layer)
 	layer.add_child(_studio)
 	_studio.tree_exited.connect(layer.queue_free)
+	_studio.closed.connect(func() -> void:
+		_studio = null
+		_desktop.arranging_desk = false
+		_apply_view(previous_view))
+	_apply_view("desk")
 	Sfx.play("click", 1.1, -6.0)
 	return _studio
 
@@ -378,16 +365,13 @@ func _toggle_view() -> void:
 		_apply_view("desk" if _view == "close" else "close")
 
 
-func _update_focus_tooltip() -> void:
-	_focus_button.tooltip_text = Game.L("책상 보기 (F2)", "Return to desk (F2)") if _view == "close" else Game.L("모니터 가까이 보기 (F2)", "Look closer (F2)")
-
-
 ## Both views retain the screen bezel and the foreground of the desk.
 func _apply_view(mode: String, instant := false) -> void:
 	_view = mode
-	_update_focus_tooltip()
 	var close := _view == "close"
-	var target_scale := FOCUS_SCALE if close else 1.0
+	_desktop.set_focus_view(close)
+	_room.set_camera_depth(close)
+	var target_scale := FOCUS_SCALE if close else (0.95 if is_instance_valid(_studio) else 1.0)
 	var screen_top := CLOSE_SCREEN_TOP if close else DESK_SCREEN_TOP
 	var target_pos := Vector2(-76.0 if _side != null and not close else 0.0,
 		screen_top - (_screen_center().y - SCREEN.y / 2.0 * target_scale))
@@ -460,7 +444,7 @@ func _update_workstation(silent: bool) -> void:
 	var upgraded := _tier >= 0 and tier > _tier
 	_tier = tier
 	_room.tier = tier
-	_room.queue_redraw()
+	_room.refresh_props()
 	if tier >= 1 and _side == null:
 		_build_side_monitor()
 	elif tier < 1 and _side != null:
@@ -480,7 +464,6 @@ func _build_side_monitor() -> void:
 	_rig.add_child(_side)
 	_rig.move_child(_side, _room.get_index() + 1)
 	var frame_size := SIDE_SCREEN + Vector2(SIDE_BEZEL * 2.0, SIDE_BEZEL * 2.0)
-	_room.side_rect = Rect2(SIDE_POS, frame_size)
 	var frame := Panel.new()
 	var sb := UITheme.box(Color("16181d"), 10, Color("2b2e36"), 0, 2, 0)
 	sb.shadow_size = 30

@@ -105,6 +105,10 @@ func _render() -> void:
 		var lab := UITheme.button(Game.L("Request Lab 열기", "Open Request Lab"))
 		lab.pressed.connect(func() -> void: desktop.open_resource("lab", ""))
 		_current.add_child(lab)
+	if m.chapter == 6 and desktop != null:
+		var transfer := UITheme.button(Game.L("이관 작업대 열기", "Open transfer desk"))
+		transfer.pressed.connect(func() -> void: desktop.open_resource("browser", "aurora"))
+		_current.add_child(transfer)
 	for o in m.objectives:
 		var done: bool = m.is_done(o["id"])
 		var row := UITheme.hbox(8)

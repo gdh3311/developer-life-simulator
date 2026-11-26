@@ -55,7 +55,7 @@ func _run() -> void:
 	Game.set_time(15 * 60)
 	DeskItems.reload()
 	check(DeskItems.slots().size() == 5 and DeskItems.catalog()["items"].size() >= 31, "the catalog lists five slots, the built-in items, mats and toys")
-	check(DeskItems.decor_items().size() == 11, "eleven collectible toys")
+	check(DeskItems.decor_items().size() == 14, "fourteen collectible props")
 	var all_load: bool = DeskItems.catalog()["items"].all(func(it: Dictionary) -> bool: return DeskItems.texture(it) != null)
 	check(all_load, "every built-in item loads as a texture")
 	for slot in DeskItems.slots():
@@ -68,8 +68,13 @@ func _run() -> void:
 		await get_tree().process_frame
 	await pause(0.9)
 	_main._desktop._boot.visible = false
+	_main._desktop._toasts.hide()
 	for slot in DeskItems.slots():
 		check(_main._room.equipped_texture(slot) != null, "the room draws the %s from its asset" % slot)
+	check(_main._room._city.available, "the city is loaded as a live 3D scene")
+	check(_main._room._models.visible_model("work_lamp"), "the default articulated desk lamp uses a live mesh")
+	for slot in _main._room.MODEL_SLOTS:
+		check(_main._room._models.visible_model(slot), "the %s uses a live mesh" % slot)
 	await capture("desk_assets_default")
 
 	# Unlock rules.
@@ -90,7 +95,7 @@ func _run() -> void:
 	check(eq("keyboard") == "kb_basic", "an item that's no longer unlocked falls back to the default")
 	Game.state["owned"]["keyboard_rgb"] = true
 	Game.state["desk"]["keyboard"] = "kb_white"
-	Game.emit_event("purchase", {"id": "keyboard_rgb"})
+	Game.emit_event("purchase", {"item": "keyboard_rgb"})
 	check(eq("keyboard") == "kb_rgb", "buying the RGB keyboard puts it on the desk")
 
 	DeskItems.equip("mouse", "mouse_gaming")
@@ -126,7 +131,17 @@ func _run() -> void:
 	var buttons := panel.find_children("*", "Button", true, false)
 	var slot_items: int = DeskItems.catalog()["items"].filter(func(it: Dictionary) -> bool: return it["slot"] != "decor").size()
 	check(buttons.size() >= slot_items, "the Dashboard shows a choice for every slot item")
+	var arrange: Button
+	for button: Button in buttons:
+		if button.text == Game.L("배치 미리보기", "Arrange desk"):
+			arrange = button
+	check(arrange != null, "Dashboard provides a placement entry point")
 	await capture("desk_assets_dashboard")
+	if arrange != null:
+		arrange.pressed.emit()
+		check(is_instance_valid(_main._studio), "the Dashboard action opens the physical placement preview")
+		_main._studio.close()
+		await get_tree().process_frame
 	layer.queue_free()
 	dash.free()
 
@@ -164,26 +179,47 @@ func _decorate() -> void:
 	Game.emit_event("ticket_done", {"ticket": "t01"})
 	check(DeskItems.unlocked(duck) and "decor_duck" in Game.state["desk"].get("seen", []), "finishing a ticket unlocks the duck and announces it once")
 	check(DeskItems.newly_unlocked().is_empty(), "the announcement doesn't repeat")
-	var studio: Control = _main.open_studio()
+	_main._desktop.open_resource("browser", "shop")
+	var browser = _main._desktop._find_method(_main._desktop._open["browser"], "open_page")
+	for button: Button in browser.find_children("*", "Button", true, false):
+		if button.text == Game.L("내 책상 배치", "Arrange my desk"):
+			button.pressed.emit()
+			break
+	var studio: Control = _main._studio
 	await pause(0.3)
-	check(is_instance_valid(studio) and _main._view == "desk", "Decor opens over the desk view")
-	check(studio._tray.get_child_count() == 11, "the tray shows the whole collection, locked ones as silhouettes")
+	check(is_instance_valid(studio) and _main._view == "desk", "Shoply opens the same desk preview")
+	if not is_instance_valid(studio):
+		return
+	check(not browser.is_slacking(), "the Shoply placement preview is a desk setting")
+	check(studio._tray.get_child_count() == DeskItems.decor_items().size(), "the tray shows the whole collection, locked ones as silhouettes")
 	await capture("desk_studio_open")
 	# From the tray onto the desk.
 	studio._begin("decor_duck", true)
 	studio.move_drag(Vector2(640, 1010))
-	studio._drop(Vector2(640, 1010))
+	studio._rotate(30.0)
+	check(not DeskItems.is_placed("decor_duck") and _main._room._models.visible_model("decor_duck"), "dragged model is visible before it is saved")
+	studio._drop(_main._room.canvas_point(Vector2(640, 1010)))
 	var spot: Array = DeskItems.placed().filter(func(p: Dictionary) -> bool: return p["id"] == "decor_duck")
-	check(spot.size() == 1 and int(spot[0]["x"]) == 640, "dragging a toy onto the desk places it")
+	check(spot.size() == 1 and roundi(float(spot[0]["x"])) == 640 and is_equal_approx(float(spot[0]["angle"]), 30.0), "drop saves the position and rotation")
+	studio._begin("decor_duck", false)
+	studio.move_drag(Vector2(600, 1000))
+	studio._cancel_drag()
+	check(roundi(float(spot[0]["x"])) == 640 and _main._room._preview.is_empty(), "cancelling a drag preserves the saved position")
 	studio._begin("decor_pen_cup", true)
-	studio._drop(Vector2(1240, 930))
+	studio._drop(_main._room.canvas_point(Vector2(1240, 930)))
 	studio._begin("decor_clock", true)
-	studio._drop(Vector2(1660, 1050))
+	studio._drop(_main._room.canvas_point(Vector2(1660, 1050)))
 	# Move, then put away by dragging it off the desk.
 	studio._begin("decor_duck", false)
 	studio.move_drag(Vector2(575, 1066))
-	studio._drop(Vector2(575, 1066))
-	check(int(DeskItems.placed().filter(func(p: Dictionary) -> bool: return p["id"] == "decor_duck")[0]["x"]) == 575, "a placed toy can be moved")
+	studio._drop(_main._room.canvas_point(Vector2(575, 1066)))
+	check(roundi(float(DeskItems.placed().filter(func(p: Dictionary) -> bool: return p["id"] == "decor_duck")[0]["x"])) == 575, "a placed toy can be moved")
+	studio._begin("decor_duck", false)
+	studio.move_drag(Vector2(575, 925))
+	var far_width: float = _main._room.prop_bounds("decor_duck", Rect2()).size.x
+	studio.move_drag(Vector2(575, 1060))
+	check(_main._room.prop_bounds("decor_duck", Rect2()).size.x > far_width * 1.12, "a prop grows in perspective toward the front")
+	studio._cancel_drag()
 	studio._begin("decor_clock", false)
 	studio._drop(Vector2(1660, 600))
 	check(not DeskItems.is_placed("decor_clock"), "dragging a toy off the desk puts it away")
@@ -202,7 +238,26 @@ func _decorate() -> void:
 	DeskItems.equip("mat", "mat_navy")
 	await pause(0.3)
 	await capture("desk_studio_decorated")
+	DeskItems.remove("decor_rocket")
+	DeskItems.remove("decor_clock")
+	DeskItems.remove("decor_lucky_cat")
+	var selectors := studio.find_children("*", "OptionButton", true, false) as Array
+	selectors[0].item_selected.emit(3)
+	check(eq("keyboard") == "kb_moss" and eq("mat") == "mat_navy", "the set picker equips the Moss keyboard and matching mat")
+	check(DeskItems.place("decor_task_lamp", Vector2(1700, 1015), 20.0), "the mushroom lamp can be placed")
+	check(DeskItems.place("decor_film_camera", Vector2(1540, 956), -35.0), "the film camera can be placed and turned")
+	check(DeskItems.place("decor_notebook", Vector2(315, 1050), 18.0), "the notebook can be placed and turned")
+	check(_main._room._models._lamp.visible and studio._lamp.visible, "placing the lamp adds a local 3D light and control")
+	studio._lamp.button_pressed = false
+	check(not _main._room._models._lamp.visible and not DeskItems.lamp_on(), "the studio switch turns the desk light off")
+	studio._lamp.button_pressed = true
 	studio.close()
 	await pause(0.3)
 	check(not is_instance_valid(studio) or studio.is_queued_for_deletion(), "Done closes decorating mode")
 	await capture("desk_decorated")
+	Game.set_time(18 * 60 + 45)
+	await pause(0.2)
+	await capture("desk_city_twilight")
+	Game.set_time(20 * 60 + 10)
+	await pause(0.2)
+	await capture("desk_city_night")

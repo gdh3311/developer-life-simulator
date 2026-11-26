@@ -58,6 +58,7 @@ const Career := preload("res://scripts/story/career.gd")
 const Tickets := preload("res://scripts/story/tickets.gd")
 const Evidence := preload("res://scripts/story/evidence.gd")
 const Chapters := preload("res://scripts/story/chapters.gd")
+const AuroraMission := preload("res://scripts/story/missions/c06_aurora.gd")
 
 var _missions: Array = []
 var active: RefCounted = null
@@ -85,6 +86,10 @@ func _build() -> void:
 	_missions.clear()
 	for script in MISSIONS:
 		var m = script.new()
+		m.story = self
+		_missions.append(m)
+	for step in AuroraMission.CASES.size():
+		var m := AuroraMission.new(step)
 		m.story = self
 		_missions.append(m)
 	side = SideEvents.new()
@@ -255,6 +260,8 @@ func claim_pr(pr: Dictionary) -> void:
 			and int(active.data().get("pr", 0)) == 0:
 		active.data()["pr"] = pr["id"]
 		pr["mission"] = active.id
+		pr["reviewer"] = active.default_reviewer
+		pr["review"]["by"] = active.default_reviewer
 
 
 func hidden_tests_for(pr: Dictionary) -> Dictionary:

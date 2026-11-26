@@ -25,7 +25,7 @@ MAX_W = {"plant": 250, "mug": 130, "decor": 150}
 # Decor items keep believable relative sizes (on-desk height in px).
 DECOR_H = {"decor_pen_cup": 112, "decor_clock": 78, "decor_duck": 62, "decor_robot": 98, "decor_lucky_cat": 102,
            "decor_trophy": 104, "decor_controller": 44, "decor_cube": 54, "decor_bonsai": 92, "decor_snowglobe": 84,
-           "decor_rocket": 112}
+           "decor_rocket": 112, "decor_task_lamp": 158, "decor_film_camera": 72, "decor_notebook": 49}
 PREFIX = [("kb_", "keyboard"), ("mouse_", "mouse"), ("mug_", "mug"), ("plant_", "plant"), ("mat_", "mat"), ("decor_", "decor")]
 
 
@@ -37,9 +37,13 @@ def slot_of(item_id):
 
 
 def main():
-    sizes = {}
+    only = set(sys.argv[1:])
+    sizes_path = DESK / "render_sizes.json"
+    sizes = json.loads(sizes_path.read_text(encoding="utf-8")) if only else {}
     for src in sorted(RENDERS.glob("*.png")):
         item_id = src.stem
+        if only and item_id not in only:
+            continue
         slot = slot_of(item_id)
         if slot is None:
             continue
@@ -62,6 +66,8 @@ def main():
     (DESK / "render_sizes.json").write_text(json.dumps(sizes, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"{len(sizes)} rendered items")
     subprocess.run([sys.executable, str(ROOT / "tools" / "gen_desk_assets.py")], check=True)
+    if only:
+        return
     room = ROOT / "content" / "room"
     room.mkdir(exist_ok=True)
     for name in ("day", "dusk", "night"):
